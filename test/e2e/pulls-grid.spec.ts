@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { CAROUSEL, PACK, PULLS_HTML } from './support/pulls';
+import { CAROUSEL, PACK, playedSounds, PULLS_HTML, recordSounds } from './support/pulls';
 import { openSite, presetSettings } from './support/site';
 
 const GRID = 'main .wm-pulls-grid';
@@ -14,15 +14,10 @@ const carouselIndex = (page: Page) =>
 const domSyncs = (page: Page) => page.evaluate(() => window.wm?.debug?.domSyncs() ?? -1);
 
 interface Watched {
-  /** Sons réellement joués (`AudioBufferSourceNode.start` d'origine). */
-  __sounds: number;
   /** Arrivées des cartes : position dans le paquet, instant. */
   __arrivals: { index: number; at: number }[];
 }
-const watched = (page: Page) => page.evaluate(() => {
-  const { __sounds, __arrivals } = window as unknown as Watched;
-  return { sounds: __sounds, arrivals: __arrivals };
-});
+const arrivals = (page: Page) => page.evaluate(() => (window as unknown as Watched).__arrivals);
 
 /** Paquet de `count` cartes (données inventées), l'exemplaire `u<n>` pour la carte `c<n>`. */
 function packOf(count: number, extra: Record<string, unknown>[] = []) {
@@ -41,16 +36,11 @@ function packOf(count: number, extra: Record<string, unknown>[] = []) {
 async function openPulls(page: Page, pack: unknown = PACK, hold?: Promise<void>) {
   const discarded: string[] = [];
   const starChanges: string[] = [];
-  // Avant le script : compte les sons qui passent et note les arrivées des cartes.
+  await recordSounds(page);
+  // Avant le script : note les arrivées des cartes.
   await page.addInitScript(() => {
     const w = window as unknown as Watched;
-    w.__sounds = 0;
     w.__arrivals = [];
-    const start = Reflect.get(AudioBufferSourceNode.prototype, 'start');
-    AudioBufferSourceNode.prototype.start = function (this: AudioBufferSourceNode, ...args: Parameters<AudioBufferSourceNode['start']>) {
-      w.__sounds++;
-      start.apply(this, args);
-    };
     new MutationObserver((records) => {
       for (const { target } of records) {
         if (target instanceof HTMLElement && target.dataset.state === 'arrived') {
@@ -94,13 +84,13 @@ test('les cartes arrivent l’une après l’autre, en grille, sans carrousel ni
   await expect(face(page, 0).locator('h3')).toHaveText('Tour Eiffel');
   await expect(face(page, 1).locator('h3')).toHaveText('Musée du Louvre');
   await expect(face(page, 2).locator('h3')).toHaveText('Mont Blanc');
-  const { sounds, arrivals } = await watched(page);
-  expect(arrivals.map((arrival) => arrival.index)).toEqual([0, 1, 2]);
-  for (let i = 1; i < arrivals.length; i++) {
-    expect((arrivals[i]?.at ?? 0) - (arrivals[i - 1]?.at ?? 0)).toBeGreaterThan(100);
+  const arrived = await arrivals(page);
+  expect(arrived.map((arrival) => arrival.index)).toEqual([0, 1, 2]);
+  for (let i = 1; i < arrived.length; i++) {
+    expect((arrived[i]?.at ?? 0) - (arrived[i - 1]?.at ?? 0)).toBeGreaterThan(100);
   }
   // Seul le son de l'ouverture du paquet : aucun des changements de carte du carrousel.
-  expect(sounds).toBe(1);
+  expect(await playedSounds(page)).toEqual(['pack-rip']);
 
   // Carrousel caché : compteur, navigation, « Encore n cartes » ; la carte du site reste là, invisible.
   await expect(page.locator(NAV)).toBeHidden();
@@ -184,7 +174,7 @@ test('un clic sur une carte ouvre la modale du site de cette carte, sans son', a
   await modal.getByRole('button', { name: 'Fermer' }).click();
   await face(page, 1).click();
   await expect(modal.getByRole('heading', { level: 2 })).toHaveText('Musée du Louvre');
-  expect((await watched(page)).sounds).toBe(1);
+  expect(await playedSounds(page)).toEqual(['pack-rip']);
 });
 
 test('l’étoile d’une carte est celle du site : favori enregistré, carte et protection à jour', async ({ page }) => {

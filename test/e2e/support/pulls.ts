@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test';
 import { sitePage, SUPABASE } from './site';
 
 /** Paquet de test (données inventées, même forme que `POST /api/packs/open`). */
@@ -15,6 +16,24 @@ export const PACK = {
     { id: 'u3', card_id: 'c3', starred: false, is_shiny: false, user_card_tags: [] },
   ],
 };
+
+/**
+ * À appeler avant `openSite` : note le nom des sons réellement joués. Un son que le script coupe est
+ * joué sur une durée nulle : il ne compte pas.
+ */
+export async function recordSounds(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const w = window as unknown as { __played: string[]; __soundOf?: Map<AudioBuffer, string> };
+    w.__played = [];
+    const start = Reflect.get(AudioBufferSourceNode.prototype, 'start');
+    AudioBufferSourceNode.prototype.start = function (this: AudioBufferSourceNode, ...args: Parameters<AudioBufferSourceNode['start']>) {
+      if (args[2] !== 0) w.__played.push((this.buffer && w.__soundOf?.get(this.buffer)) ?? '?');
+      start.apply(this, args);
+    };
+  });
+}
+
+export const playedSounds = (page: Page) => page.evaluate(() => (window as unknown as { __played: string[] }).__played);
 
 /** Réglages des tests qui passent par le carrousel du site : sans « toutes les cartes d'un coup ». */
 export const CAROUSEL = { features: { 'pulls-grid': false }, values: {} };
@@ -49,13 +68,25 @@ const SCRIPT = `
   const stage = document.getElementById('stage');
   const choice = [...stage.children];
 
+  // Sons comme le site : fichiers /audio/<nom>.mp3 préchargés et décodés, joués en Web Audio.
+  // window.__soundOf : son de chaque tampon décodé (pour les tests).
   let audio = null;
-  function playSound() {
+  const buffers = {};
+  window.__soundOf = new Map();
+  const context = () => (audio = audio || new AudioContext());
+  function load(name) {
+    buffers[name] = buffers[name] || fetch('/audio/' + name + '.mp3')
+      .then((response) => response.arrayBuffer())
+      .then((bytes) => context().decodeAudioData(bytes))
+      .then((buffer) => { window.__soundOf.set(buffer, name); return buffer; });
+    return buffers[name];
+  }
+  ['pack-rip', 'card-flip', 'legendary-reveal'].forEach((name) => load(name).catch(() => {}));
+  async function playSound(name) {
     try {
-      audio = audio || new AudioContext();
-      const source = audio.createBufferSource();
-      source.buffer = audio.createBuffer(1, 128, 22050);
-      source.connect(audio.destination);
+      const source = context().createBufferSource();
+      source.buffer = await load(name);
+      source.connect(context().destination);
       source.start();
     } catch (error) {}
   }
@@ -87,7 +118,7 @@ const SCRIPT = `
     }
     cards = body.cards; index = 0; seen = new Set([0]); revealed = new Set();
     build(); render();
-    playSound();
+    playSound('pack-rip');
   }
   function done() { closeModal(); stage.replaceChildren(...choice); }
 
@@ -327,7 +358,10 @@ const SCRIPT = `
   }
   function go(i) {
     if (i < 0 || i >= cards.length) return;
-    if (i !== index) playSound();
+    if (i !== index) {
+      playSound('card-flip');
+      if (cards[i].rarity === 'L') playSound('legendary-reveal');
+    }
     index = i; seen.add(i); render();
   }
   function render() {
@@ -373,7 +407,40 @@ const SCRIPT = `
 })();
 `;
 
+/**
+ * Cadre des paquets disponibles sous « Ouvrir » (balisage du site) : le temps restant est réécrit chaque
+ * seconde en changeant seulement le texte, comme React ; « Prochain dans » disparaît quand c'est plein.
+ * `window.__packs.set(n)` change le nombre de paquets disponibles (sur 10).
+ */
+const COUNTER = `
+<div class="flex flex-col items-center gap-3 animate-fade-in-up">
+  <div class="card-frame px-6 py-3 flex flex-col items-center gap-1 text-center" id="packs">
+    <div class="text-lg font-bold"><span class="text-[var(--color-accent)]">3</span><span class="text-[var(--color-foreground)]/40"> / 10</span></div>
+    <div class="text-xs text-[var(--color-foreground)]/40">paquets disponibles</div>
+    <div class="text-xs text-[var(--color-foreground)]/40">Prochain dans <span class="text-[var(--color-accent)] font-mono">2:59</span></div>
+  </div>
+</div>`;
+
+const COUNTER_SCRIPT = `
+(() => {
+  const box = document.getElementById('packs');
+  const next = box.lastElementChild;
+  let seconds = 179;
+  setInterval(() => {
+    seconds = seconds > 0 ? seconds - 1 : 179;
+    const time = next.querySelector('span');
+    time.firstChild.nodeValue = Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0');
+  }, 1000);
+  window.__packs = {
+    set(count) {
+      box.querySelector('span').firstChild.nodeValue = String(count);
+      if (count >= 10) next.remove(); else if (!next.isConnected) box.append(next);
+    },
+  };
+})();
+`;
+
 export const PULLS_HTML = sitePage(
-  '<div id="stage"><button id="open">Ouvrir</button> <button id="open-pro">Pack PRO du jour</button></div>',
-  SCRIPT,
+  `<div id="stage"><button id="open">Ouvrir</button> <button id="open-pro">Pack PRO du jour</button>${COUNTER}</div>`,
+  COUNTER_SCRIPT + SCRIPT,
 );

@@ -1,4 +1,5 @@
 export { carouselCards, findCarousel, type Carousel } from './carousel';
+export { findPackCounter, type PackCounter } from './counter';
 export {
   copiesByCard,
   isCopiesQuery,

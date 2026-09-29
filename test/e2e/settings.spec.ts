@@ -58,6 +58,7 @@ test('un engrenage juste à gauche du solde ouvre la fenêtre de paramètres', a
   await dialog.getByRole('button', { name: 'Paquets' }).click();
   await expect(dialog.locator('.wm-settings-heading')).toHaveText([
     'Apparence',
+    'Son',
     'Défaussage rapide',
     'Enchère rapide',
     'Navigation au clavier',

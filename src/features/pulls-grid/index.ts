@@ -1,5 +1,5 @@
 import { h } from 'preact';
-import { muteSounds } from '@/core/audio';
+import { blockSounds } from '@/core/audio';
 import { childController, nextFrame, sleep, waitUntil } from '@/core/async';
 import { injectStyle, setClass, watchDom, whenBody } from '@/core/dom';
 import type { Feature } from '@/core/runtime';
@@ -15,14 +15,13 @@ import {
 import { carouselLock } from '@/services/pulls-pack';
 import { findStarButton } from '@/site/cards';
 import { carouselCards, findCarousel, PULLS_ROUTE, type Carousel } from '@/site/pulls';
+import { SITE_SOUNDS } from '@/site/sound';
 import { mountUi, type MountedUi } from '@/ui/mount';
 import { cloneFace, imagesComplete, imagesDecoded } from './face';
 import { gridLayout } from './layout';
 import { settings } from './settings';
 import { ACTIVE, ARRIVAL_MS, CSS, HIDDEN, OFFSTAGE } from './style';
 
-/** Le site abandonne un son chargé plus de 250 ms après la demande : au-delà, plus rien ne part. */
-const SOUND_GUARD_MS = 400;
 /** Changement de carte dans le carrousel : un rendu React, sans réseau. */
 const STEP_TIMEOUT_MS = 2000;
 /** Une shiny se révèle à la fin de l'animation de la carte, puis 350 ms (code du site). */
@@ -77,15 +76,12 @@ export const pullsGrid: Feature = {
       return clone;
     }
 
-    /** Montre la carte `index` dans le carrousel, comme un clic sur sa pastille, son coupé. */
+    /** Montre la carte `index` dans le carrousel, comme un clic sur sa pastille (sans son : voir `start`). */
     async function showCard(index: number, abort: AbortSignal, timeoutMs?: number): Promise<Carousel | undefined> {
       // Une action lancée depuis le carrousel (grille activée en plein milieu) tient la carte : on la laisse finir.
       await waitUntil(() => !carouselLock(), { signal: abort });
       const before = findCarousel();
-      if (before && before.index !== index) {
-        muteSounds(SOUND_GUARD_MS);
-        before.dots[index]?.click();
-      }
+      if (before && before.index !== index) before.dots[index]?.click();
       await waitUntil(
         () => {
           const carousel = findCarousel();
@@ -204,6 +200,8 @@ export const pullsGrid: Feature = {
 
     function start(carousel: Carousel): Session {
       const controller = childController(signal);
+      // En grille, les cartes arrivent sans bruit : seul le paquet déchiré s'entend (son inconnu : coupé aussi).
+      blockSounds((name) => name !== SITE_SOUNDS.packRip, { signal: controller.signal });
       const grid = createPullsGrid(carousel.dots.length);
       grid.addEventListener('click', onGridClick, { signal: controller.signal });
       const current: Session = {

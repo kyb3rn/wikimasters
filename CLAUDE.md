@@ -39,7 +39,7 @@ src/
     settings/      réglages et activation, une seule clé `wm-settings-v1` (exportable)
     dom/           whenBody, injectStyle, setClass, watchDom (un seul MutationObserver)
     async.ts       sleep, nextFrame, waitUntil (condition vérifiée à chaque image), childController
-    audio.ts       muteSounds : coupe un moment les sons Web Audio (ceux du site)
+    audio.ts       trackSounds, blockSounds : sons Web Audio de la page reconnus à leur fichier (chargé puis décodé), filtrés tant qu'un signal court (un son coupé est joué sur une durée nulle)
     react.ts       fiberOf, fiberAncestors : lire l'état React du site
     expose.ts      window.wm
     storage.ts     jsonStore (localStorage)
@@ -48,8 +48,9 @@ src/
     api/           appels des routes du site (siteRequest, SiteApiError, discardUserCard)
     cards/         actions sur les exemplaires (favori, étiquettes, défausse, mise aux enchères), modale de carte, modale d'enchère
     collection/    page Collection : requêtes de sa liste et de ses compteurs, exemplaires listés, faces de la grille
-    pulls/         paquet ouvert (cartes, exemplaires) et carrousel de /pulls (parties, cartes lues dans son état React)
+    pulls/         paquet ouvert (cartes, exemplaires), carrousel de /pulls (parties, cartes lues dans son état React), cadre des paquets disponibles
     realtime/      décodage des diffusions binaires de Supabase Realtime
+    sound.ts       réglage du son du site (`localStorage`, lu une fois par chargement), noms de ses sons (`SITE_SOUNDS`)
     header.ts      bouton du solde (barre mobile, boîte ordinateur)
     router.ts      routeur Next.js (trouvé dans l'état React) : gardes sur router.push, navigateTo
   ui/              interface Preact générique, aux couleurs du site (variables CSS de son thème)
@@ -63,11 +64,14 @@ src/
     listings/      exemplaires mis aux enchères (suivis dans les requêtes)
     quick-discard/ défaussage rapide : protections communes (réglages `quick-discard`) et leur règle
     pulls-pack/    paquet ouvert sur /pulls (cartes, exemplaire choisi par carte, défausses faites et en cours, suivis dans les requêtes, gardé jusqu'au paquet suivant) et verrou du carrousel : une action à la fois sur la carte affichée (défausse, enchère rapide), clics bloqués sauf les nôtres (`clickThrough`) ; nos boutons de la rangée du carrousel resserrés (8 px entre eux et avec la flèche « suivante »)
+    pulls-sound/   réglage du son des paquets (partagé : paramètres, cadre des paquets)
     pulls-grid/    grille « toutes les cartes d'un coup » de /pulls : cases, zone d'actions sous chaque carte (boutons d'autres fonctionnalités), `onPullsGridChange` (la grille échappe à watchDom)
   features/        une fonctionnalité par dossier ; index.ts les liste
     settings/      engrenage à gauche du solde + fenêtre de paramètres (obligatoire, cachée)
     quick-discard/ section commune « Défaussage rapide » des paramètres (protections), obligatoire
     pulls-grid/    toutes les cartes du paquet d'un coup (lignes de 5 au plus, arrivée en vague, sans son) : le carrousel du site, invisible, sert de moteur (le script le fait défiler et recopie chaque face) ; clic = modale du site, étoile relayée, « Continuer » à nous
+    pulls-sound/   son des paquets (obligatoire, réglage dans Paquets) : le son du site reste actif, le script coupe lui-même, tout de suite ; un « off » du site au chargement devient le réglage. Carrousel : sons du site (paquet déchiré, chaque carte tournée, légendaire) ; grille : seul le paquet déchiré (coupure posée par pulls-grid)
+    pulls-bar/     cadre en largeur sous « Ouvrir » (obligatoire, caché) : paquets disponibles, recharge (« Plein »), bouton du son, choix carrousel / grille (= activation de pulls-grid) ; lit le cadre du site, caché
     pulls-discard/ défaussage rapide sur /pulls (bouton du carrousel, ou sous chaque carte de la grille sans passer à la suivante ; modale du site verrouillée pour une carte défaussée)
     card-modal-stats/ masque ATK / DEF de la colonne de droite de la modale de carte (déjà sur la face)
     card-modal-stay/ après une défausse, garde la modale que le site retire (inerte, « Défaussée », fermeture gérée ici)

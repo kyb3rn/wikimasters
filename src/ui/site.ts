@@ -10,6 +10,25 @@ export const siteClass = {
     'hover:bg-[var(--color-surface-light)] hover:text-[var(--color-foreground)] transition-colors cursor-pointer',
   /** Position de cette croix dans ses modales. */
   closeButtonPosition: 'absolute top-3 right-3',
+  /** Bouton rond à icône (même forme que cette croix), sans couleur : voir `iconOn` / `iconOff`. */
+  iconButton:
+    'flex h-9 w-9 items-center justify-center rounded-full hover:bg-[var(--color-surface-light)] transition-colors cursor-pointer',
+  iconOn: 'text-[var(--color-accent)]',
+  iconOff: 'text-[var(--color-foreground)]/45 hover:text-[var(--color-foreground)]',
+
+  // Cadre des paquets disponibles (/pulls) : compteur, légende, temps restant.
+  frame: 'card-frame px-6 py-3',
+  counterValue: 'text-lg font-bold',
+  counterAccent: 'text-[var(--color-accent)]',
+  counterMuted: 'text-[var(--color-foreground)]/40',
+  counterLabel: 'text-xs text-[var(--color-foreground)]/40',
+  counterTime: 'text-[var(--color-accent)] font-mono',
+
+  /** Choix entre deux options à icône : cadre du champ de mise, options en pastille active / inactive. */
+  segmented: 'flex items-stretch rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] overflow-hidden',
+  segment: 'flex h-9 items-center justify-center px-2.5 transition-colors cursor-pointer',
+  segmentActive: 'bg-[var(--color-accent)] text-[var(--color-accent-foreground)]',
+  segmentIdle: 'text-[var(--color-foreground)]/60 hover:text-[var(--color-foreground)] hover:bg-[var(--color-surface-light)]',
 
   // Mise de départ de la mise aux enchères : − · pièce · valeur · +.
   fieldLabel: 'text-xs font-semibold text-[var(--color-foreground)]/70 uppercase tracking-wide',

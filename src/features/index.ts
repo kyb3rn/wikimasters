@@ -9,11 +9,13 @@ import { collectionStay } from './collection-stay';
 import { debug } from './debug';
 import { disabledCursor } from './disabled-cursor';
 import { pullsAuction } from './pulls-auction';
+import { pullsBar } from './pulls-bar';
 import { pullsCenter } from './pulls-center';
 import { pullsDiscardNext } from './pulls-discard';
 import { pullsGrid } from './pulls-grid';
 import { pullsKeyboard } from './pulls-keyboard';
 import { pullsRemaining } from './pulls-remaining';
+import { pullsSound } from './pulls-sound';
 import { quickDiscard } from './quick-discard';
 import { settingsPanel } from './settings';
 
@@ -27,6 +29,7 @@ export const features: readonly Feature[] = [
   cardModalLayout,
   quickDiscard,
   pullsGrid,
+  pullsSound,
   pullsDiscardNext,
   pullsAuction,
   cardModalStats,
@@ -35,6 +38,7 @@ export const features: readonly Feature[] = [
   pullsKeyboard,
   pullsRemaining,
   pullsCenter,
+  pullsBar,
   auctionModalLayout,
   auctionStay,
   collectionStay,

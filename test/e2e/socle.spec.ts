@@ -23,6 +23,7 @@ test('le script démarre et expose ses commandes', async ({ page }) => {
       ['card-modal-layout', 'mounted'],
       ['quick-discard', 'mounted'],
       ['pulls-grid', 'mounted'],
+      ['pulls-sound', 'mounted'],
       ['pulls-discard-next', 'mounted'],
       ['pulls-auction', 'mounted'],
       ['card-modal-stats', 'mounted'],
@@ -31,6 +32,7 @@ test('le script démarre et expose ses commandes', async ({ page }) => {
       ['pulls-keyboard', 'mounted'],
       ['pulls-remaining', 'mounted'],
       ['pulls-center', 'mounted'],
+      ['pulls-bar', 'mounted'],
       ['auction-modal-layout', 'mounted'],
       ['auction-stay', 'mounted'],
       ['collection-stay', 'idle'],
@@ -39,7 +41,7 @@ test('le script démarre et expose ses commandes', async ({ page }) => {
   });
   expect(logs).toContainEqual({
     type: 'info',
-    text: '[WM] v0.1.0 (dev) · actives ici : settings, disabled-cursor, card-modal-layout, quick-discard, pulls-grid, pulls-discard-next, pulls-auction, card-modal-stats, card-modal-stay, card-modal-discard, pulls-keyboard, pulls-remaining, pulls-center, auction-modal-layout, auction-stay, debug',
+    text: '[WM] v0.1.0 (dev) · actives ici : settings, disabled-cursor, card-modal-layout, quick-discard, pulls-grid, pulls-sound, pulls-discard-next, pulls-auction, card-modal-stats, card-modal-stay, card-modal-discard, pulls-keyboard, pulls-remaining, pulls-center, pulls-bar, auction-modal-layout, auction-stay, debug',
   });
   expect(logs.filter((l) => l.type === 'error')).toEqual([]);
 });

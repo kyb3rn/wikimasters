@@ -52,6 +52,26 @@ export function sitePage(main = '<h1>Page de test</h1>', script = ''): string {
   );
 }
 
+/** WAV mono 16 bits de 50 ms de silence. */
+const SILENT_WAV = (() => {
+  const rate = 8000;
+  const data = Buffer.alloc((rate / 20) * 2);
+  const header = Buffer.alloc(44);
+  header.write('RIFF', 0);
+  header.writeUInt32LE(36 + data.length, 4);
+  header.write('WAVEfmt ', 8);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(1, 22);
+  header.writeUInt32LE(rate, 24);
+  header.writeUInt32LE(rate * 2, 28);
+  header.writeUInt16LE(2, 32);
+  header.writeUInt16LE(16, 34);
+  header.write('data', 36);
+  header.writeUInt32LE(data.length, 40);
+  return Buffer.concat([header, data]);
+})();
+
 export interface FakeSite {
   /** HTML servi pour toute page du site. */
   readonly html?: string;
@@ -74,6 +94,8 @@ export async function openSite(page: Page, pathname: string, site: FakeSite = {}
     if (site.api && url.pathname in site.api) return route.fulfill({ json: site.api[url.pathname] });
     const file = site.files?.[url.pathname];
     if (file) return route.fulfill({ contentType: file.contentType, body: file.body });
+    // Sons du site (`/audio/<nom>.mp3`) : un son court et silencieux, que le navigateur sait décoder.
+    if (url.pathname.startsWith('/audio/')) return route.fulfill({ contentType: 'audio/wav', body: SILENT_WAV });
     if (route.request().resourceType() === 'document') {
       return route.fulfill({ contentType: 'text/html; charset=utf-8', body: site.html ?? sitePage() });
     }
