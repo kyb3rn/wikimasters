@@ -1,0 +1,167 @@
+import { useEffect, useState } from 'preact/hooks';
+import type { FeatureCatalog, FeatureEntry } from '@/core/runtime';
+import { onSettingsChange, type SettingDefinition, type Settings } from '@/core/settings';
+import { ChoiceField, NumberField, Switch } from '@/ui/controls';
+import { Modal } from '@/ui/modal';
+
+/** Onglet fixe, toujours en dernier. */
+const ABOUT = 'À propos';
+
+export interface SettingsPanelProps {
+  readonly catalog: FeatureCatalog;
+  readonly onClose: () => void;
+}
+
+/** Fenêtre de paramètres : catégories à gauche, réglages de la catégorie à droite, « À propos » en dernier. */
+export function SettingsPanel({ catalog, onClose }: SettingsPanelProps) {
+  const [, setRevision] = useState(0);
+  useEffect(() => {
+    const controller = new AbortController();
+    const refresh = () => setRevision((n) => n + 1);
+    catalog.onChange(refresh, { signal: controller.signal });
+    onSettingsChange(refresh, { signal: controller.signal });
+    return () => controller.abort();
+  }, [catalog]);
+
+  const entries = catalog.list().filter((entry) => !entry.feature.hidden);
+  const tabs = [...new Set(entries.map((entry) => entry.feature.category)), ABOUT];
+  const [selected, setSelected] = useState(tabs[0]);
+  const current = selected !== undefined && tabs.includes(selected) ? selected : ABOUT;
+
+  return (
+    <Modal title="Paramètres" onClose={onClose} width={912} height={620}>
+      <nav class="wm-settings-nav" aria-label="Catégories">
+        {tabs.map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            class="wm-settings-tab"
+            data-about={tab === ABOUT ? '' : undefined}
+            aria-current={tab === current ? 'page' : undefined}
+            onClick={() => setSelected(tab)}
+          >
+            {tab}
+          </button>
+        ))}
+      </nav>
+      <section class="wm-settings-content">
+        {current === ABOUT ? (
+          <div class="wm-settings-section">
+            <h3 class="wm-settings-heading">{ABOUT}</h3>
+            <About />
+          </div>
+        ) : (
+          sectionsOf(entries.filter((entry) => entry.feature.category === current)).map(([name, group]) => (
+            <div key={name} class="wm-settings-section">
+              <h3 class="wm-settings-heading">{name}</h3>
+              {group.map((entry) => (
+                <FeatureSettings key={entry.feature.id} entry={entry} catalog={catalog} />
+              ))}
+            </div>
+          ))
+        )}
+      </section>
+    </Modal>
+  );
+}
+
+/** Une section par concept : les fonctionnalités de même nom la partagent, au rang de la première d'entre elles. */
+function sectionsOf(entries: readonly FeatureEntry[]): [string, FeatureEntry[]][] {
+  const sections = new Map<string, FeatureEntry[]>();
+  for (const entry of entries) {
+    const group = sections.get(entry.feature.name);
+    if (group) group.push(entry);
+    else sections.set(entry.feature.name, [entry]);
+  }
+  return [...sections];
+}
+
+function About() {
+  return (
+    <div class="wm-settings-about">
+      <p>
+        WikiMasters ajoute au site des outils pour jouer plus vite et plus sereinement. Chaque outil s'active ou se
+        désactive dans ces paramètres, conservés dans ce navigateur.
+      </p>
+      <p class="wm-settings-version">
+        Version {__VERSION__}
+        {__DEV__ && ' (dev)'}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Une fonctionnalité : interrupteur et réglages principaux (`primary`) en haut,
+ * autres réglages sous un trait.
+ */
+function FeatureSettings({ entry, catalog }: { entry: FeatureEntry; catalog: FeatureCatalog }) {
+  const { feature, enabled, state, error } = entry;
+  // Sans interrupteur ni libellé propre, le nom ferait doublon avec le titre de la section.
+  const label = feature.toggleLabel ?? (feature.required ? undefined : feature.name);
+  const settings = feature.settings;
+  const definitions = settings ? Object.entries(settings.schema) : [];
+  const rows = (primary: boolean) =>
+    settings &&
+    definitions
+      .filter(([, definition]) => (definition.primary === true) === primary)
+      .map(([name, definition]) => <SettingRow key={name} settings={settings} name={name} definition={definition} />);
+  const secondary = rows(false);
+
+  return (
+    <article class="wm-settings-feature" data-enabled={enabled}>
+      <div class="wm-settings-main">
+        <div class="wm-settings-row">
+          <div>
+            {label && <div class="wm-settings-feature-name">{label}</div>}
+            <p class="wm-settings-text">{feature.description}</p>
+            {state === 'failed' && <p class="wm-settings-error">Erreur au démarrage : {error}</p>}
+          </div>
+          {!feature.required && (
+            <Switch
+              checked={enabled}
+              label={`${feature.name} : ${label ?? feature.name}`}
+              onChange={(value) => catalog.setEnabled(feature.id, value)}
+            />
+          )}
+        </div>
+        {rows(true)}
+      </div>
+      {secondary && secondary.length > 0 && <div class="wm-settings-rows">{secondary}</div>}
+    </article>
+  );
+}
+
+function SettingRow({ settings, name, definition }: { settings: Settings; name: string; definition: SettingDefinition }) {
+  const value = settings.get(name);
+  return (
+    <div class="wm-settings-row" data-stacked={definition.type === 'choice' || undefined}>
+      <div>
+        <div class="wm-settings-row-label">{definition.label}</div>
+        {definition.description && <p class="wm-settings-text">{definition.description}</p>}
+      </div>
+      <div class="wm-settings-row-control">
+        {definition.type === 'boolean' ? (
+          <Switch checked={value === true} label={definition.label} onChange={(next) => settings.set(name, next)} />
+        ) : definition.type === 'choice' ? (
+          <ChoiceField
+            value={typeof value === 'number' ? value : definition.default}
+            options={definition.options}
+            label={definition.label}
+            onChange={(next) => settings.set(name, next)}
+          />
+        ) : (
+          <NumberField
+            value={typeof value === 'number' ? value : definition.default}
+            label={definition.label}
+            min={definition.min}
+            max={definition.max}
+            {...(definition.step !== undefined && { step: definition.step })}
+            {...(definition.unit !== undefined && { unit: definition.unit })}
+            onChange={(next) => settings.set(name, next)}
+          />
+        )}
+      </div>
+    </div>
+  );
+}

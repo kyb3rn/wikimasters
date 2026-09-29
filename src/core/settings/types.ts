@@ -1,0 +1,46 @@
+interface CommonSetting {
+  readonly label: string;
+  readonly description?: string;
+  /** Affiché avec l'interrupteur de la fonctionnalité, au-dessus du trait (réglages principaux). */
+  readonly primary?: boolean;
+}
+
+export interface BooleanSetting extends CommonSetting {
+  readonly type: 'boolean';
+  readonly default: boolean;
+}
+
+export interface NumberSetting extends CommonSetting {
+  readonly type: 'number';
+  readonly default: number;
+  readonly min: number;
+  readonly max: number;
+  readonly step?: number;
+  /** Unité affichée après la valeur (« ms », « % »…). */
+  readonly unit?: string;
+}
+
+/** Une valeur parmi une liste (affichée en pastilles). */
+export interface ChoiceSetting extends CommonSetting {
+  readonly type: 'choice';
+  readonly default: number;
+  readonly options: readonly { readonly value: number; readonly label: string }[];
+}
+
+export type SettingDefinition = BooleanSetting | NumberSetting | ChoiceSetting;
+
+/** Réglages d'un module : clé → définition. L'ordre des clés est l'ordre d'affichage. */
+export type SettingsSchema = Readonly<Record<string, SettingDefinition>>;
+
+export type SettingValue<D extends SettingDefinition> = D extends BooleanSetting ? boolean : number;
+
+export interface Settings<S extends SettingsSchema = SettingsSchema> {
+  /** Espace de noms dans le stockage : l'identifiant de la fonctionnalité. */
+  readonly namespace: string;
+  readonly schema: S;
+  /** Valeur enregistrée si elle est valide, sinon la valeur par défaut (bornée pour un nombre). */
+  get<K extends keyof S & string>(key: K): SettingValue<S[K]>;
+  set<K extends keyof S & string>(key: K, value: SettingValue<S[K]>): void;
+  /** Revient à la valeur par défaut. */
+  reset(key: keyof S & string): void;
+}

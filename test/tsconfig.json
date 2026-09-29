@@ -1,0 +1,9 @@
+{
+  // Tests : mêmes règles que src/, plus les types Node (fichiers, fixtures).
+  // src/ est inclus pour que les augmentations de `window.wm` soient connues des tests e2e.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["**/*.ts", "../src"]
+}

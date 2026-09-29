@@ -1,0 +1,99 @@
+# Le site wiki-masters.com
+
+Ce qu'on sait du site, relevé le 29/09/2026 à partir des captures (`test/fixtures/captures/`, hors git) et du code JavaScript public du site. Les routes et la forme des données sont dans [`api.md`](api.md). Le balisage détaillé d'une carte et de quelques pages est dans `../old/docs/site.md` (relevé du 18 au 25/09, à revérifier avant usage).
+
+## Stack
+
+- **Next.js App Router** (Vercel) : navigation sans rechargement (`history.pushState`), chaque page chargée par une requête RSC `GET /<page>?_rsc=…` **avant** le changement d'adresse. Fichiers `/_next/static/chunks/…?dpl=dpl_…`, renommés à chaque déploiement ; ils se lisent (code minifié mais clair) et donnent les paramètres réels des routes.
+- **React** : l'état se lit par `__reactFiber$…` si besoin, mais la plupart des données arrivent par des routes `/api/…` lisibles dans le réseau.
+- **Tailwind**, icônes **lucide**, polices Outfit (titres) et Inter.
+- **Supabase** : REST (`/rest/v1/…`), RPC (`/rest/v1/rpc/…`), authentification (`/auth/v1/…`), **Realtime** par WebSocket. Le site envoie lui-même la clé publique (`apikey`) et le jeton de session (`Authorization: Bearer …`).
+- PWA installable (le site retient l'invite d'installation : message « Banner not shown » normal en console).
+
+## Pages
+
+Menu : Paquets, Collection, Échanges, Marché, Profil, Toutes les cartes, Guilde, Amis, Messages, Bataille, Succès, Classement, Paramètres.
+
+| Page | Adresse | Contenu |
+|---|---|---|
+| Paquets | `/pulls` | Compteur « n / 10 paquets disponibles · Prochain dans m:ss », « Ouvrir » (paquet classique de 5 cartes), « Pack PRO du jour » (une fois par jour, heure de l'appareil). Cartes du paquet en carrousel ; modale de carte au clic (Défausser, étiquettes, Marché, Mettre aux enchères). |
+| Collection | `/collection` | Exemplaires possédés, 50 par page : recherche, étiquette (dont « Sans étiquette »), tri (rareté, nom, favoris, ajout). |
+| Marché | `/marketplace` | Onglets Parcourir, Mes ventes (n/max), Mes enchères (n), Gagnées (n), Historique (n) (tous remplis par la même requête, aucun appel au changement d'onglet ; détail plus bas). Tri, raretés (plusieurs à la fois), recherche, « Charger la suite ». |
+| Fiche d'annonce | `/marketplace/<auctionId>` | Carte en grand, mise actuelle ou de départ, temps restant, formulaire de mise, « Historique des mises (n) », bouton « Vue du marché » (historique des ventes de la carte, graphique « Évolution des prix », « 10 dernières ventes »). Mises des autres reçues en temps réel. |
+| Échanges | `/trades` | Offres en cours ; composer une offre (cartes des deux côtés, wikibidous des deux côtés), contre-offre, accepter, refuser. Liste de souhaits de l'autre joueur utilisable comme filtre. |
+| Profil | `/profile` (le sien), `/profile/<pseudo>` | En-tête (pseudo, nombre de cartes, ancienneté, dernière connexion, amitié), onglets Vitrine (galeries nommées) et Collection. Sur le sien : vitrine modifiable, profil public ou privé. Signaler un joueur. |
+| Toutes les cartes | `/global-collection` | Catalogue de toutes les cartes du jeu (modèles, pas d'exemplaires), 50 par page : recherche (au moins 3 caractères : pagination Suivant / Précédent sans total), raretés, tri (Rareté, Nom, ATK, DEF), filtre « Liste de souhaits » (icône lucide `bookmark`). Modale de carte en « vue catalogue » (détail plus bas). |
+| Amis | `/friends` | Amis, demandes reçues et envoyées, recherche de joueurs. |
+| Boutique | modale (bouton du solde en haut à droite, `aria-label="Ouvrir la boutique WikiBidous"`) | « Acheter des WikiBidous » : 2 500 WB à 4,99 $, 5 000 WB à 8,99 $… (paiement réel : ne jamais y toucher). |
+
+Non relevées : accueil, Guilde, Messages, Bataille, Succès, Classement, Paramètres. Les capturer quand une fonctionnalité en a besoin.
+
+## Cartes, raretés, identifiants
+
+- Raretés, de la plus basse à la plus haute, selon la popularité de l'article Wikipédia (vues) : **C** commune (< 50), **PC** peu commune (50+), **R** rare (250+), **SR** super rare (1 000+), **UR** ultra rare (5 000+), **L** légendaire (20 000+). Les vues évoluent : une carte sortie légendaire un jour peut sortir UR le lendemain. D'où des historiques de ventes à plusieurs raretés pour une même carte (chaque vente garde la sienne).
+- **La rareté n'est pas figée sur l'exemplaire** (constaté par l'utilisateur, 29/09/2026) : une L mise aux enchères qui revient (invendue, retirée) alors que ses vues ont baissé peut revenir en UR. Un exemplaire qui passe par le marché **perd aussi ses étiquettes**. Seules l'annonce et la vente gardent la rareté du moment (`snapshot_rarity`, `rarity`).
+- **Shiny** (`is_shiny`, vu sur des L) : autre visuel. Face `glow-shiny shiny-card` au lieu de `glow-l`, fond `/shiny/onyx-art.webp` et couches `shiny-onyx-*`, reflet qui suit la souris (`--shiny-mx`, `--shiny-my`), badge « L✦ » (`shiny-badge`), texte blanc. **Repérer les raretés par les données, pas par les classes `glow-*`.** Valeur très supérieure (Olympique lyonnais : 29 000 en shiny, 5 000 en L normale).
+- Deux identifiants à ne pas confondre : la **carte** (modèle commun à tous, `cards.id`, `card_id`) et l'**exemplaire** (`user_cards.id`, `user_card_id`). Piège : `POST /api/marketplace` attend l'exemplaire dans un champ nommé `card_id`.
+
+## Temps réel
+
+WebSocket `wss://<projet>.supabase.co/realtime/v1/websocket?apikey=…&vsn=2.0.0` (Supabase Realtime, protocole Phoenix). Messages en JSON pour la gestion (`phx_join`, `phx_reply`, `heartbeat` toutes les ~30 s), **en binaire** pour les diffusions des canaux privés (format dans `src/site/realtime/decode.ts`).
+
+| Canal | Événement | Effet côté site |
+|---|---|---|
+| `auction:<auctionId>` | `BID` : `{ bid, end_at, previous_bidder_id }` | Mise affichée à jour sans requête ; l'heure de fin peut changer ; alerte si l'enchérisseur précédent est soi. |
+| `auction:<auctionId>` | `UPDATE` | Relecture de l'annonce. |
+| `profile:<uid>` | `UPDATE` : ligne `profiles` complète | Relecture du solde (`get_my_profile`). Contient e-mail et identifiants de paiement : à masquer. |
+| `notifications:<uid>` | `INSERT` : ligne `notifications` | Nouvelle notification. |
+| `friendships-requester-<uid>`, `friendships-addressee-<uid>` | `postgres_changes` | **Refusé par le serveur** (« Unable to subscribe… ») : la page Amis ne se met pas à jour seule. |
+
+Conséquence : une surenchère, un remboursement, une notification n'apparaissent **pas** dans `fetch`. Les écouter par `net.observeSocket`.
+
+La connexion tombe souvent (29/09/2026 : fermetures 1006 sans ouverture pendant plusieurs minutes, nouvel essai toutes les 3 à 12 s, puis reconnexion et nouveaux `phx_join`). Pendant une coupure, les diffusions sont perdues, pas rejouées : ne pas compter sur le temps réel seul pour un état qui compte, relire par `fetch` à la reconnexion.
+
+## Paquets
+
+- Mise en page : `<main>` (commun à toutes les pages, `min-h-0 flex-1 overflow-y-auto`, **pas** flex) a un unique enfant `div.flex-1` : choix du paquet `flex flex-col items-center justify-center`, carrousel `flex items-start md:items-center justify-center`. Le centrage vertical voulu ne se fait pas (l'enfant n'a que la hauteur de son contenu, en haut de la page) : `pulls-center` met `<main>` en colonne flex et place le contenu à 40/60 de l'espace libre.
+- Carrousel d'un paquet ouvert (code du site et captures) : rangée `div.flex.items-center.gap-4` = flèche précédente, pastilles (l'active porte `scale-125`), flèche suivante (boutons `w-12 h-12 rounded-full`, désactivés aux extrémités) ; changement de carte aussi par glissement au pointeur (≥ 48 px) sur la carte ; pas de raccourci clavier. La face est recréée à chaque carte. Lecture : `src/site/pulls/carousel.ts`.
+- Fonctionnement du carrousel (code du site, 29/09/2026) : composant aux props `{ cards, ownedCopies, onDone }` (lisibles par l'état React de sa racine). Il attend d'avoir chargé **toutes** les images du paquet avant d'afficher la première carte (cadre `animate-pulse` en attendant). État : carte affichée, **cartes vues** (la première l'est d'office ; « Continuer » s'active quand toutes l'ont été, `onDone` le ferme). Changer de carte (flèche, pastille, glissement) joue `card-flip`, plus `legendary-reveal` sur une L. Enveloppe de la face animée (`animate-card-flip…`, `…-legendary` pour une L) ; à la fin de l'animation d'une L : feu d'artifice en portail (`div.fixed.inset-0.z-[200]`, particules `animate-card-reveal-firework-*`) et, pour une L shiny, révélation : la face s'affiche d'abord **sans** son habillage shiny, balayage `shiny-reveal-sweep`, puis face shiny 350 ms après (retenue ensuite ; annulée si on change de carte avant). La face (composant commun aux cartes du site, taille `lg` = `w-72 h-[420px]`) porte `onClick` (ouvre la modale de carte) sur son élément `[class*="glow-"]` ; un glissement qui change de carte arme un drapeau (ref) qui fait **ignorer le prochain clic sur la carte** : la face étant recréée, le clic qui termine le glissement ne l'atteint pas, et c'est le clic suivant de l'utilisateur (ou du script) qui est perdu ; en shiny, le reflet suit la souris (`--shiny-mx`, `--shiny-my`, classe `shiny-hover`, inclinaison) ; l'image de l'article est en `loading="lazy"` et recadrée à son chargement (portrait : `object-position: center 28%`).
+- Sons (tout le site) : Web Audio, pas de balise `<audio>` : `/audio/pack-rip.mp3` (ouverture d'un paquet), `/audio/card-flip.mp3`, `/audio/legendary-reveal.mp3`, préchargés et décodés (`fetch`, `decodeAudioData`), joués par `AudioBufferSourceNode.start` ; un son pas encore chargé est abandonné s'il arrive plus de 250 ms après la demande. Coupure par le site : `localStorage['wiki-masters-sound'] = 'off'`.
+- Modale de carte (portail `div.fixed.inset-0.z-50 … bg-black/70` dans `body`) : `h2` = titre de la carte, « Ajouter aux favoris », onglets Détails / Marché, champ « Ajouter une étiquette… » (étiquettes de l'exemplaire associé), « Mettre aux enchères », « Défausser » (avec « +1 »). Lecture : `src/site/cards/modal.ts`. Le favori porte sur la carte (tous ses exemplaires), les étiquettes sur un exemplaire. À l'ouverture, elle demande `GET /api/marketplace/mine` : « Mettre aux enchères » est désactivé (info-bulle « Maximum n enchères actives », texte « Enchères actives : n/max — annulez une vente… ») quand la limite est atteinte ; les actions n'existent que si la carte a un exemplaire associé et pas d'offre d'échange en cours (sinon « Carte réservée dans un échange »).
+- Mise aux enchères (modale `div.fixed.inset-0.z-[60]`, `h2` « Mettre aux enchères », « Enchères actives : n/max » après `GET /api/marketplace/mine`, mise de départ 10 par défaut (`input[aria-label="Mise de départ"]`, champ contrôlé par React), durées 10 min · 30 min · 1 h (défaut) · 3 h · 6 h · 12 h (l'active porte `bg-[var(--color-accent)]`), erreur dans `p.text-red-500`, « Annuler » / « Lancer l'enchère » (« Mise en vente… » pendant l'envoi) ; lecture : `src/site/cards/auction-modal.ts`) : `POST /api/marketplace`, puis le rappel `onListed` de la modale de carte ferme la modale d'enchère, puis `router.push('/marketplace/<id>')` (redirection que retient `auction-stay`). Composant chargé à la première ouverture : en attendant, une roue (`div.fixed.inset-0.z-[60]` sans `h2`) rendue **dans** la modale de carte ; la vraie modale est un portail dans `body`, sœur de la modale de carte. Fermer la modale de carte fait disparaître la modale d'enchère.
+- Défausse par le site : la modale de carte demande confirmation (`div.fixed.inset-0.z-[70]` rendue **dans** le fond de la modale de carte : h3 « Défausser cette carte ? », « C'est votre dernière copie — elle sera retirée définitivement », « Annuler » · « Défausser » rouge ; lecture : `src/site/cards/discard-confirm.ts`) puis `POST /api/user-cards/<id>/discard` (pendant la requête : deux boutons désactivés, « Défausser » devient « … » ; refus : message du site en `p.text-red-500` dans la confirmation, « Erreur réseau » sans réponse, boutons réactivés après lecture de la réponse) ; réussie, le site ferme la confirmation et la modale de carte (dans le même rendu : la modale retirée contient encore la confirmation ; `card-modal-stay` la garde). Colonne de droite de la modale : ATK / DEF dans `div.grid.grid-cols-2` (deux `div.card-frame`, icônes lucide `swords` / `shield`, les mêmes que sur la face), puis Q-Score, exemplaires, vues (30 j), lien Wikipédia. Dans la modale de carte, les étiquettes de l'exemplaire ont chacune un bouton « Retirer l'étiquette <nom> » ; l'étoile de la face (modale, grille de la collection, carrousel) dit « Ajouter aux favoris » (contour, `text-amber-200/65`) ou, en favori, « Retirer des favoris » (remplie `fill="currentColor"`, `text-amber-200`). L'exemplaire est choisi parmi `owned_copies` (ou la requête Supabase `user_cards?card_id=in.(…)` du paquet PRO) : le premier dont l'état shiny est celui de la carte tirée, sinon le premier (`copiesByCard`, `src/site/pulls/pack.ts`). Après une défausse faite par le script, la page du site garde cet exemplaire en mémoire : défausser la même carte par la modale du site donnerait un 409.
+- Plafond 10, un paquet de plus toutes les 3 minutes, calé sur `packs_last_regen_at` du serveur (relevé : 03:10:26, 03:13:26, 03:16:26) ; le site appelle `sync_profile_packs` à ce moment.
+- Pack PRO du jour (`special_pack_last_claimed_at`).
+- **Vérification humaine** avant d'ouvrir : `POST /api/packs/verify-human` avec un champ-piège vide (`website`), puis `pack_human_verified_at`.
+
+## Collection
+
+- Liste de 50 exemplaires par page (`GET /api/my-collection`) et compteurs (`GET /api/my-collection/stats`) demandés ensemble ; grille `div.flex.flex-wrap.justify-center` > `div.relative.isolate.group` > face (taille `sm`), dans l'ordre de la liste. Un exemplaire mis aux enchères n'est plus dans la liste. Lecture : `src/site/collection/`.
+- Après une défausse ou une mise aux enchères réussie depuis la modale (captures du 29/09/2026), le site recharge tout, dès la réponse : liste et compteurs (mêmes adresses que la liste affichée), échanges en cours, étiquettes, solde (`get_my_profile`). Le rechargement de la liste peut échouer (500 relevé) : « Le chargement de la collection a échoué. Réessaie dans un instant. », grille vide. `collection-stay` lui sert la liste déjà affichée.
+
+## Marché
+
+- Enchères de 10 minutes à plusieurs heures ; au plus 5 ventes simultanées, 10 pour un compte PRO (`maxConcurrentAuctions` du serveur ; constantes `MAX_CONCURRENT_AUCTIONS_REGULAR` / `_PRO` du code).
+- Statuts d'une annonce : `active`, `settled_sold` (vendue), `settled_unsold` (terminée sans mise), `cancelled` (retirée par le vendeur).
+- Page du marché : état gardé en `sessionStorage['marketplace_list_v3']` (onglet, filtres, pages chargées) pour le retour depuis une fiche d'annonce ; au retour, seules les listes personnelles sont relues (`GET /api/marketplace?page=1&limit=1&mine=1`).
+- Vignette d'annonce (tous les onglets) : `div#marketplace-auction-<auctionId>` > `a.card-frame[href="/marketplace/<auctionId>"]`, face en taille `sm`, pastille « Possédée » sur la face (`owned`, `title="Dans ta collection"`, `bg-emerald-600/90`), puis libellé du prix et montant (`current_bid` s'il y a un enchérisseur, sinon `base_amount`), « Durée » (lucide `gavel`) et compte à rebours, « Vendu par <pseudo> ». Libellé du prix selon le statut : « Mise actuelle » ou « Mise de départ » (active), « Vendue pour » ou « Achetée pour » (si je suis l'acheteur), « Non vendue », « Annulée ». Compte à rebours calculé sur **l'horloge du PC** (`Date.now()`), ambre sous 5 min, « Terminée » à zéro ; format `2h 27m`, `9m 38s`, `1j 3h`.
+- Onglets personnels (réponse `mine=1`, voir `api.md`) : **Mes ventes** = mes annonces actives, compteur « n/max » ; **Mes enchères** = annonces encore actives où j'ai misé, avec un bandeau au-dessus de la vignette : « Vous menez » (vert, `bg-emerald-500/15`, je suis `current_bidder_id`) ou « Surenchéri » (ambre, `bg-amber-500/15`) ; **Gagnées** = les 50 dernières enchères remportées ; **Historique** = les 50 dernières de mes ventes terminées (vendues, invendues, annulées). Du plus récent au plus ancien ; les compteurs de ces deux onglets plafonnent donc à 50. Listes vides : « Vous n'avez aucune vente en cours. », « Vous n'êtes en lice sur aucune enchère. », « Vous n'avez encore remporté aucune enchère. ».
+- Mise refusée si trop basse (`bid_too_low`, avec le minimum) ou solde insuffisant (`insufficient_balance` : le site ouvre la boutique). Les wikibidous misés sont bloqués, remboursés en cas de surenchère.
+- Une nouvelle mise peut repousser la fin (`end_at` dans la diffusion `BID`).
+- Le vendeur peut baisser **une fois** sa mise de départ, passé la moitié de la durée, sans mise reçue (`base_repriced_at`, `listing_base_amount`).
+- Une enchère terminée se finalise (`POST …/settle`) ; une annonce se retire tant qu'elle est active (`DELETE`, carte rendue).
+- Historique des ventes d'une carte : toutes raretés mélangées (chaque vente porte sa rareté), **sans indication shiny**.
+- Annonces farfelues possibles (mise de départ à 2 147 483 647, le maximum accepté).
+
+## Toutes les cartes et liste de souhaits
+
+- La **liste de souhaits** porte sur la carte (modèle), pas sur un exemplaire. Une carte de la liste mise en vente par un autre joueur déclenche la notification `marketplace_wishlist_listed`. Elle sert aussi de filtre dans les échanges et la collection d'un autre joueur (`wishlisted_by`, `wishlisted_by_me`).
+- Elle se gère depuis `/global-collection` : modale de carte en « vue catalogue », sans favori ni actions d'exemplaire ; bouton pleine largeur « Ajouter à la liste de souhaits » (fond accent léger, texte « Recevez une alerte si cette carte est mise en vente. » dessous) ou « Retirer de la liste de souhaits » (bordure accent, sans le texte), icône lucide `bell` dans les deux cas. Au-dessus : « Proposer un échange » si un ami possède la carte, ou « Échange en attente » (lucide `refresh-cw`, ambre) si une offre est déjà en cours avec lui.
+- Changement **optimiste** : le bouton change avant la réponse du serveur, puis revient en arrière si la requête échoue. Un clic pendant la requête sur la même carte est ignoré.
+- **Liste complète** : pastille « Liste de souhaits » de `/global-collection` (la première, avant les raretés ; active : `ring-2` accent) → `/api/cards?wishlist=1`, 50 cartes par page, combinable avec raretés, recherche et tri ; vide : « Aucune carte dans votre liste de souhaits. ». C'est le seul endroit du site qui la montre en entier.
+- Pages du catalogue gardées en `sessionStorage` (clés `gc_v11_<adresse de la requête>`) : une page déjà vue dans l'onglet ne redemande pas `/api/cards`. Les pages filtrées « Liste de souhaits » ne sont jamais gardées (relues à chaque fois).
+
+## Règles pour le script
+
+- **Aucune automatisation d'action** (mise, ouverture, défausse en série, échanges) : le site a une garde anti-automatisation (`403 automation_limit` au-delà de 50 annonces par page), une vérification humaine des paquets, et le profil porte `cheat_strikes`, `last_sanction_*`, `activity_blocked_until`. Une action = un geste de l'utilisateur.
+- **Site peu fiable, surtout en journée** (constat de l'utilisateur) : 403/404/500 fréquents, réponses de 0,3 à 18 s, connexion temps réel qui tombe plusieurs minutes. Exemple du 29/09 : deux défausses en 500 (non appliquées : la même, renvoyée 1 à 2 s plus tard, a réussi), `sales?scope=summary` en 500. Tout code réseau prévoit l'échec, la lenteur et la coupure ; ne jamais supposer qu'une requête ou une diffusion arrive.
+- Horloge du PC parfois décalée : calculer les temps restants avec l'en-tête `Date` des réponses.
+- Ne jamais toucher à la boutique ni aux paiements.

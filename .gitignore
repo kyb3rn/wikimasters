@@ -1,0 +1,9 @@
+node_modules/
+dist/
+test-results/
+playwright-report/
+
+# Captures brutes des pages : lourdes, et elles contiennent pseudo et collection (dépôt public).
+# Un test n'embarque que l'extrait dont il a besoin, dans test/fixtures/<fonctionnalité>/.
+test/fixtures/captures/*
+!test/fixtures/captures/.gitkeep

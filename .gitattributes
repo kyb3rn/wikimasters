@@ -1,0 +1,2 @@
+# Fins de ligne LF partout, dans le dépôt comme sur le disque (Git pour Windows convertit en CRLF sinon).
+* text=auto eol=lf
