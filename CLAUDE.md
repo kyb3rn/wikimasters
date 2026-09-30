@@ -25,6 +25,8 @@ Node a été installé après le lancement de certaines sessions : si `node` est
 
 **Installation dans Tampermonkey.** Développement : installer une fois `dist/wikimasters.loader.user.js` (il charge `dist/wikimasters.dev.js` par `@require file:///…`, option « Autoriser l'accès aux URL de fichier » de l'extension requise) ; un F5 sur le site prend la dernière version. Production : installer `dist/wikimasters.user.js`. Jamais les deux ensemble (la seconde copie ne démarre pas et le signale).
 
+**Publier une version.** Lien partagé (installation et mises à jour) : `https://github.com/kyb3rn/wikimasters/releases/latest/download/wikimasters.user.js`, repris par `@updateURL` / `@downloadURL` de l'en-tête de production (`build.mjs`). Tampermonkey n'installe une mise à jour que si `@version` augmente. Étapes : monter `version` dans `package.json` (« À propos » l'affiche d'elle-même), `npm run check`, commit, push, puis `git tag v<version>` et `git push origin v<version>` : `.github/workflows/release.yml` vérifie le tag, construit et crée la release avec le fichier joint (tests Edge en local seulement). Le fichier vient du commit tagué, jamais du disque.
+
 ## Architecture
 
 ```

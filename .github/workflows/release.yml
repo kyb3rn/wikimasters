@@ -1,0 +1,43 @@
+# Publie une version : un tag `v<version de package.json>` poussé construit le script et crée la
+# release GitHub avec `wikimasters.user.js` joint. Le lien d'installation (et de mise à jour)
+# pointe toujours vers le fichier de la dernière release.
+# Les tests Edge ne tournent pas ici : `npm run check` passe en local avant le tag.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Tag et version de package.json identiques
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::Le tag $GITHUB_REF_NAME ne correspond pas à la version $version de package.json"
+            exit 1
+          fi
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run deps
+      - run: npm run test
+      - run: npm run build
+
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/wikimasters.user.js --title "${GITHUB_REF_NAME#v}" --generate-notes

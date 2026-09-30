@@ -19,6 +19,11 @@ const pkg = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
 
 const MATCHES = ['https://wiki-masters.com/*', 'https://www.wiki-masters.com/*'];
 
+const REPOSITORY = 'https://github.com/kyb3rn/wikimasters';
+// Fichier joint à la dernière release GitHub (.github/workflows/release.yml) : Tampermonkey y
+// relit `@version` et installe le script quand elle est plus grande que la sienne.
+const RELEASE_URL = `${REPOSITORY}/releases/latest/download/wikimasters.user.js`;
+
 /** En-tête Tampermonkey, clés alignées. */
 function userscriptHeader(entries) {
   const lines = entries.map(([key, value]) => `// @${key.padEnd(12)} ${value}`.trimEnd());
@@ -69,7 +74,17 @@ const options = {
   banner: {
     js: dev
       ? `// WikiMasters ${pkg.version} (dev) : généré par build.mjs, chargé par wikimasters.loader.user.js\n`
-      : userscriptHeader(metadata({ name: 'WikiMasters', version: pkg.version })),
+      : userscriptHeader(
+          metadata({
+            name: 'WikiMasters',
+            version: pkg.version,
+            extra: [
+              ['homepageURL', REPOSITORY],
+              ['updateURL', RELEASE_URL],
+              ['downloadURL', RELEASE_URL],
+            ],
+          }),
+        ),
   },
   logLevel: 'info',
 };
