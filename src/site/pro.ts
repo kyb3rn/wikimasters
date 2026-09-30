@@ -79,3 +79,11 @@ export function onProStatusChange(listener: () => void, options: { signal: Abort
   listeners.add(listener);
   options.signal.addEventListener('abort', () => listeners.delete(listener), { once: true });
 }
+
+/**
+ * Ouvre l'offre PRO du site, comme son bouton « Débloquer avec WikiMasters PRO » (code du site du 30/09/2026) :
+ * l'événement `wikimasters:open-pro-upgrade`, écouté par sa boutique (celle du solde), qui s'ouvre sur l'abonnement.
+ */
+export function openProUpgrade(): void {
+  window.dispatchEvent(new CustomEvent('wikimasters:open-pro-upgrade'));
+}

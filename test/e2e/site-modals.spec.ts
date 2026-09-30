@@ -135,6 +135,25 @@ async function box(locator: Locator) {
   return rect;
 }
 
+type Point = { x: number; y: number };
+
+/** Appuie en `from`, glisse, relâche en `to` (le navigateur envoie le clic à leur ancêtre commun). */
+async function drag(page: Page, from: Point, to: Point) {
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(to.x, to.y, { steps: 5 });
+  await page.mouse.up();
+}
+
+/** Point du cadre loin de ses boutons : au milieu, 10 px au-dessus du bas. */
+async function inside(frame: Locator): Promise<Point> {
+  const { x, y, width, height } = await box(frame);
+  return { x: x + width / 2, y: y + height - 10 };
+}
+
+/** Coin bas gauche de l'écran : le fond de la modale du dessus. */
+const BACKDROP: Point = { x: 10, y: 700 };
+
 test.beforeEach(async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await openSite(page, '/guild', { html: PAGE });
@@ -143,7 +162,7 @@ test.beforeEach(async ({ page }) => {
 test('modales du site : la croix de la barre de titre devient la croix ronde dans le coin', async ({ page }) => {
   const frame = await open(page, 'friends');
   const cross = ourCross(frame);
-  await expect(cross).toHaveClass(/absolute top-3 right-3 z-20 .*rounded-full/);
+  await expect(cross).toHaveClass(/absolute top-3 right-3 z-20 .*wm-button-round.*wm-ghost/);
   await expect(frame.getByRole('button', { name: 'Fermer' })).toHaveCount(1);
   const [outer, inner] = await Promise.all([box(frame), box(cross)]);
   expect(outer.x + outer.width - (inner.x + inner.width)).toBeCloseTo(12, 0);
@@ -242,6 +261,32 @@ test('Échap laisse faire le site quand il le gère lui-même (fermeture, demand
   expect(await siteLog(page)).toEqual(['report : échap du site', 'unsaved : resté']);
 });
 
+test('glisser de la modale jusqu’au fond, ou du fond jusqu’à la modale, ne la ferme pas ; un clic sur le fond, si', async ({ page }) => {
+  // Pas la copie qui s'efface (même id) : la modale elle-même.
+  const live = (id: string) => page.locator(`#${id}:not(.wm-modal-ghost *)`);
+  await open(page, 'friends');
+  await drag(page, await inside(live('friends')), BACKDROP);
+  await drag(page, BACKDROP, await inside(live('friends')));
+  await page.waitForTimeout(100);
+  await expect(live('friends')).toBeVisible();
+  expect(await siteLog(page)).toEqual([]);
+
+  // Modale imbriquée : ni elle ni sa parente.
+  const card = await open(page, 'card');
+  await card.locator('#ask').click();
+  await drag(page, await inside(live('confirm')), BACKDROP);
+  await page.waitForTimeout(100);
+  await expect(live('confirm')).toBeVisible();
+  await expect(live('card')).toBeVisible();
+  expect(await siteLog(page)).toEqual([]);
+
+  await page.mouse.click(BACKDROP.x, BACKDROP.y);
+  await expect(live('confirm')).toHaveCount(0);
+  await page.mouse.click(BACKDROP.x, BACKDROP.y);
+  await expect(live('card')).toHaveCount(0);
+  expect(await siteLog(page)).toEqual(['confirm : fond', 'card : fond']);
+});
+
 test('aide sans croix (/pulls) : « Compris ! » devient la croix ronde dans le coin, Échap aussi', async ({ page }) => {
   const help = await open(page, 'help');
   await expect(help.getByRole('button', { name: 'Compris !' })).toBeHidden();
@@ -269,4 +314,92 @@ test('aide avec croix (batailles) : « Compris » en trop est caché, avec sa ma
   await page.keyboard.press('Escape');
   await expect(battles).toHaveCount(0);
   expect(await siteLog(page)).toEqual(['battles : croix']);
+});
+
+/** Ferme la modale comme le site (retrait d'un coup), puis décrit, à l'image suivante, la copie qui s'efface. */
+const closeAndLook = (page: Page, id: string) =>
+  page.evaluate(async (name) => {
+    const overlay = document.getElementById(name)!.closest<HTMLElement & { close: (why: string) => void }>('div.fixed')!;
+    overlay.close('fermée');
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const copy = document.querySelector<HTMLElement>(`.wm-modal-ghost #${name}`);
+    const ghost = copy?.closest<HTMLElement>('div.fixed');
+    return copy && ghost
+      ? {
+          animation: getComputedStyle(ghost).animationName,
+          frame: getComputedStyle(copy).animationName,
+          inert: ghost.inert,
+          scroll: copy.scrollTop,
+          sameParent: ghost.parentElement?.parentElement === document.body,
+        }
+      : undefined;
+  }, id);
+
+test('une modale du site fermée s’efface en fondu : copie inerte, défilement gardé, puis retirée', async ({ page }) => {
+  await open(page, 'shop');
+  await page.locator('#shop').evaluate((el) => (el.scrollTop = 300));
+  await page.locator('#shop').dispatchEvent('scroll');
+  expect(await closeAndLook(page, 'shop')).toEqual({
+    animation: 'wm-modal-out',
+    frame: 'wm-modal-frame-out',
+    inert: true,
+    scroll: 300,
+    sameParent: true,
+  });
+  // Rien n'y répond, et les recherches des modales ouvertes l'ignorent : Échap ne vise plus rien.
+  await expect(page.locator('.wm-modal-ghost')).toHaveCount(0);
+  await expect(page.locator('#shop')).toHaveCount(0);
+});
+
+test('une modale du site cachée par le script, ou avec moins d’animations demandé, disparaît d’un coup', async ({ page }) => {
+  await open(page, 'friends');
+  await page.locator('#friends').evaluate((el) => (el.parentElement!.style.visibility = 'hidden'));
+  expect(await closeAndLook(page, 'friends')).toBeUndefined();
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await open(page, 'guild');
+  expect(await closeAndLook(page, 'guild')).toBeUndefined();
+});
+
+test('une modale imbriquée s’efface dans sa parente, qui reste', async ({ page }) => {
+  const card = await open(page, 'card');
+  await card.locator('#ask').click();
+  await expect(page.locator('#confirm')).toBeVisible();
+  const look = await page.evaluate(async () => {
+    document.getElementById('confirm')!.closest<HTMLElement & { close: (why: string) => void }>('div.fixed')!.close('annulé');
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const ghost = document.querySelector('.wm-modal-ghost #confirm')?.closest('.wm-modal-ghost');
+    return ghost?.parentElement === document.getElementById('card')!.closest('div.fixed');
+  });
+  expect(look).toBe(true);
+  await expect(page.locator('#confirm')).toHaveCount(0);
+  await expect(card).toBeVisible();
+});
+
+test('nos modales : glisser jusqu’au fond ne les ferme pas, un clic sur le fond, si (paramètres)', async ({ page }) => {
+  await page.locator('button[aria-label="Paramètres WikiMasters"]:visible').click();
+  const dialog = page.getByRole('dialog', { name: 'Paramètres' });
+  await expect(dialog).toBeVisible();
+  await drag(page, await inside(dialog), BACKDROP);
+  await drag(page, BACKDROP, await inside(dialog));
+  await page.waitForTimeout(100);
+  await expect(dialog).toBeVisible();
+  await page.mouse.click(BACKDROP.x, BACKDROP.y);
+  await expect(dialog).toHaveCount(0);
+});
+
+test('nos modales s’effacent aussi en fondu (paramètres)', async ({ page }) => {
+  await page.locator('button[aria-label="Paramètres WikiMasters"]:visible').click();
+  const dialog = page.getByRole('dialog', { name: 'Paramètres' });
+  await expect(dialog).toBeVisible();
+  const look = await page.evaluate(async () => {
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const ghost = document.querySelector<HTMLElement>('.wm-modal-ghost .wm-modal-backdrop');
+    return ghost && { animation: getComputedStyle(ghost).animationName, frame: getComputedStyle(ghost.firstElementChild!).animationName };
+  });
+  expect(look).toEqual({ animation: 'wm-modal-out', frame: 'wm-modal-frame-out' });
+  // La copie n'est pas une fenêtre ouverte, puis s'en va.
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator('.wm-modal-ghost')).toHaveCount(0);
 });

@@ -179,7 +179,9 @@ test('R : les 30 derniers jours (vue de départ) ; A : toutes les ventes', async
   const card = await openCardModal(page, newServer());
   await card.getByRole('button', { name: 'Marché' }).click();
   await history(page).getByRole('button', { name: 'Toutes' }).click();
-  await expect(history(page).locator('.wm-market-label').last()).toContainText('R : 30 jours · A : tout');
+  const title = history(page).locator('.wm-market-title');
+  await expect(title).toHaveText('Historique complet');
+  await expect(title).toHaveAttribute('title', /R : les 30 derniers jours\. A : toutes les ventes\./);
 
   const recent = await dayLabel(page, 30);
   expect(await dateLabels(page)).toBe(recent);
@@ -194,7 +196,9 @@ test('touche A désactivée dans les réglages : sans effet, absente de l’aide
   const card = await openCardModal(page, newServer());
   await card.getByRole('button', { name: 'Marché' }).click();
   await history(page).getByRole('button', { name: 'Toutes' }).click();
-  await expect(history(page).locator('.wm-market-label').last()).not.toContainText('A : tout');
+  const title = history(page).locator('.wm-market-title');
+  await expect(title).toHaveAttribute('title', /R : les 30 derniers jours/);
+  await expect(title).not.toHaveAttribute('title', /A : toutes les ventes/);
 
   const recent = await dayLabel(page, 30);
   await page.keyboard.press('a');
@@ -202,25 +206,42 @@ test('touche A désactivée dans les réglages : sans effet, absente de l’aide
   expect(await dateLabels(page)).toBe(recent);
 });
 
-test('compte non PRO : « Marché » désactivé avec la raison, retenu au rechargement ; réactivé quand le site annonce le PRO', async ({ page }) => {
+test('compte non PRO : « Marché » avec le badge PRO ouvre l’offre du site, retenu au rechargement ; historique une fois PRO', async ({ page }) => {
   const server = newServer();
   const announce = (pro: boolean) =>
     page.evaluate((detail) => window.dispatchEvent(new CustomEvent('wikimasters:is-pro-changed', { detail })), pro);
   let card = await openCardModal(page, server);
   await announce(false);
   let market = card.getByRole('button', { name: 'Marché' });
-  await expect(market).toBeDisabled();
-  await expect(market).toHaveAttribute('title', 'Historique des ventes réservé aux comptes PRO');
+  await expect(market).toBeEnabled();
+  await expect(market).toHaveAttribute('title', 'Historique des ventes de la carte (PRO)');
+  await expect(market.locator('svg.lucide-sparkles, span.bg-violet-600')).toHaveCount(1);
+
+  // Offre : notre modale, sans requête de ventes ; « Débloquer » la ferme et ouvre l'abonnement du site.
+  await page.evaluate(() => {
+    const win = window as unknown as { __upgrades: number };
+    win.__upgrades = 0;
+    window.addEventListener('wikimasters:open-pro-upgrade', () => win.__upgrades++);
+  });
+  await market.click();
+  const offer = page.getByRole('dialog', { name: 'Vue du marché' });
+  await expect(offer).toBeVisible();
+  await expect(offer).toContainText('Vue du marché PRO');
+  await expect(offer).toContainText('Découvre l’historique des ventes de « Tour Eiffel »');
+  await offer.getByRole('button', { name: 'Débloquer avec WikiMasters PRO' }).click();
+  await expect(offer).toBeHidden();
+  expect(await page.evaluate(() => (window as unknown as { __upgrades: number }).__upgrades)).toBe(1);
+  expect(server.count).toBe(0);
 
   await page.reload();
   await page.click('#open');
   await page.locator('main [class*="glow-"]').click();
   card = page.locator('#card-modal');
   market = card.getByRole('button', { name: 'Marché' });
-  await expect(market).toBeDisabled();
+  await expect(market.locator('span.bg-violet-600')).toHaveCount(1);
 
   await announce(true);
-  await expect(market).toBeEnabled();
+  await expect(market.locator('span.bg-violet-600')).toHaveCount(0);
   await market.click();
   await expect(history(page)).toBeVisible();
   expect(server.count).toBe(1);

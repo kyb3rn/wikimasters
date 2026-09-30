@@ -60,7 +60,8 @@ test('la corbeille rouge apparaît à gauche de la flèche « suivante » une fo
     };
   });
   expect(layout.beforeNext).toBe(true);
-  expect(layout.classes).toContain('w-12 h-12 rounded-full');
+  // Rond rouge en contour, comme les flèches (rhabillées par site-buttons).
+  expect(layout.classes).toContain('wm-button-round wm-button-md wm-tone-danger');
   await expect(trash).toHaveCSS('color', 'rgb(248, 81, 73)');
 });
 

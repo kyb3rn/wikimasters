@@ -1,3 +1,4 @@
+import { SITE_OVERLAY } from '@/site/modals';
 import { siteButtons, text } from './dom';
 
 /**
@@ -14,7 +15,7 @@ export interface DiscardConfirm {
   readonly confirmButton: HTMLButtonElement;
 }
 
-const OVERLAY = 'div.fixed.inset-0';
+const OVERLAY = SITE_OVERLAY;
 
 export function findDiscardConfirm(doc: Document = document): DiscardConfirm | undefined {
   for (const root of doc.querySelectorAll<HTMLElement>(OVERLAY)) {

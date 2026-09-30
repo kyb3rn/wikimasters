@@ -1,4 +1,5 @@
 import { CAROUSEL_ACTION } from '@/services/pulls-pack';
+import { buttonClass } from '@/ui/button';
 import { Icon } from '@/ui/icons';
 
 /**
@@ -29,26 +30,21 @@ function title(status: AuctionStatus, reason: string | undefined): string {
 }
 
 export interface AuctionButtonProps {
-  /** Classes des flèches du site : même allure, le vert vient de `wm-auction-quick`. */
-  readonly className: string;
   readonly status: AuctionStatus;
   /** Ce qui tient la carte (statut `blocked`). */
   readonly reason?: string;
   readonly onClick: () => void;
 }
 
-export function AuctionButton({ className, status, reason, onClick }: AuctionButtonProps) {
+/** Rond vert en contour, comme les flèches du carrousel ; gris quand la carte est déjà en vente (cadenas). */
+export function AuctionButton({ status, reason, onClick }: AuctionButtonProps) {
   const label = title(status, reason);
   const icon =
-    status === 'busy' ? (
-      <Icon name="spinner" size={22} class="wm-spin" />
-    ) : (
-      <Icon name={status === 'listed' ? 'lock' : 'gavel'} size={20} />
-    );
+    status === 'busy' ? <Icon name="spinner" size={20} class="wm-spin" /> : <Icon name={status === 'listed' ? 'lock' : 'gavel'} size={20} />;
   return (
     <button
       type="button"
-      class={`${className} wm-auction-quick ${CAROUSEL_ACTION}`}
+      class={`${buttonClass('round', { tone: status === 'listed' ? 'neutral' : 'accent' })} wm-auction-quick ${CAROUSEL_ACTION}`}
       data-status={status}
       disabled={status !== 'ready'}
       aria-busy={status === 'busy'}

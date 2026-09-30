@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { buttonClass } from '@/ui/button';
 import { ChoiceField, CloseButton } from '@/ui/controls';
 import { Icon } from '@/ui/icons';
+import { useBackdropGuard, useSmoothExit } from '@/ui/modal';
 import { siteClass } from '@/ui/site';
 
 export interface DurationChoice {
@@ -34,6 +36,10 @@ export function SalePanel(props: SalePanelProps) {
   const [price, setPrice] = useState(props.initialPrice);
   const input = useRef<HTMLInputElement>(null);
   const cardSlot = useRef<HTMLDivElement>(null);
+  const backdrop = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  useSmoothExit(backdrop, panel);
+  useBackdropGuard(backdrop);
   const latest = useRef(props);
   latest.current = props;
 
@@ -80,12 +86,13 @@ export function SalePanel(props: SalePanelProps) {
 
   return (
     <div
+      ref={backdrop}
       class="wm-sale-backdrop"
       onClick={(event) => {
         if (event.target === event.currentTarget) cancel();
       }}
     >
-      <div class="wm-sale" role="dialog" aria-modal="true" aria-label="Mise en vente">
+      <div ref={panel} class="wm-sale" role="dialog" aria-modal="true" aria-label="Mise en vente">
         <CloseButton class={siteClass.closeButtonPosition} disabled={sending} onClick={cancel} />
         {status && (
           <div class="wm-sale-status" data-tone={status.tone} role="alert">
@@ -167,12 +174,12 @@ export function SalePanel(props: SalePanelProps) {
               />
             </div>
             <div class="wm-sale-actions">
-              <button type="button" class={siteClass.buttonSecondary} disabled={sending} onClick={cancel}>
+              <button type="button" class={buttonClass('window')} disabled={sending} onClick={cancel}>
                 Annuler
               </button>
               <button
                 type="button"
-                class={`${siteClass.buttonPrimary} ${siteClass.buttonContent}`}
+                class={buttonClass('window', { tone: 'accent', fill: 'solid' })}
                 disabled={!canConfirm}
                 aria-busy={sending}
                 onClick={() => props.onConfirm()}

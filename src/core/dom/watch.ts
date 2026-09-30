@@ -52,15 +52,17 @@ export function watchDom(callback: Callback, options: { signal: AbortSignal }): 
   if (signal.aborted) return;
   callbacks.add(callback);
   if (!observer) {
-    observer = new MutationObserver((records) => {
+    const created = new MutationObserver((records) => {
       if (records.some(isForeign)) schedule();
     });
-    observer.observe(document.documentElement, {
+    // Avant `<html>` (tout début de `document-start`), `observe` échoue : l'observateur n'est alors pas gardé.
+    created.observe(document.documentElement, {
       childList: true,
       subtree: true,
       attributes: true,
       attributeFilter: ['class', 'disabled', 'aria-label'],
     });
+    observer = created;
   }
   signal.addEventListener(
     'abort',

@@ -1,5 +1,6 @@
 import { isRecord } from '@/core/guards';
 import { currentFiberAncestors } from '@/core/react';
+import { SITE_OVERLAY } from '@/site/modals';
 import { parseRarity, type Rarity } from '@/site/rarity';
 import { findStarButton, siteButtons, text } from './dom';
 
@@ -18,11 +19,19 @@ import { findStarButton, siteButtons, text } from './dom';
  *                          lien Wikipédia, bloc « Signaler l'image » (drapeau)
  *       div.mt-3 > div.flex (rangée d'actions) : « Mettre aux enchères » (marteau), « Défausser » (corbeille, « +1 »)
  *
+ * « Vue catalogue » (Toutes les cartes, capture du 29/09/2026) : même modale, sans exemplaire : ni favori, ni
+ * étiquettes, ni rangée d'actions ; à la place, dans la colonne de droite, « Ajouter à / Retirer de la liste de
+ * souhaits » (cloche) et parfois « Proposer un échange ».
+ *
  * Les boutons d'action sont reconnus à leur icône lucide (le script peut en changer le texte).
  */
 export interface CardModal {
   readonly root: HTMLElement;
+  /** Cadre de la modale (`div.card-frame`), dans le fond. */
+  readonly panel: HTMLElement | undefined;
   readonly title: string;
+  /** Vue catalogue : la carte seule, sans exemplaire (aucune action d'exemplaire). */
+  readonly catalog: boolean;
   /** Croix « Fermer » en haut à droite. */
   readonly closeButton: HTMLButtonElement | undefined;
   /** Face de la carte (`[class*="glow-"]` avec son `h3`). */
@@ -41,6 +50,14 @@ export interface CardModal {
   readonly auctionButton: HTMLButtonElement | undefined;
   readonly discardButton: HTMLButtonElement | undefined;
   readonly tagInput: HTMLInputElement | undefined;
+  /** « Ajouter à / Retirer de la liste de souhaits » (vue catalogue). */
+  readonly wishlistButton: HTMLButtonElement | undefined;
+  /** Bloc de ce bouton dans la colonne de droite (avec son texte d'aide), à masquer pour le déplacer. */
+  readonly wishlistBlock: HTMLElement | undefined;
+  /** Texte d'aide sous le bouton (« Recevez une alerte si cette carte est mise en vente. », à l'ajout seulement). */
+  readonly wishlistHint: string | undefined;
+  /** Carte dans la liste de souhaits : le bouton propose de l'en retirer. */
+  readonly wishlisted: boolean;
   /** Carte en favori (étoile de la face) ; `undefined` si l'étoile est introuvable. */
   readonly starred: boolean | undefined;
   /** Étiquettes de l'exemplaire associé (chacune a son bouton « Retirer l'étiquette … »). */
@@ -62,12 +79,27 @@ function readStarred(face: HTMLElement | undefined): boolean | undefined {
 
 /** Une modale du site est-elle ouverte (carte, mise aux enchères, confirmation…) ? Toutes sont `div.fixed.inset-0`. */
 export function isSiteModalOpen(doc: Document = document): boolean {
-  return doc.querySelector('div.fixed.inset-0') !== null;
+  return doc.querySelector(SITE_OVERLAY) !== null;
+}
+
+/**
+ * Bloc de la liste de souhaits (capture du 30/09/2026) : `div.space-y-2 > div.space-y-1.5 > (bouton, p d'aide)`.
+ * Le bloc extérieur n'est pris que s'il ne contient rien d'autre (« Proposer un échange » y est peut-être).
+ */
+function readWishlistBlock(button: HTMLButtonElement | undefined): Pick<CardModal, 'wishlistBlock' | 'wishlistHint'> {
+  const inner = button?.parentElement;
+  if (!button || !inner) return { wishlistBlock: undefined, wishlistHint: undefined };
+  const outer = inner.parentElement;
+  const hint = [...inner.children].find((child) => child.tagName === 'P');
+  return {
+    wishlistBlock: outer && outer.childElementCount === 1 && outer.classList.contains('space-y-2') ? outer : inner,
+    wishlistHint: hint ? text(hint) || undefined : undefined,
+  };
 }
 
 export function findCardModals(doc: Document = document): CardModal[] {
   const modals: CardModal[] = [];
-  for (const root of doc.querySelectorAll<HTMLElement>('div.fixed.inset-0')) {
+  for (const root of doc.querySelectorAll<HTMLElement>(SITE_OVERLAY)) {
     const heading = root.querySelector('h2');
     const tagInput = root.querySelector<HTMLInputElement>('input[placeholder^="Ajouter une étiquette"]');
     const buttons = siteButtons(root);
@@ -77,8 +109,12 @@ export function findCardModals(doc: Document = document): CardModal[] {
     const auctionButton = buttons.find(
       (button) => button.querySelector('svg.lucide-gavel') || ['Mettre aux enchères', 'Vendre'].includes(text(button)),
     );
+    const wishlistButton = buttons.find(
+      (button) => button.querySelector('svg.lucide-bell') && /liste de souhaits/i.test(text(button)),
+    );
+    const catalog = !tagInput && !discardButton && !auctionButton;
     // Une modale de carte a au moins l'un de ces contrôles (sinon : autre modale du site).
-    if (!heading || (!tagInput && !discardButton && !auctionButton)) continue;
+    if (!heading || (catalog && !wishlistButton)) continue;
 
     const face = [...root.querySelectorAll<HTMLElement>('[class*="glow-"]')].find((el) => el.querySelector('h3'));
     const tablist = root.querySelector<HTMLElement>('[role="tablist"][aria-label="Vue de la carte"]');
@@ -88,7 +124,9 @@ export function findCardModals(doc: Document = document): CardModal[] {
     );
     modals.push({
       root,
+      panel: root.querySelector<HTMLElement>(':scope > div.card-frame') ?? undefined,
       title: text(heading),
+      catalog,
       closeButton: buttons.find((button) => button.getAttribute('aria-label') === 'Fermer'),
       face,
       imageArea: face?.querySelector<HTMLElement>(':scope > div[class*="h-[45%]"]') ?? undefined,
@@ -101,6 +139,9 @@ export function findCardModals(doc: Document = document): CardModal[] {
       auctionButton,
       discardButton,
       tagInput: tagInput ?? undefined,
+      wishlistButton,
+      ...readWishlistBlock(wishlistButton),
+      wishlisted: wishlistButton !== undefined && /^Retirer/i.test(text(wishlistButton)),
       starred: readStarred(face),
       tagCount: buttons.filter((button) => /^Retirer l.étiquette/.test(button.getAttribute('aria-label') ?? '')).length,
       statsBlock: [...root.querySelectorAll('svg.lucide-swords')]

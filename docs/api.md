@@ -84,7 +84,7 @@ Sonde du 30/09/2026 (`wm.debug.probeCollection()`, lecture seule).
 
 | Requête | Réponse |
 |---|---|
-| `GET /api/cards?page=&sort=[&q=][&rarity=…][&wishlist=1]` | `{ cards: [carte], total, searchHasMore, rarityCounts, friendOwners, ownedCardIds, wishlistCardIds, friendPendingOfferKeys }` (code du site, pas encore vu en capture) |
+| `GET /api/cards?page=[&q=][&rarity=…]&sort=[&wishlist=1]` (dans cet ordre) | `{ cards: [carte], total, searchHasMore, rarityCounts, friendOwners, ownedCardIds, wishlistCardIds, friendPendingOfferKeys }` ; avec une recherche (capture du 30/09/2026, `q=mesrine`) : `total: null`, `rarityCounts: {}`, `searchHasMore` |
 | `POST SB /rest/v1/wishlist_items` `{ user_id, card_id }` | 201, corps vide : carte ajoutée à la liste de souhaits (23505 si elle y est déjà, ignoré par le site) |
 | `DELETE SB /rest/v1/wishlist_items?user_id=eq.<uid>&card_id=eq.<card_id>` | carte retirée de la liste (code du site) |
 
@@ -96,7 +96,7 @@ Sonde du 30/09/2026 (`wm.debug.probeCollection()`, lecture seule).
 | Requête | Réponse |
 |---|---|
 | `GET /api/marketplace?page=&limit=50&sort=[&rarity=…][&q=][&mine=1]` | `{ auctions: [annonce], page, limit, hasMore }` ; avec `mine=1` en plus `mine: true`, `selling, bidding, won, history` (annonces, détail ci-dessous) et `maxConcurrentAuctions` |
-| `GET /api/marketplace/<auctionId>` | `{ auction, bids: [mise] }` |
+| `GET /api/marketplace/<auctionId>` | `{ auction, bids: [mise] }` ; `auction` : `card_id`, `snapshot_rarity` (rareté de l'exemplaire en vente), `card` (la carte : `id`, `wikipedia_title`, `rarity`…), `seller`, `effective_bid`… (capture du 30/09/2026) |
 | `GET /api/marketplace/mine` | `{ sellingCount, maxConcurrentAuctions }` |
 | `POST /api/marketplace` `{ card_id: <user_card_id>, base_amount, duration_minutes }` | 201 `{ auction_id }` |
 | `POST /api/marketplace/<auctionId>/bid` `{ amount }` | `{ auction_id, current_bid, bidder_balance }` ; refus : `{ error, code: "bid_too_low", min }` ou `code: "insufficient_balance"` |
@@ -134,14 +134,28 @@ Sonde du 30/09/2026 (`wm.debug.probeCollection()`, lecture seule).
 | `GET /api/profile/<pseudo>` | `{ profile: joueur + is_public, created_at, activity_blocked_until, isOwn, isFriend, friendshipId, pendingRequest, lastSeenAt }` |
 | `GET /api/profile/<pseudo>/stats` | `{ total }` |
 | `GET /api/profile/<pseudo>/showcase` | `{ showcase: [{ position, user_card_id, user_card }], galleries: [{ gallery_index, name }] }` |
-| `GET /api/profile/<pseudo>/collection?page=&sort=&stats=1&pending=1[&rarity=…][&wishlisted_by_me=1]` | `{ collection, total, rarityCounts, tagOptions, pendingTradeCardIds, profileId }` ; exemplaires avec `owned_by_viewer` |
+| `GET /api/profile/<pseudo>/collection?page=&sort=&stats=[&q=][&rarity=…][&tag_id=]&pending=1` (dans cet ordre ; onglet Collection d'un ami, code du 30/09/2026) | `{ collection, total, rarityCounts, tagOptions, pendingTradeCardIds, profileId }` ; exemplaires avec `owned_by_viewer` ; 50 par page, `page` à partir de 0 ; `stats=1` en page 0 seulement (total et étiquettes de l'ami relus là seulement) ; tri `rarity`, `name`, `added`. `wishlisted_by_me=1` : filtre relevé ailleurs (échanges), pas dans cet onglet |
 | `GET /api/showcase` / `PUT /api/showcase` `{ position, user_card_id }` / `DELETE /api/showcase` `{ position }` | sa propre vitrine ; `{ ok }` |
-| `GET /api/friends` | `{ friendships: [{ id, status, requester, addressee, … }], counts: { accepted, incoming, outgoing } }` |
+| `GET /api/friends` | `{ friendships: [{ id, status, requester_id, addressee_id, requester, addressee, … }], counts: { accepted, incoming, outgoing } }` : **tout d'un coup**, amis et demandes (aucun paramètre, pas de pagination ; captures : 20 amitiés = 17 + 0 + 3 des compteurs) |
 | `GET /api/friends/search?q=` | `{ users: [joueur] }` |
 | `POST /api/friends` `{ addressee_id }` | 201 `{ friendship }` (`status: "pending"`) |
 | `DELETE /api/friends/<friendshipId>` | `{ success }` (retirer un ami, annuler une demande) |
+| `PATCH /api/friends/<friendshipId>` `{ action: "accept" \| "decline" }` | demande reçue acceptée ou refusée (code du site, réponse non lue) |
+| `POST /api/friends/accept-all` | toutes les demandes reçues acceptées (code du site) |
+| `GET /api/chat` | `{ conversations: [{ peer_id, peer_username, peer_avatar_url, peer_avatar_pos_x, peer_avatar_pos_y, last_message, last_message_at, unread_count }] }` (page Messages) |
+| `GET /api/chat/<peerId>` | `{ messages: [{ id, sender_id, recipient_id, content, read, created_at, sender: { id, username, avatar_url, avatar_pos_x, avatar_pos_y } }] }` (une conversation) |
 | `POST /api/reports` `{ reportedUserId, reason, details }` | `{ ok }` |
 | `GET /api/reports?reportedUserId=<uid>` | `{ report: { reason, details, created_at } }` : son signalement déjà fait sur ce joueur |
+
+## Guildes
+
+Code du site du 30/09/2026 (réponses non capturées, sauf mention).
+
+| Requête | Réponse |
+|---|---|
+| `POST /api/guilds` `{ name, description? }` (nom de 2 à 30 caractères, description de 200 au plus, vide = absente) | création ; erreur : `{ error }`, affiché tel quel dans le formulaire ; réussite : le site relit sa guilde |
+| `PATCH /api/guilds` `{ name, description \| null }` | « Modifier la guilde » (chef) ; `{ guild }` ou `{ error }` |
+| `POST /api/guilds/leave` | quitter la guilde (après `window.confirm`) ; `{ error }` en cas de refus (`alert`) |
 
 ## Session
 

@@ -4,6 +4,7 @@ import { watchDom, whenBody } from '@/core/dom';
 import { instantResponse, net, type NetRequest } from '@/core/net';
 import type { Feature } from '@/core/runtime';
 import { restoredQuery } from '@/services/collection-restore';
+import { SearchButton } from '@/services/list-search';
 import {
   COLLECTION_ROUTE,
   findCollectionFilters,
@@ -17,7 +18,6 @@ import {
 import { lockControl, unlockAll } from '@/ui/lock';
 import { mountUi, type MountedUi } from '@/ui/mount';
 import { toast } from '@/ui/toast';
-import { SearchButton } from './SearchButton';
 import { isListChange, searchStatus } from './state';
 
 const OWNER = 'collection-search';
@@ -142,7 +142,7 @@ export const collectionSearch: Feature = {
         placed?.controller.abort();
         placed = undefined;
       } else {
-        const vnode = h(SearchButton, { status, onClick: run });
+        const vnode = h(SearchButton, { status, onClick: run, name: 'wm-collection-search' });
         if (placed?.ui.element.parentElement === filters.row && placed.ui.element.nextSibling === null) {
           placed.ui.update(vnode);
         } else {

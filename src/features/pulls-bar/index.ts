@@ -24,7 +24,8 @@ const CSS = `
 .wm-packs-part:first-child { padding-left: 0; }
 .wm-packs-part:last-child { padding-right: 0; }
 .wm-packs-part + .wm-packs-part { border-left: 1px solid ${tokens.border}; }
-.wm-packs-value { display: flex; align-items: center; justify-content: center; height: 2.25rem; }
+/* Rangée des valeurs à la hauteur du bouton du son (moyen : celle des champs). */
+.wm-packs-value { display: flex; align-items: center; justify-content: center; height: ${tokens.fieldHeight}; }
 @media (max-width: 520px) {
   .wm-packs-bar { flex-wrap: wrap; row-gap: 12px; }
   .wm-packs-part { flex: 1 1 45%; min-width: 0; padding: 0; }

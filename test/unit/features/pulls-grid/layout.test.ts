@@ -9,8 +9,8 @@ describe('disposition de la grille', () => {
   it('paquet PRO de 15 cartes : lignes de 5, réduites pour tenir en hauteur', () => {
     const layout = gridLayout(15, 2200, 1100);
     expect(layout.columns).toBe(5);
-    // 3 lignes : (1100 - 3 × 60 - 2 × 24) / (3 × 420)
-    expect(layout.zoom).toBe(0.692);
+    // 3 lignes : (1100 - 3 × 57 - 2 × 24) / (3 × 420)
+    expect(layout.zoom).toBe(0.699);
   });
 
   it('jamais plus de 5 par ligne, ni plus que de cartes', () => {

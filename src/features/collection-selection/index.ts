@@ -19,7 +19,6 @@ import {
 } from '@/site/collection';
 import { mountUi, type MountedUi } from '@/ui/mount';
 import { isStamped } from '@/ui/stamp';
-import { tokens } from '@/ui/theme';
 import { toast } from '@/ui/toast';
 import { CONFIRM_ACTIVE_MS, CONFIRM_DELAY_MS, confirmStage } from './confirm';
 import { SelectionActions, SelectionToggle } from './views';
@@ -34,19 +33,17 @@ const DIM = 'wm-selection-dim';
 /** Au-delà, une confirmation du site qui s'ouvre n'est plus la suite de notre second clic. */
 const ARM_WINDOW_MS = 2000;
 
-// Mise en page seulement : boutons, compte et pastilles portent les classes du site.
+// Mise en page seulement : les boutons sont ceux de `buttonClass`, le compte et les pastilles portent les classes du site.
 const CSS = `
 .${HIDDEN} { display: none !important; }
 .${CONFIRM_HIDDEN} { visibility: hidden !important; }
 /* Côté droit de la ligne des filtres (sa largeur : collection-filter-line), contenu calé à droite. */
 .${LEVEL} { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
 .${LEVEL} .wm-selection-count { white-space: nowrap; }
-.${LEVEL} .wm-selection-toggle { width: ${tokens.fieldHeight}; height: ${tokens.fieldHeight}; min-height: 0; padding: 0; }
 /* Barre du bas resserrée sur ses boutons (sa marge intérieure de chaque côté), centrée là où le site la
    place : il la cale sur la largeur du contenu de la page (left, width en style). */
 .${BAR} { left: var(--wm-bar-center) !important; width: max-content !important; max-width: var(--wm-bar-width); translate: -50% 0; }
 .${ACTIONS} { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
-.${ACTIONS} > button { min-height: ${tokens.fieldHeight}; padding-block: 0; }
 .wm-swap { display: inline-grid; }
 .wm-swap > span { grid-area: 1 / 1; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; }
 .wm-swap > [data-off] { visibility: hidden; }

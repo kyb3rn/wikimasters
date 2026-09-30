@@ -3,11 +3,12 @@ export {
   cachedMarket,
   fetchMarket,
   isStale,
-  marketUnavailable,
+  marketNeedsPro,
   onMarketAvailabilityChange,
   onMarketChange,
   trackMarket,
   type MarketCard,
 } from './market';
-export { closeMarketModal, openMarketModal } from './open';
+export { closeMarketModal, openMarketModal, showMarketModal, showProOffer } from './open';
+export { ProBadge } from './ProOffer';
 export { marketSettings } from './settings';

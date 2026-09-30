@@ -16,16 +16,6 @@ export const CSS = `
 /* Éléments du site masqués (jamais retirés : React les gère). */
 .wm-hidden { display: none !important; }
 
-/* « Signaler l'image » sur l'image de la carte, en bas à droite. */
-.wm-report { position: absolute; right: 8px; bottom: 8px; z-index: 35; display: flex; align-items: center;
-  justify-content: center; width: 30px; height: 30px; padding: 0; border-radius: 999px;
-  border: 1px solid rgb(255 255 255 / 18%); background: rgb(0 0 0 / 55%); color: #fff; cursor: pointer;
-  backdrop-filter: blur(2px); transition: background 0.15s, color 0.15s; }
-.wm-report:hover:not(:disabled) { background: rgb(0 0 0 / 78%); }
-.wm-report[aria-pressed="true"] { color: ${tokens.danger}; }
-.wm-report:disabled { opacity: 0.45; cursor: not-allowed; }
-
-/* Actions : Vendre · Marché (gris) · Défausser (rouge : DANGER_BUTTON, ui/theme). */
-.wm-root .wm-market-button { gap: 0.5rem; }
+/* Actions : Vendre (vert) · Marché (gris) · Défausser (rouge) : couleurs de site-buttons pour ceux du site. */
 .wm-root .wm-market-button[aria-pressed="true"] { border-color: ${tokens.foreground}; color: ${tokens.foreground}; }
 `;

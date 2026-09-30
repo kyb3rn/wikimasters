@@ -3,13 +3,15 @@ import { childController } from '@/core/async';
 import { injectStyle, setClass, watchDom, whenBody } from '@/core/dom';
 import { net } from '@/core/net';
 import type { Feature } from '@/core/runtime';
-import { marketUnavailable, onMarketAvailabilityChange, openMarketModal } from '@/services/market';
+import { marketNeedsPro, onMarketAvailabilityChange, openMarketModal } from '@/services/market';
+import { isWishlistChange } from '@/site/api';
 import { findCardModals, findDiscardConfirm, readDiscard, readModalCard, type CardModal } from '@/site/cards';
+import { ReportButton } from '@/ui/controls';
 import { lockControl, unlockAll } from '@/ui/lock';
 import { mountUi, type MountedUi } from '@/ui/mount';
-import { DANGER_BUTTON, ensureBaseStyle } from '@/ui/theme';
+import { ensureBaseStyle } from '@/ui/theme';
 import { toast } from '@/ui/toast';
-import { MarketButton, ReportButton } from './buttons';
+import { CatalogActions, MarketButton } from './buttons';
 import { CSS, DISCARD_BUSY } from './style';
 
 const OWNER = 'card-modal-layout';
@@ -31,10 +33,6 @@ interface ModalSlots {
 
 const text = (element: Element) => (element.textContent ?? '').replace(/\s+/g, ' ').trim();
 
-/** Classes du site d'un élément, sans les nôtres (`wm-…`). */
-const siteClasses = (element: Element) =>
-  [...element.classList].filter((name) => !name.startsWith('wm-')).join(' ');
-
 /** Remplace le texte d'un bouton du site (son nœud texte), sans toucher à son icône. Idempotent. */
 function renameButton(button: HTMLButtonElement, from: string, to: string): void {
   for (const node of button.childNodes) {
@@ -46,7 +44,7 @@ export const cardModalLayout: Feature = {
   id: 'card-modal-layout',
   name: 'Modale de carte',
   description:
-    'Présentation de la modale de carte : signalement sur l’image, actions Vendre · Marché (historique des ventes) · Défausser (roue pendant la défausse).',
+    'Présentation de la modale de carte : signalement sur l’image, actions Vendre · Marché (historique des ventes) · Défausser (roue pendant la défausse) ; vue catalogue (Toutes les cartes) : liste de souhaits · Marché.',
   category: 'Général',
   routes: 'all',
   required: true,
@@ -63,6 +61,8 @@ export const cardModalLayout: Feature = {
     const discarding = new Map<HTMLElement, number>();
     /** Modales dont l'historique des ventes se charge. */
     const opening = new Set<HTMLElement>();
+    /** Modales au départ d'un ajout ou retrait de la liste de souhaits → requêtes en cours. */
+    const wishing = new Map<HTMLElement, number>();
 
     function openMarket(modal: CardModal): void {
       const card = readModalCard(modal);
@@ -97,6 +97,25 @@ export const cardModalLayout: Feature = {
           };
           if (status !== undefined && status < 400) setTimeout(done, SETTLED_MS);
           else done();
+        };
+      },
+      { signal },
+    );
+
+    // Liste de souhaits : le site change son bouton tout de suite (optimiste), le nôtre attend la réponse.
+    net.track(
+      (request) => isWishlistChange(request) && !request.own,
+      () => {
+        const roots = findCardModals().map((modal) => modal.root);
+        for (const root of roots) wishing.set(root, (wishing.get(root) ?? 0) + 1);
+        sync();
+        return () => {
+          for (const root of roots) {
+            const left = (wishing.get(root) ?? 1) - 1;
+            if (left > 0) wishing.set(root, left);
+            else wishing.delete(root);
+          }
+          sync();
         };
       },
       { signal },
@@ -151,6 +170,33 @@ export const cardModalLayout: Feature = {
         );
       }
 
+      // Vue catalogue (Toutes les cartes) : pas de rangée d'actions chez le site, la nôtre avec la liste de
+      // souhaits (son bouton, caché, déclenché par le nôtre) et « Marché ».
+      if (modal.catalog && modal.panel) {
+        const wish = modal.wishlistButton;
+        if (modal.wishlistBlock) setClass(modal.wishlistBlock, 'wm-hidden', true);
+        own.market = place(
+          own.market,
+          h(CatalogActions, {
+            wishlist: wish && {
+              active: modal.wishlisted,
+              label: text(wish),
+              hint: modal.wishlistHint,
+              busy: wishing.has(modal.root),
+              onClick: () => wish.click(),
+            },
+            market: {
+              busy: opening.has(modal.root),
+              needsPro: marketNeedsPro(),
+              onClick: () => openMarket(modal),
+            },
+          }),
+          modal.panel,
+          null,
+          false,
+        );
+      }
+
       // Actions : Vendre · Marché · Défausser.
       if (modal.auctionButton) renameButton(modal.auctionButton, 'Mettre aux enchères', 'Vendre');
       const discard = modal.discardButton;
@@ -159,9 +205,8 @@ export const cardModalLayout: Feature = {
         own.market = place(
           own.market,
           h(MarketButton, {
-            className: siteClasses(discard),
             busy: opening.has(modal.root),
-            unavailable: marketUnavailable(),
+            needsPro: marketNeedsPro(),
             onClick: () => openMarket(modal),
           }),
           actionsRow,
@@ -169,7 +214,6 @@ export const cardModalLayout: Feature = {
           true,
         );
       }
-      if (discard) setClass(discard, DANGER_BUTTON, true);
       markDiscarding(modal);
     }
 

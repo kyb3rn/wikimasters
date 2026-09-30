@@ -19,15 +19,15 @@ const CONFIRM_ACTIVE_MS = 3500;
 const CONFIRM_WINDOW_MS = CONFIRM_DELAY_MS + CONFIRM_ACTIVE_MS;
 const ASKING_LABEL = 'Confirmer ?';
 
-// Classe répétée : doit l'emporter sur le rouge du bouton (`wm-danger`, card-modal), survol compris.
+// Classe répétée : doit l'emporter sur le rouge en contour du bouton (site-buttons), survol compris. « Confirmer ? » : rouge plein.
 const STRONG = `.${CONFIRMING}.${CONFIRMING}.${CONFIRMING}.${CONFIRMING}`;
 
 const CSS = `
 .${CONFIRM_HIDDEN} { visibility: hidden !important; }
 
 /* Carte protégée, après un premier clic : le bouton devient « Confirmer ? » (son contenu est masqué, pas modifié). */
-${STRONG} { font-size: 0 !important; background: ${tokens.danger} !important; border-color: ${tokens.danger} !important;
-  color: #fff !important; }
+${STRONG} { font-size: 0 !important; background: var(--wm-fill, ${tokens.danger}) !important; border-color: transparent !important;
+  color: var(--wm-on, #fff) !important; }
 ${STRONG} > * { display: none !important; }
 ${STRONG}::after { content: '${ASKING_LABEL}'; font-size: 0.875rem; font-weight: 600; }
 ${STRONG}.${CONFIRM_WAIT} { opacity: 0.55 !important; cursor: not-allowed !important; }

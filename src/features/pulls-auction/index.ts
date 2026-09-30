@@ -248,7 +248,6 @@ export const pullsAuction: Feature = {
 
     function button(carousel: Carousel, pack: OpenPack, index: number, fromGrid: boolean) {
       return h(AuctionButton, {
-        className: carousel.previous.className,
         ...status(pack, index),
         onClick: () => start(index, fromGrid),
       });

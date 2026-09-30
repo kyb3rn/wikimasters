@@ -28,6 +28,8 @@ export interface Toast {
   readonly variant: ToastVariant;
   readonly position: ToastPosition;
   readonly action?: ToastAction;
+  /** Durée d'affichage, absente pour un toast « sticky » (sans barre de progression). */
+  readonly durationMs?: number;
 }
 
 const DEFAULT_DURATION: Record<ToastVariant, number> = { error: 8000, warning: 8000, success: 6000, info: 6000 };
@@ -43,6 +45,9 @@ const MAX_PER_POSITION = 4;
 export interface ToastStore {
   show(options: ToastOptions): number;
   dismiss(id: number): void;
+  /** Arrête le compte à rebours d'un toast (curseur dessus) ; `resume` le reprend là où il en était. */
+  pause(id: number): void;
+  resume(id: number): void;
   list(): readonly Toast[];
   /** Prévenu à chaque ajout ou retrait ; renvoie la fonction de désinscription. */
   subscribe(listener: () => void): () => void;
@@ -51,21 +56,40 @@ export interface ToastStore {
 interface Timers {
   setTimeout(callback: () => void, ms: number): unknown;
   clearTimeout(handle: unknown): void;
+  now(): number;
+}
+
+const BROWSER_TIMERS: Timers = {
+  setTimeout: (callback, ms) => setTimeout(callback, ms),
+  clearTimeout: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+  now: () => performance.now(),
+};
+
+/** Temps restant d'un toast minuté ; `handle` absent tant qu'il est en pause. */
+interface Countdown {
+  remaining: number;
+  startedAt: number;
+  handle?: unknown;
 }
 
 /** File des toasts, sans DOM : l'affichage s'y abonne (`Toaster`). */
-export function createToastStore(timers: Timers = globalThis): ToastStore {
+export function createToastStore(timers: Timers = BROWSER_TIMERS): ToastStore {
   let toasts: Toast[] = [];
   let nextId = 1;
-  const handles = new Map<number, unknown>();
+  const countdowns = new Map<number, Countdown>();
   const listeners = new Set<() => void>();
 
   const notify = () => listeners.forEach((listener) => listener());
 
+  function run(id: number, countdown: Countdown): void {
+    countdown.startedAt = timers.now();
+    countdown.handle = timers.setTimeout(() => dismiss(id), countdown.remaining);
+  }
+
   function dismiss(id: number): void {
-    const handle = handles.get(id);
+    const handle = countdowns.get(id)?.handle;
     if (handle !== undefined) timers.clearTimeout(handle);
-    handles.delete(id);
+    countdowns.delete(id);
     const before = toasts.length;
     toasts = toasts.filter((toast) => toast.id !== id);
     if (toasts.length !== before) notify();
@@ -74,6 +98,7 @@ export function createToastStore(timers: Timers = globalThis): ToastStore {
   return {
     show(options) {
       const variant = options.variant ?? 'info';
+      const duration = options.sticky ? 0 : (options.durationMs ?? DEFAULT_DURATION[variant]);
       const toast: Toast = {
         id: nextId++,
         message: options.message,
@@ -81,18 +106,33 @@ export function createToastStore(timers: Timers = globalThis): ToastStore {
         variant,
         position: options.position ?? DEFAULT_POSITION[variant],
         ...(options.action && { action: options.action }),
+        ...(duration > 0 && { durationMs: duration }),
       };
       const samePosition = toasts.filter((t) => t.position === toast.position);
       const overflow = samePosition.length - MAX_PER_POSITION + 1;
       for (const old of samePosition.slice(0, Math.max(0, overflow))) dismiss(old.id);
 
       toasts = [...toasts, toast];
-      const duration = options.sticky ? 0 : (options.durationMs ?? DEFAULT_DURATION[variant]);
-      if (duration > 0) handles.set(toast.id, timers.setTimeout(() => dismiss(toast.id), duration));
+      if (duration > 0) {
+        const countdown: Countdown = { remaining: duration, startedAt: 0 };
+        countdowns.set(toast.id, countdown);
+        run(toast.id, countdown);
+      }
       notify();
       return toast.id;
     },
     dismiss,
+    pause(id) {
+      const countdown = countdowns.get(id);
+      if (countdown?.handle === undefined) return;
+      timers.clearTimeout(countdown.handle);
+      delete countdown.handle;
+      countdown.remaining = Math.max(0, countdown.remaining - (timers.now() - countdown.startedAt));
+    },
+    resume(id) {
+      const countdown = countdowns.get(id);
+      if (countdown && countdown.handle === undefined) run(id, countdown);
+    },
     list: () => toasts,
     subscribe(listener) {
       listeners.add(listener);

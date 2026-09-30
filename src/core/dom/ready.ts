@@ -2,6 +2,12 @@
 export const ROOT_CLASS = 'wm-root';
 
 /**
+ * Copie d'une modale qui s'efface après sa fermeture (`ui/modal`) : une image, qu'aucune recherche des modales
+ * ouvertes ne doit trouver.
+ */
+export const GHOST_CLASS = 'wm-modal-ghost';
+
+/**
  * Attend que `document.body` existe. Le script démarre à `document-start`, avant le HTML :
  * toute fonctionnalité qui touche au DOM commence par là.
  */

@@ -1,4 +1,5 @@
 import type { ProfileAvatar, ProfileStat, ProfileTag } from '@/site/profile';
+import { buttonClass } from '@/ui/button';
 import { Icon } from '@/ui/icons';
 import { siteClass } from '@/ui/site';
 
@@ -82,7 +83,7 @@ export function ProfileHeader(props: ProfileHeaderProps) {
             </div>
             <button
               type="button"
-              class={`${siteClass.profileAvatarEdit} wm-profile-avatar-edit`}
+              class={`${buttonClass('round', { fill: 'solid', size: 'sm' })} wm-profile-avatar-edit`}
               title="Modifier la photo de profil"
               aria-label="Modifier la photo de profil"
               onClick={props.onEditAvatar}

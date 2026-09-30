@@ -1,3 +1,5 @@
+import { GHOST_CLASS } from '@/core/dom';
+
 /**
  * Modales du site (relevé du 29/09/2026, `docs/site.md` § Modales). Pas de composant commun : chacune est un
  * `div.fixed.inset-0.z-…` (portail dans `body` ou enfant d'une autre modale) qui ferme au clic sur le fond,
@@ -8,7 +10,10 @@
  * Le fond ne sert jamais à fermer une modale à la place de l'utilisateur : dans l'invitation de guilde,
  * un clic sur le fond **décline** l'invitation.
  */
-const OVERLAY = 'div.fixed.inset-0';
+
+/** Fond d'une modale du site, hors copies qui s'effacent après une fermeture. */
+export const SITE_OVERLAY = `div.fixed.inset-0:not(.${GHOST_CLASS} *)`;
+const OVERLAY = SITE_OVERLAY;
 
 export interface SiteModal {
   readonly overlay: HTMLElement;
@@ -52,19 +57,28 @@ function findClose(buttons: readonly HTMLButtonElement[]): HTMLButtonElement | u
   );
 }
 
+/** Fond d'une modale du site (même retiré de la page) : ni les feux d'artifice de /pulls, ni nos propres éléments. */
+export function isSiteOverlay(element: Node): element is HTMLElement {
+  return (
+    element instanceof HTMLElement &&
+    element.matches(OVERLAY) &&
+    !element.classList.contains('pointer-events-none') &&
+    !isOwn(element)
+  );
+}
+
+/** La modale d'un fond, lue aussi sur un fond que le site vient de retirer. */
+export function readSiteModal(overlay: HTMLElement): SiteModal {
+  const children = [...overlay.children].filter((child): child is HTMLElement => child instanceof HTMLElement && !isOwn(child));
+  const layer = children.find((child) => child.matches('div.absolute.inset-0'));
+  const frame = children.find((child) => child !== layer);
+  const buttons = frame ? ownButtons(overlay) : [];
+  const dismiss = buttons.find((button) => /^Compris\b/.test(text(button)));
+  return { overlay, shade: layer ?? overlay, frame, close: findClose(buttons) ?? dismiss, dismiss };
+}
+
 export function findSiteModals(doc: Document = document): SiteModal[] {
-  const modals: SiteModal[] = [];
-  for (const overlay of doc.querySelectorAll<HTMLElement>(OVERLAY)) {
-    // Feux d'artifice de /pulls, et nos propres éléments.
-    if (overlay.classList.contains('pointer-events-none') || isOwn(overlay)) continue;
-    const children = [...overlay.children].filter((child): child is HTMLElement => child instanceof HTMLElement && !isOwn(child));
-    const layer = children.find((child) => child.matches('div.absolute.inset-0'));
-    const frame = children.find((child) => child !== layer);
-    const buttons = frame ? ownButtons(overlay) : [];
-    const dismiss = buttons.find((button) => /^Compris\b/.test(text(button)));
-    modals.push({ overlay, shade: layer ?? overlay, frame, close: findClose(buttons) ?? dismiss, dismiss });
-  }
-  return modals;
+  return [...doc.querySelectorAll(OVERLAY)].filter(isSiteOverlay).map(readSiteModal);
 }
 
 /** Croix ronde dans le coin (modale de carte, mise aux enchères…) : le modèle, rien à changer. */

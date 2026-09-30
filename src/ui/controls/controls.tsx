@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { injectStyle } from '@/core/dom';
+import { buttonClass } from '@/ui/button';
 import { Icon } from '@/ui/icons';
 import { siteClass } from '@/ui/site';
 import { tokens } from '@/ui/theme';
@@ -54,12 +55,13 @@ export interface CloseButtonProps {
   readonly class?: string;
 }
 
-/** Croix de fermeture des modales du site. */
+/** Croix de fermeture des modales : petit rond gris ghost. */
 export function CloseButton({ onClick, disabled, class: extra }: CloseButtonProps) {
+  const className = buttonClass('round', { fill: 'ghost', size: 'sm' });
   return (
     <button
       type="button"
-      class={extra ? `${extra} ${siteClass.closeButton}` : siteClass.closeButton}
+      class={extra ? `${extra} ${className}` : className}
       aria-label="Fermer"
       disabled={disabled}
       onClick={onClick}

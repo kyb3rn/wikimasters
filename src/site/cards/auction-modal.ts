@@ -1,3 +1,4 @@
+import { SITE_OVERLAY } from '@/site/modals';
 import { siteButtons, text } from './dom';
 
 /**
@@ -47,7 +48,7 @@ export function parseDuration(label: string): number | undefined {
 }
 
 export function findAuctionModal(doc: Document = document): AuctionModal | undefined {
-  for (const root of doc.querySelectorAll<HTMLElement>('div.fixed.inset-0')) {
+  for (const root of doc.querySelectorAll<HTMLElement>(SITE_OVERLAY)) {
     const heading = [...root.querySelectorAll('h2')].some((h2) => text(h2) === 'Mettre aux enchères');
     const priceInput = root.querySelector<HTMLInputElement>('input[aria-label="Mise de départ"]');
     if (!heading || !priceInput) continue;

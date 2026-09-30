@@ -3,7 +3,9 @@ import { tokens } from '@/ui/theme';
 const accentTint = (percent: number) => `color-mix(in srgb, ${tokens.accent} ${percent}%, transparent)`;
 
 export const CSS = `
-.wm-root .wm-gear { padding-left: 0.4rem; padding-right: 0.4rem; }
+/* La barre du solde sur mobile laisse passer les clics (pointer-events: none), sauf sur ses boutons. Un léger
+   écart avec le solde. */
+.wm-root .wm-gear { pointer-events: auto; margin-right: 6px; }
 
 .wm-modal-body:has(.wm-settings-nav) { min-height: 340px; }
 .wm-settings-nav { flex: none; width: 240px; padding: 12px; display: flex; flex-direction: column; gap: 4px;

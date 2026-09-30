@@ -53,6 +53,7 @@ test('barre du bas : seulement les boutons, à l’allure des actions de la moda
   // Largeur selon le texte, hauteur des champs.
   const boxes = await Promise.all((await buttons.all()).map(async (button) => (await button.boundingBox()) ?? { width: 0, height: 0 }));
   expect(new Set(boxes.map((box) => Math.round(box.width))).size).toBe(4);
+  // Boutons standard moyens : hauteur des champs.
   for (const box of boxes) expect(Math.round(box.height)).toBe(45);
   // Barre resserrée sur ses boutons, autant de marge des deux côtés, centrée là où le site la place
   // (le faux site : 900 px de large depuis le bord gauche, centre à 450 px).
@@ -61,7 +62,7 @@ test('barre du bas : seulement les boutons, à l’allure des actions de la moda
   expect(bar.width).toBeLessThan(900);
   expect(Math.round(bar.x + bar.width / 2)).toBe(450);
   expect(Math.round(row.x - bar.x)).toBe(Math.round(bar.x + bar.width - (row.x + row.width)));
-  await expect(action(page, 'Défausser tout')).toHaveClass(/wm-danger/);
+  await expect(action(page, 'Défausser tout')).toHaveClass(/wm-tone-danger/);
   await expect(action(page, 'Étiqueter')).toBeDisabled();
   await expect(action(page, 'Défausser tout')).toBeDisabled();
 

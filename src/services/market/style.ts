@@ -2,6 +2,10 @@ import { tokens } from '@/ui/theme';
 
 // Mise en page de l'historique : la modale, la croix, les boutons et l'interrupteur sont ceux de la base.
 export const CSS = `
+/* Offre PRO (compte sans PRO) : l'encadré du site, avec la marge de nos modales ; icône du titre en accent. */
+.wm-pro-offer { flex: 1; min-width: 0; padding: 16px 20px 20px; }
+.wm-pro-offer-icon { flex: none; color: ${tokens.accent}; }
+
 .wm-market { flex: 1; min-width: 0; overflow: auto; display: flex; flex-direction: column; gap: 10px;
   padding: 14px 16px 16px; font-size: 13px; }
 
@@ -12,7 +16,7 @@ export const CSS = `
 .wm-market-tiles[data-empty] .wm-market-tile { opacity: 0.75; }
 .wm-market-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.45; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis; }
-.wm-market-value { display: inline-flex; align-items: center; gap: 3px; font-size: 13px; font-weight: 600;
+.wm-market-value { display: inline-flex; align-items: center; gap: 4px; font-size: 17px; font-weight: 600; line-height: 1.3;
   color: ${tokens.accent}; white-space: nowrap; }
 .wm-market-value[data-plain] { color: inherit; }
 .wm-market-sub { font-size: 10.5px; opacity: 0.55; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -28,14 +32,18 @@ export const CSS = `
 .wm-market-chip:hover { opacity: 0.75; }
 .wm-market-chip[aria-pressed="true"] { opacity: 1; border-color: currentColor; }
 
-.wm-market-history { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; border-radius: 8px;
-  border: 1px solid ${tokens.border}; background: ${tokens.surfaceLight}; }
-.wm-market-chart-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
-.wm-market-chart-head .wm-market-label { flex: 1 1 auto; min-width: 0; }
+/* Graphique : petit titre et interrupteur des moyennes sur une ligne, au-dessus du cadre. */
+.wm-market-history { display: flex; flex-direction: column; gap: 6px; }
+.wm-market-chart-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+  padding: 0 2px; }
+.wm-market-title { flex: 1 1 auto; min-width: 0; font-size: 12px; font-weight: 600; opacity: 0.8; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
 .wm-market-averages { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; white-space: nowrap; }
 .wm-market-averages i { font-style: normal; font-weight: 700; }
+.wm-market-chart-box { padding: 6px 8px; border-radius: 8px; border: 1px solid ${tokens.border};
+  background: ${tokens.surfaceLight}; }
 
-.wm-market-chart-wrap { position: relative; margin-top: 2px; user-select: none; }
+.wm-market-chart-wrap { position: relative; user-select: none; }
 .wm-market-chart { display: block; width: 100%; height: auto; overflow: visible; color: ${tokens.accent}; }
 .wm-market-chart[data-drag] { cursor: grabbing !important; }
 .wm-market-chart text { fill: ${tokens.foreground}; opacity: 0.55; font-family: inherit; font-size: 10px; }

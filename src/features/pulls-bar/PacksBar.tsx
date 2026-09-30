@@ -1,4 +1,5 @@
 import type { ComponentChildren } from 'preact';
+import { buttonClass } from '@/ui/button';
 import { Icon } from '@/ui/icons';
 import { siteClass } from '@/ui/site';
 
@@ -56,7 +57,7 @@ export function PacksBar({ available, max, next, sound, grid, onSound, onGrid }:
         value={
           <button
             type="button"
-            class={`${siteClass.iconButton} ${sound ? siteClass.iconOn : siteClass.iconOff}`}
+            class={buttonClass('round', { tone: sound ? 'accent' : 'neutral', fill: 'ghost' })}
             aria-pressed={sound}
             aria-label={soundLabel}
             title={soundLabel}

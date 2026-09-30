@@ -1,5 +1,6 @@
 import { isRecord } from '@/core/guards';
 import { currentFiberAncestors } from '@/core/react';
+import { findListbox, type SiteListbox } from '@/site/listbox';
 
 /**
  * Filtres de la page Collection (code du site, 29/09/2026) : champ de recherche (pris en compte 300 ms
@@ -100,32 +101,9 @@ export function isCollectionSearchField(target: EventTarget | null, doc: Documen
   return target instanceof HTMLInputElement && target === findCollectionSearchField(doc);
 }
 
-/** Liste déroulante du site, lue dans les props de son composant (arbre React affiché). */
-export interface CollectionSelect {
-  readonly ariaLabel: string;
-  readonly value: string;
-  readonly options: readonly { readonly value: string; readonly label: string }[];
-  /** Ce que fait le site au choix d'une option (`__manage_tags__` : ouvre « Gérer les étiquettes »). */
-  onChange(value: string): void;
-}
-
-/** Composant de la liste dont `button` est le bouton : son `ariaLabel` est l'aria-label du bouton. */
-export function findCollectionSelect(button: HTMLButtonElement): CollectionSelect | undefined {
-  const ariaLabel = button.getAttribute('aria-label');
-  if (!ariaLabel) return undefined;
-  for (const fiber of currentFiberAncestors(button)) {
-    const props = fiber.memoizedProps;
-    if (!isRecord(props) || props.ariaLabel !== ariaLabel || typeof props.onChange !== 'function') continue;
-    const onChange = props.onChange as (value: string) => void;
-    const options = (Array.isArray(props.options) ? props.options : []).flatMap((option: unknown) =>
-      isRecord(option) && typeof option.value === 'string'
-        ? [{ value: option.value, label: typeof option.label === 'string' ? option.label : '' }]
-        : [],
-    );
-    return { ariaLabel, value: typeof props.value === 'string' ? props.value : '', options, onChange: (value) => onChange(value) };
-  }
-  return undefined;
-}
+/** Liste déroulante du site (étiquette, tri), lue dans les props de son composant. */
+export type CollectionSelect = SiteListbox;
+export const findCollectionSelect = findListbox;
 
 /**
  * Actualisation de la page (le rappel `onRefresh`, lu dans l'arbre React affiché : celui d'un rendu

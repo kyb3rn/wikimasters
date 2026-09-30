@@ -1,6 +1,6 @@
 {
   "name": "wikimasters",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Outils pour wiki-masters.com, en un seul userscript Tampermonkey.",
   "author": "mamzet",
   "private": true,

@@ -1,3 +1,4 @@
+import type { SearchStatus } from '@/services/list-search';
 import { sameListChoice, sameOtherFilters, type CollectionQuery } from '@/site/collection';
 
 /**
@@ -9,12 +10,6 @@ export function isListChange(query: CollectionQuery, previous: CollectionQuery |
   return previous !== undefined && !sameListChoice(query, previous) && sameOtherFilters(query, previous);
 }
 
-/**
- * - `search` : les choix (listes, raretés) ne correspondent plus à la liste affichée ;
- * - `reload` : liste affichée à jour (ou en échec), à recharger ;
- * - `loading` : liste demandée au site, pas encore reçue.
- */
-export type SearchStatus = 'search' | 'reload' | 'loading';
 
 export function searchStatus(facts: {
   readonly loading: boolean;

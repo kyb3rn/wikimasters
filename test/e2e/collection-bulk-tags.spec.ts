@@ -6,7 +6,7 @@ const modal = (page: Page) => page.locator('#bulk-tags');
 const input = (page: Page) => modal(page).locator('input[type="text"]');
 const option = (page: Page, name: string) => modal(page).locator('.max-h-64 > button', { hasText: name });
 const chips = (page: Page) => modal(page).locator('.wm-root span.rounded-full');
-const submit = (page: Page) => modal(page).locator('.wm-root button.w-full');
+const submit = (page: Page) => modal(page).locator('.wm-root button.wm-button-wide');
 const counter = (page: Page, key: 'loads' | 'siteTagActions') =>
   page.evaluate((name) => (window as unknown as { __collection: Record<string, number> }).__collection[name] ?? 0, key);
 const writes = (server: { supabase: { method: string; url: string }[] }) =>

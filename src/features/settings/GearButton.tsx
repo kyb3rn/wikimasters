@@ -1,21 +1,17 @@
+import { buttonClass } from '@/ui/button';
 import { Icon } from '@/ui/icons';
 
-export interface GearButtonProps {
-  /** Classes du bouton du solde : même allure, juste à sa gauche. */
-  readonly className: string;
-  readonly onClick: () => void;
-}
-
-export function GearButton({ className, onClick }: GearButtonProps) {
+/** Engrenage juste à gauche du bouton du solde : petit rond gris ghost, à sa hauteur. */
+export function GearButton({ onClick }: { readonly onClick: () => void }) {
   return (
     <button
       type="button"
-      class={`${className} wm-gear`}
+      class={`${buttonClass('round', { fill: 'ghost', size: 'sm' })} wm-gear`}
       aria-label="Paramètres WikiMasters"
       title="Paramètres WikiMasters"
       onClick={onClick}
     >
-      <Icon name="settings" size={16} />
+      <Icon name="settings" size={18} />
     </button>
   );
 }

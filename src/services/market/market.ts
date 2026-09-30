@@ -20,11 +20,11 @@ const listeners = new Set<(entry: MarketEntry) => void>();
 let tracking = false;
 
 /**
- * Pourquoi l'historique ne peut pas s'ouvrir : les ventes d'une carte sont réservées aux comptes PRO (erreur de
- * l'API sinon). Statut encore inconnu : permis (le site le donne vite ; au pire, l'erreur en toast).
+ * Compte sans PRO : les ventes d'une carte lui sont refusées (erreur de l'API), l'offre PRO s'ouvre à la place.
+ * Statut encore inconnu : permis (le site le donne vite ; au pire, l'erreur en toast).
  */
-export function marketUnavailable(): string | undefined {
-  return proStatus() === false ? 'Historique des ventes réservé aux comptes PRO' : undefined;
+export function marketNeedsPro(): boolean {
+  return proStatus() === false;
 }
 
 export function onMarketAvailabilityChange(listener: () => void, options: { signal: AbortSignal }): void {

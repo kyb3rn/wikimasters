@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { errorMessage } from '@/core/log';
 import { RARITY_NAMES, rarityBadgeStyle } from '@/site/rarity';
+import { buttonClass } from '@/ui/button';
 import { Icon } from '@/ui/icons';
 import { Modal } from '@/ui/modal';
 import { siteClass } from '@/ui/site';
@@ -64,7 +65,7 @@ export function MarketModal({ card, entry: initial, onClose }: MarketModalProps)
       width={880}
       onClose={onClose}
       actions={
-        <button type="button" class={siteClass.button} disabled={refreshing} title="Recharger depuis le site" onClick={refresh}>
+        <button type="button" class={buttonClass('standard')} disabled={refreshing} title="Recharger depuis le site" onClick={refresh}>
           <Icon name={refreshing ? 'spinner' : 'reload'} size={16} class={refreshing ? 'wm-spin' : undefined} />
           Actualiser
         </button>

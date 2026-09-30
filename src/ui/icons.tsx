@@ -126,6 +126,33 @@ const PATHS = {
       <path d="m19 9-5 5-4-4-3 3" />
     </>
   ),
+  /** Liste de souhaits (lucide `bell`, celle du site). */
+  bell: (
+    <>
+      <path d="M10.268 21a2 2 0 0 0 3.464 0" />
+      <path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" />
+    </>
+  ),
+  /** Filtre « Liste de souhaits » de Toutes les cartes (lucide `bookmark`, celle du site). */
+  bookmark: (
+    <path d="M17 3a2 2 0 0 1 2 2v15a1 1 0 0 1-1.496.868l-4.512-2.578a2 2 0 0 0-1.984 0l-4.512 2.578A1 1 0 0 1 5 20V5a2 2 0 0 1 2-2z" />
+  ),
+  /** PRO (lucide `sparkles`, celle des badges PRO du site). */
+  sparkles: (
+    <>
+      <path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z" />
+      <path d="M20 2v4" />
+      <path d="M22 4h-4" />
+      <circle cx="4" cy="20" r="2" />
+    </>
+  ),
+  /** Lucide `trending-up` (avantages de l'offre PRO du site). */
+  'trending-up': (
+    <>
+      <path d="M16 7h6v6" />
+      <path d="m22 7-8.5 8.5-5-5L2 17" />
+    </>
+  ),
   /** Wikibidou (pièce du site). */
   coin: (
     <>
@@ -155,6 +182,26 @@ const PATHS = {
     <>
       <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
       <circle cx="12" cy="7" r="4" />
+    </>
+  ),
+  // Page Amis : Message (lucide `message-circle`), Inviter (`link-2`, puis `check` une fois copié), retirer un
+  // ami (`user-minus`, celle de « Retirer des amis » du profil).
+  message: (
+    <path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719" />
+  ),
+  link: (
+    <>
+      <path d="M9 17H7A5 5 0 0 1 7 7h2" />
+      <path d="M15 7h2a5 5 0 1 1 0 10h-2" />
+      <line x1="8" x2="16" y1="12" y2="12" />
+    </>
+  ),
+  check: <path d="M20 6 9 17l-5-5" />,
+  'user-minus': (
+    <>
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <line x1="22" x2="16" y1="11" y2="11" />
     </>
   ),
   /** Toutes les cartes (lucide `globe`, celle du lien « Toutes les cartes » de la navigation du site). */
@@ -236,6 +283,8 @@ const PATHS = {
 } satisfies Record<string, JSX.Element>;
 
 export type IconName = keyof typeof PATHS;
+
+export const ICON_NAMES = /* @__PURE__ */ Object.keys(PATHS) as readonly IconName[];
 
 export function Icon(props: { name: IconName; size?: number; class?: string; strokeWidth?: number }): JSX.Element {
   const size = props.size ?? 20;

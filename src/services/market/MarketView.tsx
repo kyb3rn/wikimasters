@@ -11,16 +11,13 @@ import { AVERAGE_WINDOWS, SalesChart } from './SalesChart';
 import { marketSettings } from './settings';
 import { lastMean, saleRarity, salesStats } from './stats';
 
-/** Touches de vue actives (réglages) : texte court de l'en-tête du graphique et texte long de son info-bulle. */
+/** Touches de vue actives (réglages), pour l'info-bulle du titre du graphique. */
 const VIEW_KEYS = [
-  { setting: 'recentKey', short: 'R : 30 jours', long: 'R : les 30 derniers jours' },
-  { setting: 'allKey', short: 'A : tout', long: 'A : toutes les ventes' },
+  { setting: 'recentKey', help: 'R : les 30 derniers jours' },
+  { setting: 'allKey', help: 'A : toutes les ventes' },
 ] as const;
 
-function viewKeys(): { short: string[]; long: string[] } {
-  const keys = VIEW_KEYS.filter(({ setting }) => marketSettings.get(setting));
-  return { short: keys.map((key) => key.short), long: keys.map((key) => key.long) };
-}
+const viewKeys = () => VIEW_KEYS.filter(({ setting }) => marketSettings.get(setting)).map((key) => key.help);
 
 const chartHelp = (keys: readonly string[]) =>
   'Survoler un point : prix, date, rareté. Maj : lecture des moyennes au curseur. Ctrl : règle horizontale avec le ' +
@@ -101,7 +98,6 @@ export function MarketView({ card, entry, selection, onSelect, showAverages, onS
     };
   }, [entry, selection, card.rarity]);
   const { all, rarities, selected, everything, shown, mean7, model } = view;
-  const keys = viewKeys();
 
   const toggle = (rarity: string) => {
     if (rarity === '*') return onSelect([...rarities]);
@@ -113,7 +109,7 @@ export function MarketView({ card, entry, selection, onSelect, showAverages, onS
     <div class="wm-market">
       {shown.count && shown.last ? (
         <div class="wm-market-tiles">
-          <Tile label="Ventes" sub={everything ? undefined : `${selected.join(', ')} · ${all.count} en tout`}>
+          <Tile label="Ventes">
             <Plain>{shown.count}</Plain>
           </Tile>
           <Tile label={`Dernière (${formatDate(shown.last.time)}${shown.last.rarity ? ` · ${shown.last.rarity}` : ''})`}>
@@ -199,16 +195,8 @@ export function MarketView({ card, entry, selection, onSelect, showAverages, onS
       {model && (
         <div class="wm-market-history">
           <div class="wm-market-chart-head">
-            <span class="wm-market-label" title={chartHelp(keys.long)}>
-              {[
-                everything ? 'Historique complet' : `Historique ${selected.join(' + ')}`,
-                'survoler un point',
-                'Maj : moyennes',
-                'Ctrl : règle',
-                'glisser : déplacer, sur un axe : zoom',
-                'molette : zoom',
-                ...keys.short,
-              ].join(' · ')}
+            <span class="wm-market-title" title={chartHelp(viewKeys())}>
+              {everything ? 'Historique complet' : `Historique ${selected.join(' + ')}`}
             </span>
             {model.averages.length > 0 && (
               <span
@@ -222,14 +210,15 @@ export function MarketView({ card, entry, selection, onSelect, showAverages, onS
                       {index > 0 && ' · '}
                       <i style={{ color }}>{n}</i>
                     </>
-                  ))}{' '}
-                  ventes
+                  ))}
                 </span>
                 <Switch label="Afficher les moyennes mobiles" checked={showAverages} onChange={onShowAverages} />
               </span>
             )}
           </div>
-          <SalesChart key={`${entry.fetchedAt} ${selected.join()}`} model={model} showAverages={showAverages} />
+          <div class="wm-market-chart-box">
+            <SalesChart key={`${entry.fetchedAt} ${selected.join()}`} model={model} showAverages={showAverages} />
+          </div>
         </div>
       )}
     </div>

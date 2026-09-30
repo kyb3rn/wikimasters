@@ -53,7 +53,7 @@ export const settingsPanel: Feature = {
         for (const button of buttons) {
           if (slots.has(button) || !button.parentElement) continue;
           const controller = childController(signal);
-          const ui = mountUi(h(GearButton, { className: button.className, onClick: open }), {
+          const ui = mountUi(h(GearButton, { onClick: open }), {
             parent: button.parentElement,
             before: button,
             inline: true,

@@ -27,9 +27,10 @@ export function fiberOf(element: Element): Fiber | undefined {
  * Change la valeur d'un champ contrôlé par React. Une affectation de `value` ne suffit pas : React la
  * mémorise et n'y voit aucun changement. Il faut le setter natif, puis l'événement `input`.
  */
-export function setReactInputValue(input: HTMLInputElement, value: string): void {
+export function setReactInputValue(input: HTMLInputElement | HTMLTextAreaElement, value: string): void {
   if (input.value === value) return;
-  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, value);
+  const prototype = input instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+  Object.getOwnPropertyDescriptor(prototype, 'value')?.set?.call(input, value);
   input.dispatchEvent(new Event('input', { bubbles: true }));
 }
 

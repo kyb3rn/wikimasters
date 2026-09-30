@@ -3,7 +3,8 @@
  * teintée de leur couleur (`siteClass.tagChip`, style `tagChipStyle`), couleur tirée au hasard d'une palette pour
  * une nouvelle.
  */
-const PALETTE = [
+/** Couleurs proposées pour une nouvelle étiquette. */
+export const TAG_PALETTE = [
   '#f472b6', '#c084fc', '#a78bfa', '#818cf8', '#60a5fa', '#38bdf8', '#2dd4bf',
   '#4ade80', '#facc15', '#fb923c', '#fb7185', '#e879f9', '#5eead4', '#86efac',
 ];
@@ -13,7 +14,7 @@ const DEFAULT_COLOR = '#94a3b8';
 export const TAG_NAME_MAX = 48;
 
 export function randomTagColor(): string {
-  return PALETTE[Math.floor(Math.random() * PALETTE.length)] ?? DEFAULT_COLOR;
+  return TAG_PALETTE[Math.floor(Math.random() * TAG_PALETTE.length)] ?? DEFAULT_COLOR;
 }
 
 function rgb(color: string | undefined): [number, number, number] {

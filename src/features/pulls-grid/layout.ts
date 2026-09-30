@@ -3,9 +3,9 @@ export const CARD_WIDTH = 288;
 export const CARD_HEIGHT = 420;
 export const GAP_X = 20;
 export const GAP_Y = 24;
-/** Sous chaque carte : l'espace et le bouton rond du défaussage rapide. */
+/** Sous chaque carte : l'espace et les boutons ronds (moyens : hauteur des champs, 45 px) du défaussage et de l'enchère rapides. */
 export const ACTIONS_GAP = 12;
-const ACTIONS_HEIGHT = ACTIONS_GAP + 48;
+const ACTIONS_HEIGHT = ACTIONS_GAP + 45;
 const MAX_COLUMNS = 5;
 /** Plus petit que ça, les cartes ne se lisent plus : on garde cette taille et la page défile. */
 const MIN_ZOOM = 0.6;

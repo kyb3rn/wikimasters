@@ -1,16 +1,30 @@
-import path from 'node:path';
-import type { Page, Route } from '@playwright/test';
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import type { Page, Route } from "@playwright/test";
 
-export const SITE = 'https://www.wiki-masters.com';
-export const SUPABASE = 'https://x.supabase.co';
+export const SITE = "https://www.wiki-masters.com";
+export const SUPABASE = "https://x.supabase.co";
+
+/** Version du script (`package.json`), affichée par lui. */
+export const VERSION = (
+  JSON.parse(
+    readFileSync(
+      path.resolve(import.meta.dirname, "../../../package.json"),
+      "utf8",
+    ),
+  ) as { version: string }
+).version;
 
 /** Version de dev construite par `npm run test:e2e` avant les tests. */
-const DEV_BUNDLE = path.resolve(import.meta.dirname, '../../../dist/wikimasters.dev.js');
+const DEV_BUNDLE = path.resolve(
+  import.meta.dirname,
+  "../../../dist/wikimasters.dev.js",
+);
 
 /** Classes du bouton du solde relevées sur le site (29/09/2026). */
 const BALANCE_CLASSES =
-  'inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold text-[var(--color-accent)] ' +
-  'bg-[var(--color-surface)]/90 hover:bg-[var(--color-accent)]/10 transition-colors tabular-nums cursor-pointer';
+  "inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold text-[var(--color-accent)] " +
+  "bg-[var(--color-surface)]/90 hover:bg-[var(--color-accent)]/10 transition-colors tabular-nums cursor-pointer";
 
 /**
  * En-tête du site : solde en barre du haut sur mobile, en boîte fixe en haut à droite sur ordinateur.
@@ -43,11 +57,11 @@ body { margin: 0; padding-top: 64px; background: #0d1117; color: #e6edf3; font-f
 `;
 
 /** Page du site : en-tête avec le solde, puis `main`. */
-export function sitePage(main = '<h1>Page de test</h1>', script = ''): string {
+export function sitePage(main = "<h1>Page de test</h1>", script = ""): string {
   return (
     `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>WikiMasters (test)</title>` +
     `<style>${LAYOUT_CSS}</style></head><body>${HEADER}<main>${main}</main>` +
-    (script ? `<script>${script}</script>` : '') +
+    (script ? `<script>${script}</script>` : "") +
     `</body></html>`
   );
 }
@@ -57,9 +71,9 @@ const SILENT_WAV = (() => {
   const rate = 8000;
   const data = Buffer.alloc((rate / 20) * 2);
   const header = Buffer.alloc(44);
-  header.write('RIFF', 0);
+  header.write("RIFF", 0);
   header.writeUInt32LE(36 + data.length, 4);
-  header.write('WAVEfmt ', 8);
+  header.write("WAVEfmt ", 8);
   header.writeUInt32LE(16, 16);
   header.writeUInt16LE(1, 20);
   header.writeUInt16LE(1, 22);
@@ -67,7 +81,7 @@ const SILENT_WAV = (() => {
   header.writeUInt32LE(rate * 2, 28);
   header.writeUInt16LE(2, 32);
   header.writeUInt16LE(16, 34);
-  header.write('data', 36);
+  header.write("data", 36);
   header.writeUInt32LE(data.length, 40);
   return Buffer.concat([header, data]);
 })();
@@ -78,7 +92,9 @@ export interface FakeSite {
   /** Réponses JSON par chemin (`/api/…`), quelle que soit la méthode. */
   readonly api?: Readonly<Record<string, unknown>>;
   /** Fichiers par chemin (`/audio/…`). */
-  readonly files?: Readonly<Record<string, { readonly contentType: string; readonly body: Buffer }>>;
+  readonly files?: Readonly<
+    Record<string, { readonly contentType: string; readonly body: Buffer }>
+  >;
   /** Réponse sur mesure : renvoie vrai si la requête a été traitée. */
   readonly handle?: (route: Route, url: URL) => boolean | Promise<boolean>;
 }
@@ -87,19 +103,29 @@ export interface FakeSite {
  * Ouvre une page du site sans jamais le contacter : Playwright sert le HTML et les réponses,
  * le script est injecté avant tout autre code, comme Tampermonkey (`document-start`).
  */
-export async function openSite(page: Page, pathname: string, site: FakeSite = {}): Promise<void> {
+export async function openSite(
+  page: Page,
+  pathname: string,
+  site: FakeSite = {},
+): Promise<void> {
   await page.route(`${SITE}/**`, async (route: Route) => {
     const url = new URL(route.request().url());
     if (site.handle && (await site.handle(route, url))) return;
-    if (site.api && url.pathname in site.api) return route.fulfill({ json: site.api[url.pathname] });
+    if (site.api && url.pathname in site.api)
+      return route.fulfill({ json: site.api[url.pathname] });
     const file = site.files?.[url.pathname];
-    if (file) return route.fulfill({ contentType: file.contentType, body: file.body });
+    if (file)
+      return route.fulfill({ contentType: file.contentType, body: file.body });
     // Sons du site (`/audio/<nom>.mp3`) : un son court et silencieux, que le navigateur sait décoder.
-    if (url.pathname.startsWith('/audio/')) return route.fulfill({ contentType: 'audio/wav', body: SILENT_WAV });
-    if (route.request().resourceType() === 'document') {
-      return route.fulfill({ contentType: 'text/html; charset=utf-8', body: site.html ?? sitePage() });
+    if (url.pathname.startsWith("/audio/"))
+      return route.fulfill({ contentType: "audio/wav", body: SILENT_WAV });
+    if (route.request().resourceType() === "document") {
+      return route.fulfill({
+        contentType: "text/html; charset=utf-8",
+        body: site.html ?? sitePage(),
+      });
     }
-    return route.fulfill({ status: 404, body: '' });
+    return route.fulfill({ status: 404, body: "" });
   });
   await injectScript(page);
   await page.goto(SITE + pathname);
@@ -120,18 +146,23 @@ let presets = 0;
  * Réglages enregistrés avant le premier chargement de la page (clé `wm-settings-v1`), pas aux suivants
  * (ce que l'utilisateur change reste). Plusieurs appels s'additionnent, le dernier l'emporte.
  */
-export async function presetSettings(page: Page, settings: PresetSettings): Promise<void> {
+export async function presetSettings(
+  page: Page,
+  settings: PresetSettings,
+): Promise<void> {
   await page.addInitScript(
     ([value, key]) => {
       if (sessionStorage.getItem(key)) return;
-      sessionStorage.setItem(key, '1');
+      sessionStorage.setItem(key, "1");
       const preset = JSON.parse(value) as PresetSettings;
-      const stored = JSON.parse(localStorage.getItem('wm-settings-v1') ?? '{}') as Partial<PresetSettings>;
+      const stored = JSON.parse(
+        localStorage.getItem("wm-settings-v1") ?? "{}",
+      ) as Partial<PresetSettings>;
       const merged = {
         features: { ...stored.features, ...preset.features },
         values: { ...stored.values, ...preset.values },
       };
-      localStorage.setItem('wm-settings-v1', JSON.stringify(merged));
+      localStorage.setItem("wm-settings-v1", JSON.stringify(merged));
     },
     [JSON.stringify(settings), `wm-test-preset-${++presets}`] as const,
   );
@@ -140,8 +171,9 @@ export async function presetSettings(page: Page, settings: PresetSettings): Prom
 /** Journaux `[WM …]` de la console de la page. */
 export function collectLogs(page: Page): { type: string; text: string }[] {
   const logs: { type: string; text: string }[] = [];
-  page.on('console', (message) => {
-    if (message.text().startsWith('[WM')) logs.push({ type: message.type(), text: message.text() });
+  page.on("console", (message) => {
+    if (message.text().startsWith("[WM"))
+      logs.push({ type: message.type(), text: message.text() });
   });
   return logs;
 }

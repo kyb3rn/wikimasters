@@ -11,6 +11,7 @@ export const tokens = {
   border: 'var(--color-border, #30363d)',
   foreground: 'var(--color-foreground, #e6edf3)',
   accent: 'var(--color-accent, #e3b341)',
+  accentLight: 'var(--color-accent-light, #f0c75e)',
   accentForeground: 'var(--color-accent-foreground, #0d1117)',
   heading: 'var(--font-heading, inherit)',
   /** Hauteur du champ standard du site (≈ 45 px), posée sur la page par `site-fields`. */
@@ -24,11 +25,8 @@ export const tokens = {
   info: '#58a6ff',
 } as const;
 
-/** Bouton gris du site passé en rouge (texte et bordure) : « Défausser » de la modale de carte, « Défausser tout ». */
-export const DANGER_BUTTON = 'wm-danger';
-
-// Les conteneurs « inline » portent des boutons qui copient les classes du site :
-// aucun style de base ne doit s'y appliquer, sinon il écraserait l'allure du site.
+// Les conteneurs « inline » glissent nos contrôles dans une rangée du site : aucun style de base ne doit
+// s'y appliquer, sinon il écraserait sa mise en page.
 const BASE_CSS = `
 .wm-root:not(.wm-inline), .wm-root:not(.wm-inline) *, .wm-root:not(.wm-inline) *::before,
 .wm-root:not(.wm-inline) *::after { box-sizing: border-box; }
@@ -36,8 +34,6 @@ const BASE_CSS = `
 @keyframes wm-spin { to { transform: rotate(360deg); } }
 @keyframes wm-fade-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .wm-spin { animation: wm-spin 0.8s linear infinite; }
-.${DANGER_BUTTON} { color: ${tokens.danger} !important; border-color: rgb(248 81 73 / 45%) !important; }
-.${DANGER_BUTTON}:hover:not(:disabled) { background: rgb(248 81 73 / 12%) !important; }
 `;
 
 /** Styles communs à toutes nos interfaces, posés une fois. */

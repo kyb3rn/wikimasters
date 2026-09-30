@@ -4,7 +4,8 @@ import { createToastStore } from '@/ui/toast/store';
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
 
-const store = () => createToastStore({ setTimeout: (fn, ms) => setTimeout(fn, ms), clearTimeout: (h) => clearTimeout(h as number) });
+const store = () =>
+  createToastStore({ setTimeout: (fn, ms) => setTimeout(fn, ms), clearTimeout: (h) => clearTimeout(h as number), now: () => Date.now() });
 
 describe('file des toasts', () => {
   it('place les erreurs en haut à droite et les notifications en bas à droite, par défaut', () => {
@@ -44,6 +45,56 @@ describe('file des toasts', () => {
     vi.advanceTimersByTime(60_000);
     expect(toasts.list().map((t) => t.message)).toEqual(['reste']);
     toasts.dismiss(sticky);
+    expect(toasts.list()).toEqual([]);
+  });
+
+  it('donne sa durée à un toast minuté, aucune à un toast « sticky »', () => {
+    const toasts = store();
+    toasts.show({ message: 'info' });
+    toasts.show({ message: 'panne', variant: 'error' });
+    toasts.show({ message: 'court', durationMs: 1500 });
+    toasts.show({ message: 'reste', sticky: true });
+    expect(toasts.list().map((t) => t.durationMs)).toEqual([6000, 8000, 1500, undefined]);
+  });
+
+  it('arrête le compte à rebours pendant la pause et le reprend là où il en était', () => {
+    const toasts = store();
+    const id = toasts.show({ message: 'info' });
+    toasts.show({ message: 'voisin' });
+    vi.advanceTimersByTime(4000);
+    toasts.pause(id);
+    toasts.pause(id);
+    vi.advanceTimersByTime(60_000);
+    expect(toasts.list().map((t) => t.message)).toEqual(['info']);
+    toasts.resume(id);
+    toasts.resume(id);
+    vi.advanceTimersByTime(1999);
+    expect(toasts.list()).toHaveLength(1);
+    vi.advanceTimersByTime(1);
+    expect(toasts.list()).toEqual([]);
+  });
+
+  it('cumule plusieurs pauses, et ignore celles d’un toast « sticky » ou fermé', () => {
+    const toasts = store();
+    const id = toasts.show({ message: 'info' });
+    for (let i = 0; i < 3; i++) {
+      vi.advanceTimersByTime(1000);
+      toasts.pause(id);
+      vi.advanceTimersByTime(10_000);
+      toasts.resume(id);
+    }
+    vi.advanceTimersByTime(2999);
+    expect(toasts.list()).toHaveLength(1);
+    vi.advanceTimersByTime(1);
+    expect(toasts.list()).toEqual([]);
+
+    const sticky = toasts.show({ message: 'reste', sticky: true });
+    toasts.pause(sticky);
+    toasts.resume(sticky);
+    vi.advanceTimersByTime(60_000);
+    expect(toasts.list().map((t) => t.message)).toEqual(['reste']);
+    toasts.dismiss(sticky);
+    toasts.resume(sticky);
     expect(toasts.list()).toEqual([]);
   });
 

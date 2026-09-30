@@ -16,6 +16,7 @@ import { carouselLock } from '@/services/pulls-pack';
 import { findStarButton } from '@/site/cards';
 import { carouselCards, findCarousel, PULLS_ROUTE, type Carousel } from '@/site/pulls';
 import { SITE_SOUNDS } from '@/site/sound';
+import { buttonClass } from '@/ui/button';
 import { mountUi, type MountedUi } from '@/ui/mount';
 import { cloneFace, imagesComplete, imagesDecoded } from './face';
 import { gridLayout } from './layout';
@@ -239,13 +240,13 @@ export const pullsGrid: Feature = {
       notifyPullsGridChange();
     }
 
-    /** « Continuer » à nous, qui déclenche celui du site (caché) : jamais « Encore n cartes ». */
+    /** « Continuer » à nous (grand, vert plein, comme celui du site), qui déclenche celui du site (caché) : jamais « Encore n cartes ». */
     function proceedButton(current: Session, original: HTMLButtonElement) {
       return h(
         'button',
         {
           type: 'button',
-          class: [...original.classList].filter((name) => !name.startsWith('wm-')).join(' '),
+          class: buttonClass('standard', { tone: 'accent', fill: 'solid', size: 'lg' }),
           disabled: !current.done || original.disabled,
           onClick: () => findCarousel()?.proceed?.click(),
         },

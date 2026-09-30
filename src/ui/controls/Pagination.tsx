@@ -1,14 +1,14 @@
 import type { JSX } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { injectStyle } from '@/core/dom';
+import { buttonClass } from '@/ui/button';
 import { Icon, type IconName } from '@/ui/icons';
 import { siteClass } from '@/ui/site';
 import { tokens } from '@/ui/theme';
 import { pageTargets, parsePage, type PageButton, type PaginationControl } from './paging';
 
-// Boutons carrés et champ à la hauteur des champs du site.
+// Champ à la hauteur des champs du site, comme les boutons carrés.
 const CSS = `
-.wm-pagination-button { width: ${tokens.fieldHeight}; height: ${tokens.fieldHeight}; }
 .wm-pagination-input { height: ${tokens.fieldHeight}; }
 `;
 
@@ -82,7 +82,7 @@ export function Pagination({ page, total, hasNext, busy, lockedReason, delay = D
     return (
       <button
         type="button"
-        class={`${siteClass.paginationButton} wm-pagination-button`}
+        class={`${buttonClass('square')} wm-pagination-button`}
         aria-label={label}
         title={lockedReason || label}
         aria-busy={spinning}

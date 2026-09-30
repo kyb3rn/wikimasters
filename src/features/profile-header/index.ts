@@ -21,7 +21,7 @@ const CSS = `
   display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: start;
   column-gap: 1rem; padding: 0 1rem 1rem;
 }
-.wm-profile-stat { min-width: 0; padding-top: .75rem; text-align: center; }
+.wm-profile-stat { min-width: 0; padding-top: 1.5rem; text-align: center; }
 .wm-profile-identity {
   display: flex; flex-direction: column; align-items: center; min-width: 0; text-align: center;
   margin-top: calc(var(--wm-avatar) / -2);
@@ -32,7 +32,7 @@ const CSS = `
   background: var(--color-surface, #161b22); box-shadow: 0 0 0 4px var(--color-surface, #161b22);
 }
 .wm-profile-photo { width: 100%; height: 100%; font-size: calc(var(--wm-avatar) * .32); line-height: 1; }
-.wm-profile-avatar-edit { position: absolute; right: 0; bottom: 0; width: 2rem; height: 2rem; }
+.wm-profile-avatar-edit { position: absolute; right: 0; bottom: 0; box-shadow: 0 1px 3px rgb(0 0 0 / 40%); }
 .wm-profile-name { max-width: min(30rem, 45vw); margin: .5rem 0 0; }
 .wm-profile-identity > p { margin: .125rem 0 0; }
 .wm-profile-tags { list-style: none; margin: 0; padding: 0 1rem 1rem; }

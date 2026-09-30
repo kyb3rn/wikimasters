@@ -89,8 +89,9 @@ test('le marteau vert se place juste à gauche de la corbeille, après les pasti
   expect(Math.round(gavelBox.x - (dotsBox.x + dotsBox.width))).toBe(16);
   expect(Math.round(trashBox.x - (gavelBox.x + gavelBox.width))).toBe(8);
   expect(Math.round(nextBox.x - (trashBox.x + trashBox.width))).toBe(8);
-  expect(layout.classes).toContain('w-12 h-12 rounded-full');
-  await expect(gavel).toHaveCSS('color', 'rgb(63, 185, 80)');
+  // Rond vert en contour, comme les flèches (rhabillées par site-buttons).
+  expect(layout.classes).toContain('wm-button-round wm-button-md wm-tone-accent');
+  await expect(gavel).toHaveCSS('color', 'rgb(227, 179, 65)');
   await expect(gavel).toHaveAttribute('title', 'Mettre aux enchères');
 });
 
@@ -236,7 +237,7 @@ test.describe('toutes les cartes d’un coup', () => {
     const [gavelBox, trashBox] = [await gavel(page, 1).boundingBox(), await trash(page, 1).boundingBox()];
     expect(gavelBox && trashBox && Math.round(trashBox.x - (gavelBox.x + gavelBox.width))).toBe(16);
     expect(gavelBox && trashBox && Math.abs(gavelBox.y - trashBox.y)).toBe(0);
-    await expect(gavel(page, 1)).toHaveCSS('color', 'rgb(63, 185, 80)');
+    await expect(gavel(page, 1)).toHaveCSS('color', 'rgb(227, 179, 65)');
   });
 
   test('ouvre la mise en vente de la carte choisie ; Annuler ramène à la grille', async ({ page }) => {

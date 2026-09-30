@@ -105,6 +105,16 @@ test('Échap ou un clic sur le fond ferment aussi la modale gardée', async ({ p
   await page.locator('main [class*="glow-"]').click();
   await discardWithSiteConfirmation(page);
   await expect(modal(page).locator('.wm-stamp')).toBeVisible();
+  // Un glisser du cadre (sa marge du haut, pas un bouton) jusqu’au fond, lui, ne la ferme pas.
+  const frame = await modal(page).locator(':scope > .card-frame').boundingBox();
+  if (!frame) throw new Error('cadre sans boîte');
+  await page.mouse.move(frame.x + frame.width / 2, frame.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(5, 300, { steps: 5 });
+  await page.mouse.up();
+  await page.waitForTimeout(100);
+  // Pas la copie qui s'efface (même id), la modale elle-même.
+  await expect(page.locator('#card-modal:not(.wm-modal-ghost *)')).toBeVisible();
   await page.mouse.click(5, 300);
   await expect(modal(page)).toHaveCount(0);
 });

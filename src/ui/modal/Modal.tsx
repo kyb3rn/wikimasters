@@ -3,6 +3,8 @@ import { useEffect, useRef } from 'preact/hooks';
 import { injectStyle } from '@/core/dom';
 import { CloseButton } from '@/ui/controls';
 import { tokens } from '@/ui/theme';
+import { useBackdropGuard } from './backdrop';
+import { useSmoothExit } from './exit';
 
 const MODAL_CSS = `
 .wm-modal-backdrop { position: fixed; inset: 0; z-index: 2147482000; display: flex; align-items: center;
@@ -27,6 +29,16 @@ export function isModalOpen(): boolean {
   return openCount > 0;
 }
 
+/** Compte le composant parmi nos modales ouvertes tant qu'il est affiché. */
+export function useOpenModal(): void {
+  useEffect(() => {
+    openCount++;
+    return () => {
+      openCount--;
+    };
+  }, []);
+}
+
 export interface ModalProps {
   readonly title: string;
   /** Devant le titre (badge). */
@@ -46,17 +58,15 @@ export interface ModalProps {
 /** Modale aux couleurs du site : fond assombri, fermeture par Échap, clic sur le fond ou ✕. */
 export function Modal({ title, titleBefore, subtitle, actions, onClose, width = 760, height, children }: ModalProps) {
   injectStyle('ui-modal', MODAL_CSS);
+  const backdrop = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLDivElement>(null);
+  useOpenModal();
+  useSmoothExit(backdrop, panel);
+  useBackdropGuard(backdrop);
 
   useEffect(() => {
-    openCount++;
-    return () => {
-      openCount--;
-    };
-  }, []);
-
-  useEffect(() => {
-    panel.current?.focus();
+    // Un champ du contenu a pu prendre le focus (ses effets passent avant ceux de la modale) : le lui laisser.
+    if (!panel.current?.contains(document.activeElement)) panel.current?.focus();
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       event.stopPropagation();
@@ -68,6 +78,7 @@ export function Modal({ title, titleBefore, subtitle, actions, onClose, width = 
 
   return (
     <div
+      ref={backdrop}
       class="wm-modal-backdrop"
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose();

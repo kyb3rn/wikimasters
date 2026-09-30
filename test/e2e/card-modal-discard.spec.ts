@@ -139,7 +139,8 @@ test('carte en favori : le bouton passe en « Confirmer ? », un second clic dé
 
   // Pas de modale de confirmation : le bouton demande un second clic, d'abord inactif un court instant.
   await expect(discardButton(page)).toHaveAccessibleName('Confirmer ?');
-  await expect(discardButton(page)).toHaveCSS('background-color', 'rgb(248, 81, 73)');
+  // Rouge plein des boutons (rouge 500 de Tailwind).
+  await expect(discardButton(page)).toHaveCSS('background-color', 'oklch(0.637 0.237 25.331)');
   await expect(discardButton(page)).toHaveCSS('cursor', 'not-allowed');
   await expect(discardButton(page)).not.toHaveClass(/wm-discard-confirm-wait/);
   await expect(confirmation(page)).toHaveCount(0);

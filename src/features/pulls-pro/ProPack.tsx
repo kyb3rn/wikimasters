@@ -1,4 +1,5 @@
 import type { ComponentChildren } from 'preact';
+import { buttonClass } from '@/ui/button';
 import { Icon } from '@/ui/icons';
 import { siteClass } from '@/ui/site';
 import { formatCountdown } from './time';
@@ -36,7 +37,7 @@ function describe(state: ProPackState): string {
 
 function Button(props: { disabled?: boolean; onClick?: () => void; label?: string; children: ComponentChildren }) {
   return (
-    <button type="button" class={siteClass.proButton} disabled={props.disabled} aria-label={props.label} onClick={props.onClick}>
+    <button type="button" class={buttonClass('wide', { tone: 'pro', fill: 'solid' })} disabled={props.disabled} aria-label={props.label} onClick={props.onClick}>
       {props.children}
     </button>
   );

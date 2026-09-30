@@ -1,7 +1,7 @@
 import type { ComponentChildren } from 'preact';
+import { buttonClass } from '@/ui/button';
 import { Icon, type IconName } from '@/ui/icons';
 import { siteClass } from '@/ui/site';
-import { DANGER_BUTTON } from '@/ui/theme';
 import { selectedLabel, type ConfirmStage } from './confirm';
 
 export interface ToggleProps {
@@ -24,7 +24,7 @@ export function SelectionToggle({ active, count, onClick }: ToggleProps) {
       )}
       <button
         type="button"
-        class={`${active ? siteClass.accentFieldButton : siteClass.listboxButton} wm-selection-toggle`}
+        class={`${buttonClass('square', active ? { tone: 'accent', fill: 'solid' } : {})} wm-selection-toggle`}
         aria-label={label}
         title={label}
         aria-pressed={active}
@@ -64,21 +64,21 @@ function Swap({ second, first, other }: { readonly second: boolean; readonly fir
 
 function Action({ action, icon, onClick }: { readonly action: SiteAction; readonly icon: IconName; readonly onClick: () => void }) {
   return (
-    <button type="button" class={siteClass.button} disabled={action.disabled} onClick={onClick}>
+    <button type="button" class={buttonClass('standard')} disabled={action.disabled} onClick={onClick}>
       <Icon name={icon} size={16} />
       {action.label}
     </button>
   );
 }
 
-/** Rangée de la barre du bas : les boutons du site, à l'allure de ses boutons, larges selon leur texte. */
+/** Rangée de la barre du bas : les boutons du site, en boutons standard, larges selon leur texte. */
 export function SelectionActions(props: ActionsProps) {
   const { selectPage, tag, untag, discard } = props;
   const asking = discard !== undefined && discard.stage !== 'idle' && !discard.busy;
   return (
     <>
       {selectPage && (
-        <button type="button" class={siteClass.button} disabled={selectPage.disabled} onClick={props.onSelectPage}>
+        <button type="button" class={buttonClass('standard')} disabled={selectPage.disabled} onClick={props.onSelectPage}>
           <Swap
             second={selectPage.pageSelected}
             first={
@@ -101,7 +101,7 @@ export function SelectionActions(props: ActionsProps) {
       {discard && (
         <button
           type="button"
-          class={asking ? siteClass.buttonConfirm : `${siteClass.button} ${DANGER_BUTTON}`}
+          class={buttonClass('standard', { tone: 'danger', fill: asking ? 'solid' : 'outline' })}
           disabled={discard.disabled || discard.busy || discard.stage === 'waiting'}
           aria-busy={discard.busy}
           onClick={props.onDiscard}

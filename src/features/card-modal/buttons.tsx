@@ -1,56 +1,68 @@
+import { ProBadge } from '@/services/market';
+import { buttonClass } from '@/ui/button';
 import { Icon } from '@/ui/icons';
-
-export interface ReportButtonProps {
-  /** Texte du bouton d'origine du site (« Signaler l'image », ou autre une fois signalée). */
-  readonly label: string;
-  readonly disabled: boolean;
-  readonly pressed: boolean;
-  readonly onClick: () => void;
-}
-
-/** « Signaler l'image », en pastille ronde sur l'image de la carte : déclenche le bouton du site (caché). */
-export function ReportButton({ label, disabled, pressed, onClick }: ReportButtonProps) {
-  return (
-    <button
-      type="button"
-      class="wm-report"
-      aria-label={label}
-      title={label}
-      aria-pressed={pressed}
-      disabled={disabled}
-      onClick={(event) => {
-        event.stopPropagation();
-        onClick();
-      }}
-    >
-      <Icon name="flag" size={15} />
-    </button>
-  );
-}
+import { siteClass } from '@/ui/site';
 
 export interface MarketButtonProps {
-  /** Classes du bouton « Défausser » d'origine (allure grise du site), avant qu'on le passe en rouge. */
-  readonly className: string;
   /** Ventes en cours de chargement. */
   readonly busy: boolean;
-  /** Raison pour laquelle l'historique ne s'ouvre pas (compte non PRO) : bouton désactivé. */
-  readonly unavailable: string | undefined;
+  /** Compte sans PRO : badge PRO du site, le clic ouvre son offre. */
+  readonly needsPro: boolean;
   readonly onClick: () => void;
 }
 
-/** « Marché », au centre des actions : ouvre l'historique des ventes de la carte, par-dessus la modale. */
-export function MarketButton({ className, busy, unavailable, onClick }: MarketButtonProps) {
+/** « Marché », au centre des actions (gris en contour) : ouvre l'historique des ventes de la carte, par-dessus la modale. */
+export function MarketButton({ busy, needsPro, onClick }: MarketButtonProps) {
   return (
     <button
       type="button"
-      class={`${className} wm-market-button`}
-      disabled={busy || unavailable !== undefined}
+      class={`${buttonClass('window')}${needsPro ? ` ${siteClass.proBadgeHost}` : ''} wm-market-button`}
+      disabled={busy}
       aria-busy={busy}
-      title={unavailable ?? 'Historique des ventes de la carte'}
+      title={needsPro ? 'Historique des ventes de la carte (PRO)' : 'Historique des ventes de la carte'}
       onClick={onClick}
     >
       <Icon name={busy ? 'spinner' : 'market'} size={16} class={busy ? 'wm-spin' : undefined} />
       Marché
+      {needsPro && <ProBadge />}
     </button>
+  );
+}
+
+export interface WishlistButtonProps {
+  /** Carte dans la liste : vert plein, sinon vert en contour (comme le site, plus marqué quand elle y est). */
+  readonly active: boolean;
+  /** Texte du bouton du site. */
+  readonly label: string;
+  readonly hint: string | undefined;
+  /** Ajout ou retrait en cours. */
+  readonly busy: boolean;
+  readonly onClick: () => void;
+}
+
+/** Liste de souhaits, déplacée dans la rangée d'actions : déclenche le bouton du site (caché). */
+export function WishlistButton({ active, label, hint, busy, onClick }: WishlistButtonProps) {
+  return (
+    <button type="button" class={buttonClass('window', { tone: 'accent', fill: active ? 'solid' : 'outline' })} disabled={busy} aria-busy={busy} title={hint} onClick={onClick}>
+      <Icon name={busy ? 'spinner' : 'bell'} size={16} class={busy ? 'wm-spin' : undefined} />
+      {label}
+    </button>
+  );
+}
+
+export interface CatalogActionsProps {
+  readonly wishlist: WishlistButtonProps | undefined;
+  readonly market: MarketButtonProps;
+}
+
+/** Rangée d'actions de la vue catalogue, faite comme celle du site sous ses deux colonnes : liste de souhaits · Marché. */
+export function CatalogActions({ wishlist, market }: CatalogActionsProps) {
+  return (
+    <div class={siteClass.cardModalActions}>
+      <div class={siteClass.cardModalActionsRow}>
+        {wishlist && <WishlistButton {...wishlist} />}
+        <MarketButton {...market} />
+      </div>
+    </div>
   );
 }

@@ -116,7 +116,6 @@ export const pullsDiscardNext: Feature = {
 
     function syncCarousel(carousel: Carousel, state: OpenPack): void {
       const button = h(DiscardButton, {
-        className: carousel.next.className,
         advance: true,
         ...currentFacts(state, carousel.index),
         onClick: () => void discardCurrent(),
@@ -134,7 +133,6 @@ export const pullsDiscardNext: Feature = {
     function syncGrid(grid: PullsGrid, carousel: Carousel, state: OpenPack): void {
       for (const slot of grid.slots) {
         const button = h(DiscardButton, {
-          className: carousel.next.className,
           advance: false,
           ...currentFacts(state, slot.index),
           onClick: () => void discardInGrid(slot.index),

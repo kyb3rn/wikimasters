@@ -27,7 +27,7 @@ const CSS = `
 .${COUNT} { white-space: nowrap; flex-shrink: 0; }
 .${SELECT} { display: flex; }
 .${SELECT} > button[aria-haspopup="listbox"] { border-top-right-radius: 0; border-bottom-right-radius: 0; }
-.wm-tag-manage { width: ${tokens.fieldHeight}; border-left-width: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.wm-button.wm-tag-manage { border-left-width: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; }
 .${OPTION} { display: none !important; }
 @media (min-width: 768px) {
   .${SELECT} { min-width: calc(12rem + ${tokens.fieldHeight}); max-width: calc(16rem + ${tokens.fieldHeight}); }

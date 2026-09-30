@@ -75,6 +75,8 @@ export const auctionStay: Feature = {
     // Carte aux enchères : exemplaire réservé par le site, plus de vente, de défausse ni d'étiquette.
     function sync(): void {
       for (const modal of findCardModals()) {
+        // Vue catalogue : la carte (modèle), pas un exemplaire, elle n'est jamais « en vente ».
+        if (modal.catalog) continue;
         const listed = isTitleListed(modal.title);
         for (const control of [modal.auctionButton, modal.discardButton, modal.tagInput]) {
           if (control) lockControl(control, { owner: OWNER, locked: listed, reason: LISTED });

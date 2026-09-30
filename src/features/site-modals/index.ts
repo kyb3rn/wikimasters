@@ -1,10 +1,10 @@
 import { h } from 'preact';
 import { childController } from '@/core/async';
-import { injectStyle, setClass, watchDom, whenBody } from '@/core/dom';
+import { guardBackdropClicks, injectStyle, ROOT_CLASS, setClass, watchDom, whenBody } from '@/core/dom';
 import type { Feature } from '@/core/runtime';
-import { escapeTarget, findSiteModals, isCornerCross, topSiteModal } from '@/site/modals';
+import { escapeTarget, findSiteModals, isCornerCross, isSiteOverlay, readSiteModal, topSiteModal } from '@/site/modals';
 import { CloseButton } from '@/ui/controls';
-import { isModalOpen } from '@/ui/modal';
+import { isModalOpen, leaveSmoothly, trackScrolls } from '@/ui/modal';
 import { mountUi, type MountedUi } from '@/ui/mount';
 import { siteClass } from '@/ui/site';
 import { tokens } from '@/ui/theme';
@@ -49,7 +49,8 @@ const cross = (target: Target) =>
 export const siteModals: Feature = {
   id: 'site-modals',
   name: 'Modales du site',
-  description: 'Toutes les modales du site ont la même croix ronde dans le coin et le même fond, et se ferment par Échap.',
+  description:
+    'Toutes les modales du site ont la même croix ronde dans le coin et le même fond, se ferment par Échap et disparaissent en fondu.',
   category: 'Général',
   routes: 'all',
   required: true,
@@ -58,9 +59,14 @@ export const siteModals: Feature = {
     const { signal } = ctx;
     const placed = new Map<HTMLElement, Placed>();
 
+    // Avant d'attendre la page : passe devant les écouteurs de clic des autres fonctionnalités (card-modal-stay
+    // ferme au clic sur le fond la modale de carte qu'il garde).
+    guardBackdropClicks(isSiteOverlay, signal);
+
     await whenBody();
     if (signal.aborted) return;
     injectStyle('site-modals', CSS);
+    trackScrolls(signal);
 
     function remove(frame: HTMLElement): void {
       placed.get(frame)?.controller.abort();
@@ -122,6 +128,24 @@ export const siteModals: Feature = {
       },
       { signal },
     );
+
+    // Le site retire ses modales d'un coup : une copie s'efface à leur place. Une tâche plus tard, pour laisser
+    // card-modal-stay garder la modale de carte qu'il remet aussitôt dans la page (plus rien à effacer).
+    const removals = new MutationObserver((records) => {
+      for (const record of records) {
+        const parent = record.target;
+        if (parent instanceof Element && parent.closest(`.${ROOT_CLASS}`)) continue;
+        for (const node of record.removedNodes) {
+          if (!isSiteOverlay(node)) continue;
+          const before = record.nextSibling;
+          queueMicrotask(() => {
+            if (!node.isConnected) leaveSmoothly(node, { parent, before, frame: readSiteModal(node).frame });
+          });
+        }
+      }
+    });
+    removals.observe(document.body, { childList: true, subtree: true });
+    signal.addEventListener('abort', () => removals.disconnect(), { once: true });
 
     // Échap « tente » de quitter la modale du dessus, après le site : s'il a réagi (sa propre fermeture, une demande
     // de confirmation, une liste qui se replie, `preventDefault`), on n'y touche pas. Écouté avant tout le monde

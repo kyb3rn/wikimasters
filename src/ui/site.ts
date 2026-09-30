@@ -4,17 +4,11 @@
  * s'en sert lui-même : ne recopier que des classes relevées chez lui (`npm run site:classes` le vérifie).
  */
 export const siteClass = {
-  /** Croix de fermeture de ses modales (carte, mise aux enchères), sans sa position `absolute top-3 right-3`. */
-  closeButton:
-    'flex h-9 w-9 items-center justify-center rounded-full text-[var(--color-foreground)]/45 ' +
-    'hover:bg-[var(--color-surface-light)] hover:text-[var(--color-foreground)] transition-colors cursor-pointer',
-  /** Position de cette croix dans ses modales, au-dessus du contenu (comme dans la modale de carte). */
+  /** Position de la croix de ses modales (carte, mise aux enchères), au-dessus du contenu. */
   closeButtonPosition: 'absolute top-3 right-3 z-20',
-  /** Bouton rond à icône (même forme que cette croix), sans couleur : voir `iconOn` / `iconOff`. */
-  iconButton:
-    'flex h-9 w-9 items-center justify-center rounded-full hover:bg-[var(--color-surface-light)] transition-colors cursor-pointer',
-  iconOn: 'text-[var(--color-accent)]',
-  iconOff: 'text-[var(--color-foreground)]/45 hover:text-[var(--color-foreground)]',
+
+  /** Cadre de ses panneaux (modales, fiche de carte), avec leur marge intérieure. */
+  panel: 'card-frame p-6',
 
   // Cadre des paquets disponibles (/pulls) : compteur, légende, temps restant.
   frame: 'card-frame px-6 py-3',
@@ -32,16 +26,41 @@ export const siteClass = {
   counterCount: 'text-3xl',
   counterMax: 'relative top-0.5 text-lg',
 
-  // Cadre du pack PRO du jour (/pulls) : cadre violet, titre dans le ton de son « Pack PRO du jour », texte,
-  // bouton d'ouverture (dégradé : relevé dans son code et sa feuille de style, absent des captures où le pack
-  // n'était pas disponible).
+  // Cadre du pack PRO du jour (/pulls) : cadre violet, titre dans le ton de son « Pack PRO du jour », texte.
   proFrame: 'rounded-xl border border-violet-500/25 bg-violet-950/20 px-4 py-3 flex flex-col gap-3 animate-fade-in-up',
   proTitle: 'text-lg font-bold text-violet-200/90',
   proText: 'text-xs text-[var(--color-foreground)]/50',
-  proButton:
-    'w-full inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-gradient-to-r from-violet-600 ' +
-    'to-fuchsia-600 text-white text-sm font-semibold hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed ' +
-    'transition-all cursor-pointer',
+
+  // Offre « Vue du marché PRO » (sa modale sans PRO, capture et code du 30/09/2026) : encadré violet et sa courbe
+  // en filigrane, tuile d'icône, titre et étiquette PRO, texte, avantages, prix.
+  proOffer:
+    'relative overflow-hidden rounded-xl border border-violet-500/25 bg-gradient-to-br from-violet-950/30 ' +
+    'via-[var(--color-surface)]/80 to-fuchsia-950/20 p-4',
+  proOfferArt: 'pointer-events-none absolute inset-0 opacity-[0.07]',
+  proOfferArtSvg: 'h-full w-full',
+  proOfferArtLine: 'text-violet-400',
+  proOfferBody: 'relative space-y-4',
+  proOfferHead: 'flex items-start gap-3',
+  proOfferIcon: 'flex size-9 shrink-0 items-center justify-center rounded-lg bg-violet-500/15 border border-violet-400/20',
+  proOfferIconSvg: 'size-4 text-violet-300',
+  proOfferHeading: 'min-w-0',
+  proOfferTitleRow: 'flex flex-wrap items-center gap-2',
+  proOfferTitle: 'text-sm font-bold text-[var(--color-foreground)]',
+  proTag:
+    'inline-flex items-center gap-1 rounded-full bg-violet-500/15 px-2 py-0.5 text-[10px] font-bold uppercase ' +
+    'tracking-wide text-violet-300 border border-violet-500/25',
+  proTagIcon: 'size-3',
+  proOfferText: 'mt-1 text-xs text-[var(--color-foreground)]/60 leading-relaxed',
+  proOfferList: 'space-y-2 text-[11px] text-[var(--color-foreground)]/70',
+  proOfferItem: 'flex items-start gap-2',
+  proOfferItemIcon: 'size-3.5 shrink-0 text-violet-400 mt-0.5',
+  proOfferPrice: 'text-[10px] text-center text-[var(--color-foreground)]/40',
+  /** Petit badge PRO dans le coin d'un bouton de marché (compte sans PRO), étincelles seules ; le bouton en `relative`. */
+  proBadge:
+    'absolute -top-1 -right-1 inline-flex items-center rounded px-1 py-px text-[7px] font-bold uppercase tracking-wide ' +
+    'bg-violet-600 text-white leading-none',
+  proBadgeIcon: 'size-2',
+  proBadgeHost: 'relative',
 
   /** Choix entre deux options à icône : cadre du champ de mise, options en pastille active / inactive. */
   segmented: 'flex items-stretch rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] overflow-hidden',
@@ -83,25 +102,9 @@ export const siteClass = {
     'border-[var(--color-border)] text-[var(--color-foreground)]/60 hover:text-[var(--color-foreground)] ' +
     'hover:border-[var(--color-accent)]/50',
 
-  /** Bouton de ses listes déroulantes (Collection) sans sa mise en page, icône dans le ton de leur chevron. */
-  listboxButton:
-    'flex shrink-0 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-light)] ' +
-    'text-[var(--color-foreground)]/40 hover:text-[var(--color-foreground)]/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] ' +
-    'transition-[border-color,box-shadow] hover:border-[var(--color-foreground)]/12 focus:outline-none focus:ring-2 ' +
-    'focus:ring-[var(--color-accent)]/35 cursor-pointer',
-
-  /** Bouton à icône, couleur d'accent (le vert du site), de la hauteur de ses listes déroulantes (Collection). */
-  accentFieldButton:
-    'flex shrink-0 items-center justify-center min-h-[42px] px-3 rounded-lg bg-[var(--color-accent)] ' +
-    'text-[var(--color-accent-foreground)] hover:bg-[var(--color-accent-light)] transition-colors cursor-pointer',
-
-  // Pagination : rangée de la sienne (Collection), boutons de celles de ses modales (avec cadre), numéro
-  // de page dans le ton de son « Page x / y », champ de page comme son champ de recherche.
+  // Pagination : rangée de la sienne (Collection), numéro de page dans le ton de son « Page x / y »,
+  // champ de page comme son champ de recherche.
   paginationBar: 'flex items-center justify-center gap-2 py-3',
-  paginationButton:
-    'flex shrink-0 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-light)] ' +
-    'text-[var(--color-foreground)]/70 hover:bg-[var(--color-accent)]/10 transition-colors cursor-pointer ' +
-    'disabled:opacity-30 disabled:cursor-not-allowed',
   paginationText: 'text-sm text-[var(--color-foreground)]/40',
   paginationInput:
     'w-16 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-light)] px-2 py-2.5 text-sm text-center ' +
@@ -118,32 +121,16 @@ export const siteClass = {
   /** Badge de rareté de la modale de carte (fond à la couleur de la rareté, en style : voir `rarityBadgeStyle`). */
   rarityBadge: 'inline-block px-2 py-0.5 rounded text-xs font-bold',
 
-  /** Bouton pleine largeur, couleur d'accent (« Terminé » de l'étiquetage groupé), contenu centré. */
-  wideButton:
-    'w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-lg bg-[var(--color-accent)] ' +
-    'text-[var(--color-accent-foreground)] text-sm font-semibold hover:bg-[var(--color-accent-light)] transition-colors ' +
-    'cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed',
+  /** Rangée d'actions de la modale de carte (Vendre, Défausser), sous ses deux colonnes. */
+  cardModalActions: 'mt-3 space-y-2',
+  cardModalActionsRow: 'flex flex-col sm:flex-row gap-2',
 
-  /** Bouton gris du site (« Défausser » de la modale de carte), large selon son texte. */
-  button:
-    'inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-[var(--color-border)] ' +
-    'text-sm font-medium text-[var(--color-foreground)]/70 hover:bg-[var(--color-surface-light)] transition-colors ' +
-    'cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed',
-  /** Le même en rouge plein, comme le « Défausser » de ses confirmations (« Confirmer ? »). */
-  buttonConfirm:
-    'inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-transparent bg-red-500 text-white text-sm ' +
-    'font-semibold hover:bg-red-600 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed',
-
-  // En-tête de son profil : photo (fond d'accent léger, initiales), pastille de modification (celle qu'il montre
-  // au survol de la photo), pseudo, ligne sous le pseudo, chiffre et légende de sa carte « Cartes uniques »,
-  // étiquettes (couleurs en style), interrupteur de visibilité (piste et bouton, allumé ou non).
+  // En-tête de son profil : photo (fond d'accent léger, initiales), pseudo, ligne sous le pseudo, chiffre et
+  // légende de sa carte « Cartes uniques », étiquettes (couleurs en style), interrupteur de visibilité (piste et
+  // bouton, allumé ou non).
   profileAvatar: 'rounded-full bg-[var(--color-accent)]/20 flex items-center justify-center overflow-hidden',
   profileAvatarInitials: 'font-bold text-[var(--color-accent)]',
   profileAvatarImage: 'w-full h-full object-cover',
-  profileAvatarEdit:
-    'flex items-center justify-center rounded-full bg-[var(--color-surface)] border border-[var(--color-border)] shadow ' +
-    'text-[var(--color-foreground)]/70 hover:text-[var(--color-foreground)] hover:bg-[var(--color-surface-light)] ' +
-    'transition-colors cursor-pointer',
   profileName: 'text-2xl font-bold truncate min-w-0',
   profileDetails: 'text-xs text-[var(--color-foreground)]/45',
   statValue: 'text-2xl font-bold text-[var(--color-accent)] whitespace-nowrap',
@@ -170,12 +157,30 @@ export const siteClass = {
   selectionCountValue: 'font-semibold text-[var(--color-accent)]',
   selectionCountLabel: 'text-[var(--color-foreground)]/60',
 
-  // Boutons Annuler / Lancer l'enchère ; contenu (icône + texte) centré, comme ses boutons de modale de carte.
-  buttonContent: 'inline-flex items-center justify-center gap-2',
-  buttonSecondary:
-    'flex-1 py-2.5 rounded-lg border border-[var(--color-border)] text-sm font-medium text-[var(--color-foreground)]/70 ' +
-    'hover:bg-[var(--color-surface-light)] transition-colors cursor-pointer disabled:opacity-50',
-  buttonPrimary:
-    'flex-1 py-2.5 rounded-lg bg-[var(--color-accent)] text-[var(--color-accent-foreground)] text-sm font-semibold ' +
-    'hover:bg-[var(--color-accent-light)] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed',
+  // Confirmation « Défausser cette carte ? » : fond, cadre, titre (police des titres, en style), texte, rangée des boutons.
+  confirmOverlay: 'fixed inset-0 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm',
+  confirmFrame: 'card-frame max-w-sm w-full p-5 animate-fade-in-up',
+  confirmTitle: 'text-base font-bold mb-2',
+  confirmText: 'text-sm text-[var(--color-foreground)]/70 mb-4',
+  confirmActions: 'flex gap-2',
+
+  /** Champ de texte d'une ligne (recherche de la Collection, des amis), sans sa largeur. */
+  textField:
+    'rounded-lg bg-[var(--color-surface-light)] border border-[var(--color-border)] px-4 py-2.5 text-sm ' +
+    'text-[var(--color-foreground)] placeholder:text-[var(--color-foreground)]/30 focus:outline-none focus:ring-2 ' +
+    'focus:ring-[var(--color-accent)]/50',
+
+  // Formulaire « Créer une guilde » : libellé, champ, zone de texte, compteur de caractères, message d'erreur.
+  formLabel: 'text-xs font-medium text-[var(--color-foreground)]/50 uppercase tracking-wide',
+  formInput:
+    'w-full mt-1 px-3 py-2 rounded-xl bg-[var(--color-surface-light)] border border-[var(--color-border)] text-sm ' +
+    'placeholder:text-[var(--color-foreground)]/30 focus:outline-none focus:border-[var(--color-accent)]/50 transition-colors',
+  formTextarea: 'resize-none',
+  formCounter: 'text-[10px] text-[var(--color-foreground)]/30 mt-1',
+  formError: 'text-sm text-red-400 bg-red-500/10 px-3 py-2 rounded-lg',
+  formFields: 'space-y-3',
+  formStack: 'space-y-4',
+
+  /** Texte d'un bouton masqué sur mobile, icône seule (« Message », « Échanger » de la page Amis). */
+  wideOnly: 'hidden sm:inline',
 } as const;

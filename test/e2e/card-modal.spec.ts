@@ -62,7 +62,7 @@ test('actions : Vendre à gauche, Marché (gris) au centre, Défausser (rouge) �
   expect(labels).toEqual(['Vendre', 'Marché', 'Défausser+1']);
   await expect(modal.getByRole('button', { name: /Défausser/ })).toHaveCSS('color', 'rgb(248, 81, 73)');
   await expect(modal.locator('.wm-market-button')).not.toHaveCSS('color', 'rgb(248, 81, 73)');
-  await expect(modal.locator('.wm-market-button')).toHaveClass(/flex-1/);
+  await expect(modal.locator('.wm-market-button')).toHaveClass(/wm-button-window/);
 });
 
 test('pas d’interrupteur dans les paramètres : c’est la présentation par défaut', async ({ page }) => {

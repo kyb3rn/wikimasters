@@ -1,4 +1,5 @@
 import { CAROUSEL_ACTION } from '@/services/pulls-pack';
+import { buttonClass } from '@/ui/button';
 import { Icon } from '@/ui/icons';
 
 /**
@@ -32,8 +33,6 @@ function title(status: DiscardStatus, reason: string | undefined, advance: boole
 }
 
 export interface DiscardButtonProps {
-  /** Classes de la flèche « suivante » du site : même allure, la couleur rouge vient de `wm-discard-next`. */
-  readonly className: string;
   readonly status: DiscardStatus;
   /** Raison de la protection (statut `protected`) ou action qui tient la carte (`blocked`). */
   readonly reason?: string;
@@ -42,18 +41,15 @@ export interface DiscardButtonProps {
   readonly onClick: () => void;
 }
 
-export function DiscardButton({ className, status, reason, advance, onClick }: DiscardButtonProps) {
+/** Rond rouge en contour, comme les flèches du carrousel ; gris quand la carte est protégée ou en vente (cadenas). */
+export function DiscardButton({ status, reason, advance, onClick }: DiscardButtonProps) {
   const label = title(status, reason, advance);
-  const icon =
-    status === 'busy' ? (
-      <Icon name="spinner" size={22} class="wm-spin" />
-    ) : (
-      <Icon name={status === 'protected' || status === 'listed' ? 'lock' : 'trash'} size={20} />
-    );
+  const locked = status === 'protected' || status === 'listed';
+  const icon = status === 'busy' ? <Icon name="spinner" size={20} class="wm-spin" /> : <Icon name={locked ? 'lock' : 'trash'} size={20} />;
   return (
     <button
       type="button"
-      class={`${className} wm-discard-next ${CAROUSEL_ACTION}`}
+      class={`${buttonClass('round', { tone: locked ? 'neutral' : 'danger' })} wm-discard-next ${CAROUSEL_ACTION}`}
       data-status={status}
       disabled={status !== 'ready'}
       aria-busy={status === 'busy'}

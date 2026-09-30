@@ -1,11 +1,17 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { buttonClass, type ButtonTone } from '@/ui/button';
 import { Icon } from '@/ui/icons';
 import { tokens } from '@/ui/theme';
+import { withLeaving, withoutToast, type ShownToast } from './leaving';
 import type { Toast, ToastPosition, ToastStore, ToastVariant } from './store';
 
-// Le site n'a pas de toasts : ceux-ci reprennent ses encarts teintés (celui du solde WB : bordure et
-// dégradé de la couleur, halo, icône dans une tuile) et son petit bouton teinté, avec sa palette
-// Tailwind v4 (teinte 400 pour le texte, 500 pour les fonds et bordures).
+// Le site n'a pas de toasts : ceux-ci reprennent ses encarts teintés (celui du solde WB : bordure et halo de
+// la couleur), sur son fond uni, avec sa palette Tailwind v4 (teinte 400 pour le texte et l'icône, 500 pour
+// les bordures). Icône seule, en haut, comme la croix. Bouton d'action : petit, en contour, de la couleur du toast.
+// Toast minuté : barre du temps restant en bas, arrêtée tant que le curseur est dessus (compte à rebours de la
+// file arrêté en même temps, par le même état).
+// Sortie : l'entrée à l'envers (fondu, 6 px vers le bas), puis la pile se referme sur sa place : une marge négative
+// de sa hauteur et de l'écart, du côté où sont les toasts suivants (dessous en haut, dessus en bas).
 const PALETTE: Record<ToastVariant, { text: string; tint: string }> = {
   error: { text: 'oklch(70.4% 0.191 22.216)', tint: 'oklch(63.7% 0.237 25.331)' },
   success: { text: 'oklch(76.5% 0.177 163.223)', tint: 'oklch(69.6% 0.17 162.48)' },
@@ -13,36 +19,50 @@ const PALETTE: Record<ToastVariant, { text: string; tint: string }> = {
   info: { text: 'oklch(74.6% 0.16 232.661)', tint: 'oklch(68.5% 0.169 237.323)' },
 };
 
+/** Durée totale de la sortie : fondu, puis fermeture de la pile, qui commence avant la fin du fondu. */
+const EXIT_MS = 300;
+const GAP = 10;
+
 const tint = (percent: number) => `color-mix(in oklab, var(--wm-toast-tint) ${percent}%, transparent)`;
 const dim = (percent: number) => `color-mix(in oklab, ${tokens.foreground} ${percent}%, transparent)`;
 
 export const TOASTER_CSS = `
-.wm-toaster { position: fixed; right: 16px; z-index: 2147483000; display: flex; flex-direction: column; gap: 10px;
+.wm-toaster { position: fixed; right: 16px; z-index: 2147483000; display: flex; flex-direction: column; gap: ${GAP}px;
   width: min(360px, calc(100vw - 32px)); pointer-events: none; }
 .wm-toaster[data-position="bottom-right"] { bottom: 16px; flex-direction: column-reverse; }
-.wm-toast { pointer-events: auto; display: flex; gap: 12px; align-items: center; padding: 12px 10px 12px 12px;
-  background: linear-gradient(135deg, color-mix(in oklab, var(--wm-toast-tint) 10%, ${tokens.surface}), ${tokens.surface} 60%);
-  border: 1px solid ${tint(25)}; border-radius: 16px;
+.wm-toast { position: relative; overflow: hidden; pointer-events: auto; display: flex; gap: 10px; align-items: flex-start; padding: 14px;
+  background: ${tokens.surface}; border: 1px solid ${tint(25)}; border-radius: 16px;
   box-shadow: 0 12px 32px -8px rgb(0 0 0 / 60%), 0 0 30px -12px ${tint(45)};
   animation: wm-fade-in 0.18s ease-out; font-size: 13px; }
 ${(Object.keys(PALETTE) as ToastVariant[])
   .map((variant) => `.wm-toast[data-variant="${variant}"] { --wm-toast-color: ${PALETTE[variant].text}; --wm-toast-tint: ${PALETTE[variant].tint}; }`)
   .join('\n')}
-.wm-toast-icon { flex: none; display: flex; align-items: center; justify-content: center; width: 36px; height: 36px;
-  border-radius: 10px; border: 1px solid ${tint(20)}; background: ${tint(15)}; color: var(--wm-toast-color); }
+/*
+ * Même marge de 14 px tout autour. Icône (20 px) et croix (30 px) centrées sur la première ligne (18 px) sans la
+ * rallonger : marges négatives de ce qu'elles dépassent ; croix tirée vers le bord de son vide intérieur (7 px).
+ */
+.wm-toast-icon { flex: none; display: flex; margin-block: -1px; color: var(--wm-toast-color); }
+.wm-toast > .wm-button { margin: -6px -7px -6px 0; }
 .wm-toast-body { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.wm-toast-title { font-size: 14px; font-weight: 600; line-height: 1.3; }
-.wm-toast-message { color: ${dim(90)}; }
+.wm-toast-title { font-size: 14px; font-weight: 600; line-height: 18px; }
+.wm-toast-message { color: ${dim(90)}; line-height: 18px; }
 .wm-toast-title + .wm-toast-message { margin-top: 2px; color: ${dim(60)}; }
-.wm-toast-action { display: inline-flex; margin-top: 8px; padding: 6px 12px; border-radius: 8px; border: 1px solid ${tint(25)};
-  background: ${tint(10)}; color: var(--wm-toast-color); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
-  transition: background-color 0.15s; }
-.wm-toast-action:hover { background: ${tint(20)}; }
-.wm-toast-close { flex: none; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px;
-  padding: 0; border: 0; border-radius: 9999px; background: none; cursor: pointer; color: ${dim(45)};
-  transition: color 0.15s, background-color 0.15s; }
-.wm-toast-close:hover { color: ${tokens.foreground}; background: ${tokens.surfaceLight}; }
+.wm-toast-action { margin-top: 8px; }
+.wm-toast-progress { position: absolute; inset: auto 0 0; height: 3px; background: ${tint(70)}; transform-origin: left;
+  animation-name: wm-toast-progress; animation-timing-function: linear; animation-fill-mode: forwards; }
+.wm-toast[data-paused] .wm-toast-progress { animation-play-state: paused; }
+@keyframes wm-toast-progress { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+.wm-toast[data-leaving] { pointer-events: none; }
+.wm-toaster[data-position="top-right"] .wm-toast[data-leaving] {
+  animation: wm-toast-out 180ms ease-in forwards, wm-toast-close-below 160ms ease-in-out 140ms forwards; }
+.wm-toaster[data-position="bottom-right"] .wm-toast[data-leaving] {
+  animation: wm-toast-out 180ms ease-in forwards, wm-toast-close-above 160ms ease-in-out 140ms forwards; }
+@keyframes wm-toast-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(6px); } }
+@keyframes wm-toast-close-below { to { margin-bottom: calc(-1 * (var(--wm-toast-height) + ${GAP}px)); } }
+@keyframes wm-toast-close-above { to { margin-top: calc(-1 * (var(--wm-toast-height) + ${GAP}px)); } }
 `;
+
+const ACTION_TONE: Record<ToastVariant, ButtonTone> = { error: 'danger', success: 'accent', warning: 'warning', info: 'info' };
 
 const ICON: Record<ToastVariant, 'error' | 'success' | 'warning' | 'info'> = {
   error: 'error',
@@ -59,17 +79,26 @@ export interface ToasterProps {
 
 /** Les deux piles de toasts, abonnées à la file. */
 export function Toaster({ store, topOffset }: ToasterProps) {
-  const [toasts, setToasts] = useState(store.list());
-  useEffect(() => store.subscribe(() => setToasts(store.list())), [store]);
+  const [shown, setShown] = useState<ShownToast[]>(() => store.list().map((toast) => ({ toast, leaving: false })));
+  useEffect(
+    () =>
+      store.subscribe(() => {
+        const animate = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+        setShown((previous) => withLeaving(previous, store.list(), animate));
+      }),
+    [store],
+  );
+  // Stable : un autre toast qui arrive pendant une sortie ne relance pas son minuteur.
+  const gone = useCallback((id: number) => setShown((previous) => withoutToast(previous, id)), []);
 
   const stack = (position: ToastPosition) => {
-    const items = toasts.filter((toast) => toast.position === position);
+    const items = shown.filter((item) => item.toast.position === position);
     if (items.length === 0) return null;
     const style = position === 'top-right' ? { top: `${topOffset()}px` } : undefined;
     return (
       <div class="wm-toaster" data-position={position} style={style}>
-        {items.map((toast) => (
-          <ToastView key={toast.id} toast={toast} onClose={() => store.dismiss(toast.id)} />
+        {items.map(({ toast, leaving }) => (
+          <ToastView key={toast.id} toast={toast} store={store} leaving={leaving} onGone={gone} />
         ))}
       </div>
     );
@@ -83,11 +112,51 @@ export function Toaster({ store, topOffset }: ToasterProps) {
   );
 }
 
-function ToastView({ toast, onClose }: { toast: Toast; onClose: () => void }) {
+interface ToastViewProps {
+  readonly toast: Toast;
+  readonly store: ToastStore;
+  readonly leaving: boolean;
+  readonly onGone: (id: number) => void;
+}
+
+function ToastView({ toast, store, leaving, onGone }: ToastViewProps) {
+  const [paused, setPaused] = useState(false);
+  const element = useRef<HTMLDivElement>(null);
+
+  // Hauteur relevée avant l'affichage suivant : la pile se referme d'autant.
+  useLayoutEffect(() => {
+    if (leaving) element.current?.style.setProperty('--wm-toast-height', `${element.current.offsetHeight}px`);
+  }, [leaving]);
+  useEffect(() => {
+    if (!leaving) return;
+    const timer = setTimeout(() => onGone(toast.id), EXIT_MS);
+    return () => clearTimeout(timer);
+  }, [leaving, onGone, toast.id]);
+
+  const onClose = () => store.dismiss(toast.id);
+  // Pointeur plutôt que souris : au doigt, la pause ne dure que le temps du toucher.
+  const hover = (over: boolean) => {
+    if (toast.durationMs === undefined) return;
+    if (over) store.pause(toast.id);
+    else store.resume(toast.id);
+    setPaused(over);
+  };
+
   return (
-    <div class="wm-toast" data-variant={toast.variant} role={toast.variant === 'error' ? 'alert' : 'status'}>
+    <div
+      ref={element}
+      class="wm-toast"
+      data-variant={toast.variant}
+      data-paused={paused || undefined}
+      data-leaving={leaving || undefined}
+      aria-hidden={leaving || undefined}
+      inert={leaving}
+      role={toast.variant === 'error' ? 'alert' : 'status'}
+      onPointerEnter={() => hover(true)}
+      onPointerLeave={() => hover(false)}
+    >
       <span class="wm-toast-icon" aria-hidden="true">
-        <Icon name={ICON[toast.variant]} size={18} />
+        <Icon name={ICON[toast.variant]} size={20} />
       </span>
       <div class="wm-toast-body">
         {toast.title && <div class="wm-toast-title">{toast.title}</div>}
@@ -95,7 +164,7 @@ function ToastView({ toast, onClose }: { toast: Toast; onClose: () => void }) {
         {toast.action && (
           <button
             type="button"
-            class="wm-toast-action"
+            class={`${buttonClass('standard', { tone: ACTION_TONE[toast.variant], size: 'sm' })} wm-toast-action`}
             onClick={() => {
               onClose();
               toast.action?.onClick();
@@ -105,9 +174,12 @@ function ToastView({ toast, onClose }: { toast: Toast; onClose: () => void }) {
           </button>
         )}
       </div>
-      <button type="button" class="wm-toast-close" aria-label="Fermer" onClick={onClose}>
+      <button type="button" class={buttonClass('round', { fill: 'ghost', size: 'sm' })} aria-label="Fermer" onClick={onClose}>
         <Icon name="close" size={16} />
       </button>
+      {toast.durationMs !== undefined && (
+        <span class="wm-toast-progress" aria-hidden="true" style={{ animationDuration: `${toast.durationMs}ms` }} />
+      )}
     </div>
   );
 }
