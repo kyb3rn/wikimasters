@@ -24,7 +24,8 @@ async function openCollection(page: Page, first: Entry[] = [entry('u1', 'Tour Ei
       }
       if (url.pathname === '/api/my-collection/stats') {
         server.requests.push('compteurs');
-        await route.fulfill({ json: { total: server.first.length, rarityCounts: {}, tagOptions: [] } });
+        // Deux pages : la pagination s'affiche.
+        await route.fulfill({ json: { total: 50 + second.length, rarityCounts: {}, tagOptions: [] } });
         return true;
       }
       const discard = /^\/api\/user-cards\/([^/]+)\/discard$/.exec(url.pathname);
@@ -82,10 +83,10 @@ test('le chargement suivant de la liste vient du site : la carte défaussée n�
   const server = await openCollection(page);
   await discardAt(page, 1);
 
-  await page.getByRole('button', { name: 'Suivant →' }).click();
+  await page.getByRole('button', { name: 'Page suivante' }).first().click();
   await expect(faces(page)).toHaveCount(1);
   await expect(page.locator('#stage .wm-stamp')).toHaveCount(0);
-  await page.getByRole('button', { name: '← Précédent' }).click();
+  await page.getByRole('button', { name: 'Page précédente' }).first().click();
   await expect(faces(page)).toHaveCount(2);
   await expect(faces(page).locator('h3')).toHaveText(['Tour Eiffel', 'Mont Blanc']);
   await expect(page.locator('#stage .wm-stamp')).toHaveCount(0);

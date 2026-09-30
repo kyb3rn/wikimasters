@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { ChoiceField } from '@/ui/controls';
+import { ChoiceField, CloseButton } from '@/ui/controls';
 import { Icon } from '@/ui/icons';
 import { siteClass } from '@/ui/site';
 
@@ -86,15 +86,7 @@ export function SalePanel(props: SalePanelProps) {
       }}
     >
       <div class="wm-sale" role="dialog" aria-modal="true" aria-label="Mise en vente">
-        <button
-          type="button"
-          class={`${siteClass.closeButtonPosition} ${siteClass.closeButton}`}
-          aria-label="Fermer"
-          disabled={sending}
-          onClick={cancel}
-        >
-          <Icon name="close" size={18} />
-        </button>
+        <CloseButton class={siteClass.closeButtonPosition} disabled={sending} onClick={cancel} />
         {status && (
           <div class="wm-sale-status" data-tone={status.tone} role="alert">
             {status.text}

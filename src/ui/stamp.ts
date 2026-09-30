@@ -91,6 +91,11 @@ function unstamp(face: HTMLElement): void {
   face.querySelectorAll(':scope > .wm-stamp').forEach((overlay) => overlay.remove());
 }
 
+/** Face tamponnée, par qui que ce soit. */
+export function isStamped(face: HTMLElement): boolean {
+  return face.dataset.wmStamp !== undefined;
+}
+
 /** Faces tamponnées par `owner` (pour retirer celles qui ne doivent plus l'être). */
 export function stampedFaces(owner: string, root: ParentNode = document): HTMLElement[] {
   return [...root.querySelectorAll<HTMLElement>(`[data-wm-stamp="${owner}"]`)];

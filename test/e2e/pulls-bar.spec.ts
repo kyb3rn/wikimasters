@@ -30,7 +30,8 @@ test('le cadre du site devient un cadre en largeur : paquets, recharge, son, aff
 
   const parts = bar(page).locator('.wm-packs-part');
   await expect(parts).toHaveCount(4);
-  await expect(parts.nth(0)).toHaveText('3 / 10paquets disponibles');
+  await expect(parts.nth(0)).toHaveText('3 / 10');
+  await expect(parts.nth(0)).toHaveAttribute('title', 'Paquets disponibles');
   await expect(parts.nth(1)).toContainText('prochain paquet');
   const tops = await parts.evaluateAll((elements) => elements.map((el) => Math.round(el.getBoundingClientRect().top)));
   expect(new Set(tops).size).toBe(1);

@@ -1,5 +1,6 @@
 import { injectStyle, setClass, watchDom, whenBody } from '@/core/dom';
 import type { Feature } from '@/core/runtime';
+import { showsPageSpinner } from '@/site/page-spinner';
 import { PULLS_ROUTE } from '@/site/pulls';
 
 const CENTERED = 'wm-pulls-center';
@@ -33,7 +34,8 @@ export const pullsCenter: Feature = {
     watchDom(
       () => {
         const main = document.querySelector('main');
-        if (main) setClass(main, CENTERED, true);
+        // Pendant le chargement, le rond de chargement est au milieu (page-spinner), pas à 40 / 60.
+        if (main) setClass(main, CENTERED, !showsPageSpinner(main));
       },
       { signal: ctx.signal },
     );

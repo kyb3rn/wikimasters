@@ -27,8 +27,8 @@ interface Entry<F> {
 /**
  * Point de passage unique des requêtes, dans un ordre fixe :
  *
- *   1. intercepteurs, dans l'ordre d'inscription : le premier qui renvoie une réponse
- *      court-circuite le réseau ;
+ *   1. intercepteurs, dans l'ordre d'inscription (ceux inscrits avec `last` à la fin) : le premier
+ *      qui renvoie une réponse court-circuite le réseau ;
  *   2. transport (le `fetch` d'origine) ;
  *   3. observateurs, après avoir rendu la réponse à l'appelant.
  *
@@ -39,6 +39,7 @@ interface Entry<F> {
  */
 export function createNet(log: Logger): NetController {
   const interceptors = new Set<Entry<Interceptor>>();
+  const lastInterceptors = new Set<Entry<Interceptor>>();
   const observers = new Set<Entry<Observer>>();
   const trackers = new Set<Entry<Tracker>>();
   const sockets = createSockets(log);
@@ -71,7 +72,7 @@ export function createNet(log: Logger): NetController {
     const ends = track(request);
     let response: Response | undefined;
     try {
-      for (const { match, fn } of [...interceptors]) {
+      for (const { match, fn } of [...interceptors, ...lastInterceptors]) {
         if (!matches(match, request)) continue;
         try {
           response = await fn(request);
@@ -151,7 +152,7 @@ export function createNet(log: Logger): NetController {
 
   return {
     fetch: (input, init) => run(input, init, true),
-    intercept: (match, fn, options) => add(interceptors, { match, fn }, options),
+    intercept: (match, fn, options) => add(options?.last ? lastInterceptors : interceptors, { match, fn }, options),
     observe: (match, fn, options) => add(observers, { match, fn }, options),
     track: (match, fn, options) => add(trackers, { match, fn }, options),
     observeSocket: (match, fn, options) => sockets.observe(match, fn, options),

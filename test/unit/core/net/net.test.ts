@@ -71,6 +71,16 @@ describe('createNet', () => {
     expect(second).not.toHaveBeenCalled();
   });
 
+  it('passe les intercepteurs inscrits avec « last » après tous les autres', async () => {
+    const { net } = setup();
+    const calls: string[] = [];
+    net.intercept(() => true, () => void calls.push('dernier'), { last: true });
+    net.intercept(() => true, () => void calls.push('premier'));
+    net.intercept(() => true, () => void calls.push('second'));
+    await net.fetch('/api/marketplace');
+    expect(calls).toEqual(['premier', 'second', 'dernier']);
+  });
+
   it('laisse passer la requête si un intercepteur échoue', async () => {
     const { net, log } = setup();
     net.intercept(

@@ -84,6 +84,12 @@ export function lockControl(control: LockableControl, { owner, locked, reason = 
   }
 }
 
+/** Raison du verrou d'un contrôle (la première), s'il est verrouillé : pour qu'un contrôle à nous qui le remplace le suive. */
+export function lockReason(control: LockableControl): string | undefined {
+  if (!control.classList.contains(LOCKED)) return undefined;
+  return Object.values(readLocks(control))[0] ?? '';
+}
+
 /** Lève tous les verrous d'un propriétaire (démontage de sa fonctionnalité). */
 export function unlockAll(owner: string): void {
   for (const control of document.querySelectorAll<LockableControl>(`.${LOCKED}`)) {

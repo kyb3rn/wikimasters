@@ -14,19 +14,22 @@ export interface PacksBarProps {
   readonly onGrid: (grid: boolean) => void;
 }
 
-function Part({ value, label }: { value: ComponentChildren; label: string }) {
+interface PartProps {
+  readonly value: ComponentChildren;
+  readonly label?: string;
+  readonly title?: string;
+}
+
+function Part({ value, label, title }: PartProps) {
   return (
-    <div class="wm-packs-part">
-      {/* Contenu dans un bloc à lui : directement dans la boîte flex, l'espace de « / 10 » serait supprimé. */}
-      <div class={`${siteClass.counterValue} wm-packs-value`}>
-        <div>{value}</div>
-      </div>
-      <div class={siteClass.counterLabel}>{label}</div>
+    <div class="wm-packs-part" title={title}>
+      <div class={`${siteClass.counterValue} wm-packs-value`}>{value}</div>
+      {label && <div class={siteClass.counterLabel}>{label}</div>}
     </div>
   );
 }
 
-/** Cadre en largeur sous « Ouvrir » : paquets disponibles · recharge · son · affichage des cartes. */
+/** Cadre en largeur au-dessus du paquet : paquets disponibles · recharge · son · affichage des cartes. */
 export function PacksBar({ available, max, next, sound, grid, onSound, onGrid }: PacksBarProps) {
   const soundLabel = sound ? 'Couper le son des paquets' : 'Activer le son des paquets';
   const modes = [
@@ -37,12 +40,13 @@ export function PacksBar({ available, max, next, sound, grid, onSound, onGrid }:
     <div class={`${siteClass.frame} wm-packs-bar`}>
       <Part
         value={
-          <>
-            <span class={siteClass.counterAccent}>{available}</span>
-            <span class={siteClass.counterMuted}> / {max}</span>
-          </>
+          <span class={siteClass.counterPair}>
+            <span class={`${siteClass.counterAccent} ${siteClass.counterCount}`}>{available}</span>
+            {/* Espace ignoré par la boîte flex (l'écart vient de `gap`) : le texte copié reste « 6 / 10 ». */}{' '}
+            <span class={`${siteClass.counterMuted} ${siteClass.counterMax}`}>/ {max}</span>
+          </span>
         }
-        label="paquets disponibles"
+        title="Paquets disponibles"
       />
       <Part
         value={next ? <span class={siteClass.counterTime}>{next}</span> : <span class={siteClass.counterMuted}>Plein</span>}

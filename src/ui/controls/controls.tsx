@@ -47,6 +47,28 @@ export interface ChoiceFieldProps {
   readonly disabled?: boolean;
 }
 
+export interface CloseButtonProps {
+  readonly onClick: () => void;
+  readonly disabled?: boolean;
+  /** Classes en plus, comme la position `siteClass.closeButtonPosition`. */
+  readonly class?: string;
+}
+
+/** Croix de fermeture des modales du site. */
+export function CloseButton({ onClick, disabled, class: extra }: CloseButtonProps) {
+  return (
+    <button
+      type="button"
+      class={extra ? `${extra} ${siteClass.closeButton}` : siteClass.closeButton}
+      aria-label="Fermer"
+      disabled={disabled}
+      onClick={onClick}
+    >
+      <Icon name="close" size={18} />
+    </button>
+  );
+}
+
 /** Une valeur parmi plusieurs : les pastilles des durées de la mise aux enchères du site. */
 export function ChoiceField({ value, options, onChange, label, disabled }: ChoiceFieldProps) {
   return (

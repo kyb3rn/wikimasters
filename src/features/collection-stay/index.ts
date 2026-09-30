@@ -5,9 +5,13 @@ import { findCardModals, readAuctionCreation, readDiscard } from '@/site/cards';
 import {
   COLLECTION_ROUTE,
   findCollectionFaces,
+  isBulkDiscard,
   isCollectionList,
   isCollectionStats,
   parseCollection,
+  readBulkDiscard,
+  readBulkDiscardFailures,
+  selectionMarkOf,
   type CollectionEntry,
 } from '@/site/collection';
 import { lockControl, unlockAll } from '@/ui/lock';
@@ -18,6 +22,8 @@ const OWNER = 'collection-stay';
 const QUIET_MS = 3000;
 /** Réponses gardées, une par adresse (liste et compteurs, plusieurs pages ou filtres). */
 const CACHE_SIZE = 8;
+/** Une carte décochée par le script ne l'est pas deux fois avant que le site ait redessiné. */
+const DESELECT_GAP_MS = 500;
 
 type Action = 'discarded' | 'listed';
 
@@ -38,7 +44,7 @@ export const collectionStay: Feature = {
   id: 'collection-stay',
   name: 'Collection sans rechargement',
   description:
-    "Après une défausse ou une mise aux enchères, la liste n'est pas rechargée : la carte reste, marquée « Défaussée » ou « En vente », jusqu'au prochain chargement de la liste.",
+    "Après une défausse (même de toute la sélection) ou une mise aux enchères, la liste n'est pas rechargée : la carte reste, marquée « Défaussée » ou « En vente », jusqu'au prochain chargement de la liste. Elle ne se sélectionne plus.",
   category: 'Général',
   routes: [COLLECTION_ROUTE],
   required: true,
@@ -53,6 +59,9 @@ export const collectionStay: Feature = {
     /** Dernière liste demandée, et celle affichée (sa réponse). */
     let requested: string | undefined;
     let shown: CollectionEntry[] = [];
+    /** Faces de la grille d'exemplaires défaussés ou mis en vente (tamponnées). */
+    let doneFaces = new Set<HTMLElement>();
+    const deselectedAt = new WeakMap<HTMLElement, number>();
 
     function remember(exchange: NetExchange, body: string): void {
       const href = exchange.request.url.href;
@@ -105,6 +114,32 @@ export const collectionStay: Feature = {
       },
       { signal },
     );
+    // Défausse de la sélection : de même, chaque exemplaire défaussé reste, tamponné.
+    net.track(
+      (request) => !request.own && isBulkDiscard(request),
+      (request) => {
+        const ids = readBulkDiscard(request);
+        return (status) => {
+          if (ids.length === 0 || status === undefined || status >= 400) return;
+          for (const id of ids) done.set(id, 'discarded');
+          quiet = { until: performance.now() + QUIET_MS, served: new Set() };
+          sync();
+        };
+      },
+      { signal },
+    );
+    net.observe(
+      (request) => !request.own && isBulkDiscard(request),
+      async (exchange) => {
+        if (!exchange.ok) return;
+        const failed = readBulkDiscardFailures(await exchange.json().catch(() => undefined));
+        if (failed.length === 0) return;
+        log.debug('exemplaires non défaussés', failed);
+        for (const id of failed) done.delete(id);
+        sync();
+      },
+      { signal },
+    );
     net.intercept(
       (request) => isCollectionList(request) || isCollectionStats(request),
       (request) => {
@@ -121,6 +156,30 @@ export const collectionStay: Feature = {
 
     await whenBody();
     if (signal.aborted) return;
+
+    // En sélection, un exemplaire défaussé ou mis en vente ne se coche plus : il n'existe plus pour le site.
+    window.addEventListener(
+      'click',
+      (event) => {
+        if (!event.isTrusted || !(event.target instanceof Element)) return;
+        const target = event.target;
+        // En sélection seulement : chaque case a alors son calque de sélection.
+        if (![...doneFaces].some((face) => face.contains(target) && selectionMarkOf(face))) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      },
+      { capture: true, signal },
+    );
+
+    /** Coché quand même (« Sélectionner toute la page ») : décoché aussitôt, par le clic que le site attend. */
+    function deselectDone(): void {
+      const now = performance.now();
+      for (const face of doneFaces) {
+        if (!selectionMarkOf(face)?.selected || now - (deselectedAt.get(face) ?? -Infinity) < DESELECT_GAP_MS) continue;
+        deselectedAt.set(face, now);
+        face.click();
+      }
+    }
 
     /** Tampons sur la grille ; modale d'un exemplaire défaussé verrouillée (il n'existe plus). Idempotent. */
     function sync(): void {
@@ -145,8 +204,10 @@ export const collectionStay: Feature = {
         }
         if (locked && modal.face) wanted.set(modal.face, { ...stampOf('discarded', 1), revealable: true });
       }
+      doneFaces = new Set([...wanted.keys()].filter((face) => faces.includes(face)));
       for (const face of stampedFaces(OWNER)) if (!wanted.has(face)) stampFace(face, OWNER, undefined);
       for (const [face, stamp] of wanted) stampFace(face, OWNER, stamp);
+      deselectDone();
     }
 
     watchDom(sync, { signal });

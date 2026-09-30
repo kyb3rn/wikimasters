@@ -9,4 +9,5 @@ export {
 export { findAuctionModal, parseDuration, type AuctionDuration, type AuctionModal } from './auction-modal';
 export { findDiscardConfirm, type DiscardConfirm } from './discard-confirm';
 export { findStarButton } from './dom';
-export { findCardModals, isSiteModalOpen, type CardModal } from './modal';
+export { findCardGrids } from './grid';
+export { findCardModals, isSiteModalOpen, readModalCard, type CardModal, type ModalCard } from './modal';

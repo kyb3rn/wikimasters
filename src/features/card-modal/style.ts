@@ -25,9 +25,7 @@ export const CSS = `
 .wm-report[aria-pressed="true"] { color: ${tokens.danger}; }
 .wm-report:disabled { opacity: 0.45; cursor: not-allowed; }
 
-/* Actions : Vendre · Marché (gris) · Défausser (rouge). */
+/* Actions : Vendre · Marché (gris) · Défausser (rouge : DANGER_BUTTON, ui/theme). */
 .wm-root .wm-market-button { gap: 0.5rem; }
 .wm-root .wm-market-button[aria-pressed="true"] { border-color: ${tokens.foreground}; color: ${tokens.foreground}; }
-.wm-danger { color: ${tokens.danger} !important; border-color: rgb(248 81 73 / 45%) !important; }
-.wm-danger:hover:not(:disabled) { background: rgb(248 81 73 / 12%) !important; }
 `;

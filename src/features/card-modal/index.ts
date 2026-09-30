@@ -3,9 +3,12 @@ import { childController } from '@/core/async';
 import { injectStyle, setClass, watchDom, whenBody } from '@/core/dom';
 import { net } from '@/core/net';
 import type { Feature } from '@/core/runtime';
-import { findCardModals, findDiscardConfirm, readDiscard, type CardModal } from '@/site/cards';
+import { marketUnavailable, onMarketAvailabilityChange, openMarketModal } from '@/services/market';
+import { findCardModals, findDiscardConfirm, readDiscard, readModalCard, type CardModal } from '@/site/cards';
 import { lockControl, unlockAll } from '@/ui/lock';
 import { mountUi, type MountedUi } from '@/ui/mount';
+import { DANGER_BUTTON, ensureBaseStyle } from '@/ui/theme';
+import { toast } from '@/ui/toast';
 import { MarketButton, ReportButton } from './buttons';
 import { CSS, DISCARD_BUSY } from './style';
 
@@ -43,7 +46,7 @@ export const cardModalLayout: Feature = {
   id: 'card-modal-layout',
   name: 'Modale de carte',
   description:
-    'Présentation de la modale de carte : signalement sur l’image, actions Vendre · Marché · Défausser (roue pendant la défausse).',
+    'Présentation de la modale de carte : signalement sur l’image, actions Vendre · Marché (historique des ventes) · Défausser (roue pendant la défausse).',
   category: 'Général',
   routes: 'all',
   required: true,
@@ -52,11 +55,29 @@ export const cardModalLayout: Feature = {
     const { signal } = ctx;
     await whenBody();
     if (signal.aborted) return;
+    ensureBaseStyle();
     injectStyle('card-modal', CSS);
 
     const slots = new Map<HTMLElement, ModalSlots>();
     /** Modales ouvertes au départ d'une défausse du site → défausses en cours. */
     const discarding = new Map<HTMLElement, number>();
+    /** Modales dont l'historique des ventes se charge. */
+    const opening = new Set<HTMLElement>();
+
+    function openMarket(modal: CardModal): void {
+      const card = readModalCard(modal);
+      if (!card) {
+        ctx.log.warn('carte de la modale introuvable dans son état React', modal.title);
+        toast.error('Carte non identifiée : historique des ventes indisponible.', { title: 'Marché' });
+        return;
+      }
+      opening.add(modal.root);
+      sync();
+      void openMarketModal(card).finally(() => {
+        opening.delete(modal.root);
+        sync();
+      });
+    }
 
     // Défausse partie de la modale (défaussage rapide ou confirmation du site), jusqu'à la réponse ou l'échec réseau.
     net.track(
@@ -108,7 +129,7 @@ export const cardModalLayout: Feature = {
 
     function apply(modal: CardModal, own: ModalSlots): void {
       // La rareté en toutes lettres et les onglets Détails / Marché : la rareté se voit sur la carte,
-      // le marché passe dans les actions.
+      // le marché passe dans les actions (notre historique des ventes, pas la vue du site).
       if (modal.tabsRow) setClass(modal.tabsRow, 'wm-hidden', true);
 
       // « Signaler l'image » : sur l'image de la carte, en bas à droite.
@@ -133,24 +154,22 @@ export const cardModalLayout: Feature = {
       // Actions : Vendre · Marché · Défausser.
       if (modal.auctionButton) renameButton(modal.auctionButton, 'Mettre aux enchères', 'Vendre');
       const discard = modal.discardButton;
-      const { marketTab, detailsTab, actionsRow } = modal;
-      if (discard && marketTab && actionsRow) {
+      const { actionsRow } = modal;
+      if (discard && actionsRow) {
         own.market = place(
           own.market,
           h(MarketButton, {
             className: siteClasses(discard),
-            active: marketTab.getAttribute('aria-selected') === 'true',
-            onClick: () => {
-              const showing = marketTab.getAttribute('aria-selected') === 'true';
-              (showing ? detailsTab : marketTab)?.click();
-            },
+            busy: opening.has(modal.root),
+            unavailable: marketUnavailable(),
+            onClick: () => openMarket(modal),
           }),
           actionsRow,
           discard,
           true,
         );
       }
-      if (discard) setClass(discard, 'wm-danger', true);
+      if (discard) setClass(discard, DANGER_BUTTON, true);
       markDiscarding(modal);
     }
 
@@ -171,6 +190,7 @@ export const cardModalLayout: Feature = {
     }
 
     watchDom(sync, { signal });
+    onMarketAvailabilityChange(sync, { signal });
     ctx.onDispose(() => {
       document.querySelectorAll(`.${DISCARD_BUSY}`).forEach((el) => el.classList.remove(DISCARD_BUSY));
       unlockAll(OWNER);

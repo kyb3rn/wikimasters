@@ -1,8 +1,11 @@
+import { sleep } from '@/core/async';
 import { domSyncRounds } from '@/core/dom';
 import { expose } from '@/core/expose';
 import { net } from '@/core/net';
 import type { Feature } from '@/core/runtime';
+import { supabaseFetch, supabaseUserId } from '@/site/api';
 import { buildCapture, captureFileName, downloadJson } from './capture';
+import { ProbeStop, runCollectionProbe, type ProbeReport } from './probe';
 import {
   createRecorder,
   isRecordable,
@@ -36,6 +39,11 @@ export interface DebugConsole {
   sockets(): readonly RecordedSocketEvent[];
   /** Passes de synchronisation du DOM depuis le chargement (au repos, ce nombre doit rester fixe). */
   domSyncs(): number;
+  /**
+   * Sonde de la Collection, en lecture seule (3 à 4 minutes) : paramètres de /api/my-collection que le site
+   * n'envoie pas, requêtes Supabase directes. Télécharge wm-sonde-collection-….json.
+   */
+  probeCollection(): Promise<ProbeReport | undefined>;
   clear(): void;
 }
 
@@ -80,6 +88,37 @@ export const debug: Feature = {
       return { file, exchanges: result.exchanges.length, sockets: result.sockets.length, htmlChars: result.html.length };
     }
 
+    let probing = false;
+    async function probeCollection(): Promise<ProbeReport | undefined> {
+      if (probing) {
+        toast.info('Elle est déjà en cours.', { title: 'Sonde de la Collection' });
+        return undefined;
+      }
+      probing = true;
+      toast.info('Lecture seule, 3 à 4 minutes : rester sur la page.', { title: 'Sonde de la Collection lancée' });
+      try {
+        const report = await runCollectionProbe({
+          site: (path) => net.fetch(path, { credentials: 'include' }),
+          supabase: (path, headers) => supabaseFetch(path, { headers }),
+          userId: supabaseUserId,
+          progress: (message) => ctx.log.info(`sonde : ${message}`),
+          sleep: async (ms) => {
+            await sleep(ms, signal);
+            if (signal.aborted) throw new ProbeStop('script démonté pendant la sonde');
+          },
+        });
+        const file = captureFileName('/collection', new Date()).replace('wm-capture-', 'wm-sonde-');
+        downloadJson(document, file, report);
+        ctx.log.info(`sonde terminée : ${file}`, report);
+        const summary = `${report.requests} requêtes en ${report.durationSeconds} s`;
+        if (report.stopped) toast.error(`${report.stopped} (${summary}, fichier ${file})`, { title: 'Sonde arrêtée' });
+        else toast.success(`${summary} · ${file}`, { title: 'Sonde terminée' });
+        return report;
+      } finally {
+        probing = false;
+      }
+    }
+
     document.addEventListener(
       'keydown',
       (event) => {
@@ -98,6 +137,7 @@ export const debug: Feature = {
         exchanges: () => recorder.list(),
         sockets: () => recorder.sockets(),
         domSyncs: domSyncRounds,
+        probeCollection,
         clear: () => recorder.clear(),
       },
       signal,

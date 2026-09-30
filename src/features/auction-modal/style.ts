@@ -5,7 +5,8 @@ export const CSS = `
 .wm-sale-site-hidden { visibility: hidden !important; pointer-events: none !important; }
 
 .wm-sale-backdrop { position: fixed; inset: 0; z-index: 2147481000; display: flex; align-items: center;
-  justify-content: center; padding: 16px; background: rgb(0 0 0 / 72%); font-size: 13px; }
+  justify-content: center; padding: 16px; background: ${tokens.backdrop}; backdrop-filter: ${tokens.backdropBlur};
+  font-size: 13px; }
 .wm-sale { position: relative; width: min(760px, 100%); max-height: calc(100vh - 32px); overflow: auto;
   padding: 18px 20px 16px; background: ${tokens.surface}; border: 1px solid ${tokens.border}; border-radius: 16px;
   box-shadow: 0 20px 60px rgb(0 0 0 / 55%); animation: wm-fade-in 0.18s ease-out; }

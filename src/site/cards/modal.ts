@@ -1,3 +1,6 @@
+import { isRecord } from '@/core/guards';
+import { currentFiberAncestors } from '@/core/react';
+import { parseRarity, type Rarity } from '@/site/rarity';
 import { findStarButton, siteButtons, text } from './dom';
 
 /**
@@ -107,4 +110,28 @@ export function findCardModals(doc: Document = document): CardModal[] {
     });
   }
   return modals;
+}
+
+/** La carte (modèle) d'une modale de carte. */
+export interface ModalCard {
+  readonly id: string;
+  readonly title: string;
+  readonly rarity: Rarity | undefined;
+}
+
+/**
+ * Carte affichée, lue dans l'état React de la modale (code du site du 30/09/2026) : son composant reçoit
+ * `{ card, starred, count, onClose, userCardId, tags, … }`, `card` étant la carte (`id`, `wikipedia_title`,
+ * `rarity`…), et rend lui-même le fond (`createPortal`). Lu au moment voulu (clic), pas à chaque passage de
+ * `watchDom` : c'est un parcours de l'arbre de React.
+ */
+export function readModalCard(modal: CardModal): ModalCard | undefined {
+  for (const fiber of currentFiberAncestors(modal.root)) {
+    const props = fiber.memoizedProps;
+    if (!isRecord(props) || typeof props.onClose !== 'function' || !isRecord(props.card)) continue;
+    const { id, wikipedia_title: title, rarity } = props.card;
+    if (typeof id !== 'string' || id === '' || typeof title !== 'string') continue;
+    return { id, title: title.trim(), rarity: parseRarity(rarity) };
+  }
+  return undefined;
 }

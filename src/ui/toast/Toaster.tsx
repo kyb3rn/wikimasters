@@ -3,27 +3,45 @@ import { Icon } from '@/ui/icons';
 import { tokens } from '@/ui/theme';
 import type { Toast, ToastPosition, ToastStore, ToastVariant } from './store';
 
+// Le site n'a pas de toasts : ceux-ci reprennent ses encarts teintés (celui du solde WB : bordure et
+// dégradé de la couleur, halo, icône dans une tuile) et son petit bouton teinté, avec sa palette
+// Tailwind v4 (teinte 400 pour le texte, 500 pour les fonds et bordures).
+const PALETTE: Record<ToastVariant, { text: string; tint: string }> = {
+  error: { text: 'oklch(70.4% 0.191 22.216)', tint: 'oklch(63.7% 0.237 25.331)' },
+  success: { text: 'oklch(76.5% 0.177 163.223)', tint: 'oklch(69.6% 0.17 162.48)' },
+  warning: { text: 'oklch(82.8% 0.189 84.429)', tint: 'oklch(76.9% 0.188 70.08)' },
+  info: { text: 'oklch(74.6% 0.16 232.661)', tint: 'oklch(68.5% 0.169 237.323)' },
+};
+
+const tint = (percent: number) => `color-mix(in oklab, var(--wm-toast-tint) ${percent}%, transparent)`;
+const dim = (percent: number) => `color-mix(in oklab, ${tokens.foreground} ${percent}%, transparent)`;
+
 export const TOASTER_CSS = `
-.wm-toaster { position: fixed; right: 16px; z-index: 2147483000; display: flex; flex-direction: column; gap: 8px;
+.wm-toaster { position: fixed; right: 16px; z-index: 2147483000; display: flex; flex-direction: column; gap: 10px;
   width: min(360px, calc(100vw - 32px)); pointer-events: none; }
 .wm-toaster[data-position="bottom-right"] { bottom: 16px; flex-direction: column-reverse; }
-.wm-toast { pointer-events: auto; display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px;
-  background: ${tokens.surface}; border: 1px solid ${tokens.border}; border-left: 3px solid var(--wm-toast-color);
-  border-radius: 12px; box-shadow: 0 8px 24px rgb(0 0 0 / 45%); animation: wm-fade-in 0.18s ease-out;
-  font-size: 13px; }
-.wm-toast[data-variant="error"] { --wm-toast-color: ${tokens.danger}; }
-.wm-toast[data-variant="success"] { --wm-toast-color: ${tokens.success}; }
-.wm-toast[data-variant="warning"] { --wm-toast-color: ${tokens.warning}; }
-.wm-toast[data-variant="info"] { --wm-toast-color: ${tokens.info}; }
-.wm-toast-icon { color: var(--wm-toast-color); flex: none; margin-top: 1px; }
+.wm-toast { pointer-events: auto; display: flex; gap: 12px; align-items: center; padding: 12px 10px 12px 12px;
+  background: linear-gradient(135deg, color-mix(in oklab, var(--wm-toast-tint) 10%, ${tokens.surface}), ${tokens.surface} 60%);
+  border: 1px solid ${tint(25)}; border-radius: 16px;
+  box-shadow: 0 12px 32px -8px rgb(0 0 0 / 60%), 0 0 30px -12px ${tint(45)};
+  animation: wm-fade-in 0.18s ease-out; font-size: 13px; }
+${(Object.keys(PALETTE) as ToastVariant[])
+  .map((variant) => `.wm-toast[data-variant="${variant}"] { --wm-toast-color: ${PALETTE[variant].text}; --wm-toast-tint: ${PALETTE[variant].tint}; }`)
+  .join('\n')}
+.wm-toast-icon { flex: none; display: flex; align-items: center; justify-content: center; width: 36px; height: 36px;
+  border-radius: 10px; border: 1px solid ${tint(20)}; background: ${tint(15)}; color: var(--wm-toast-color); }
 .wm-toast-body { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.wm-toast-title { font-family: ${tokens.heading}; font-weight: 700; margin-bottom: 2px; }
-.wm-toast-action { display: inline-block; margin-top: 6px; padding: 0; border: 0; background: none; cursor: pointer;
-  font: inherit; font-weight: 600; color: var(--wm-toast-color); text-decoration: underline; text-underline-offset: 3px; }
-.wm-toast-action:hover { filter: brightness(1.2); }
-.wm-toast-close { flex: none; background: none; border: 0; padding: 2px; margin: -2px -4px 0 0; cursor: pointer;
-  font: inherit; color: ${tokens.foreground}; opacity: 0.5; border-radius: 6px; }
-.wm-toast-close:hover { opacity: 1; background: ${tokens.surfaceLight}; }
+.wm-toast-title { font-size: 14px; font-weight: 600; line-height: 1.3; }
+.wm-toast-message { color: ${dim(90)}; }
+.wm-toast-title + .wm-toast-message { margin-top: 2px; color: ${dim(60)}; }
+.wm-toast-action { display: inline-flex; margin-top: 8px; padding: 6px 12px; border-radius: 8px; border: 1px solid ${tint(25)};
+  background: ${tint(10)}; color: var(--wm-toast-color); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: background-color 0.15s; }
+.wm-toast-action:hover { background: ${tint(20)}; }
+.wm-toast-close { flex: none; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px;
+  padding: 0; border: 0; border-radius: 9999px; background: none; cursor: pointer; color: ${dim(45)};
+  transition: color 0.15s, background-color 0.15s; }
+.wm-toast-close:hover { color: ${tokens.foreground}; background: ${tokens.surfaceLight}; }
 `;
 
 const ICON: Record<ToastVariant, 'error' | 'success' | 'warning' | 'info'> = {
@@ -68,10 +86,12 @@ export function Toaster({ store, topOffset }: ToasterProps) {
 function ToastView({ toast, onClose }: { toast: Toast; onClose: () => void }) {
   return (
     <div class="wm-toast" data-variant={toast.variant} role={toast.variant === 'error' ? 'alert' : 'status'}>
-      <Icon name={ICON[toast.variant]} size={18} class="wm-toast-icon" />
+      <span class="wm-toast-icon" aria-hidden="true">
+        <Icon name={ICON[toast.variant]} size={18} />
+      </span>
       <div class="wm-toast-body">
         {toast.title && <div class="wm-toast-title">{toast.title}</div>}
-        <div>{toast.message}</div>
+        <div class="wm-toast-message">{toast.message}</div>
         {toast.action && (
           <button
             type="button"

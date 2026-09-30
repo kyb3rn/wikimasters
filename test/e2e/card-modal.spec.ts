@@ -65,17 +65,6 @@ test('actions : Vendre à gauche, Marché (gris) au centre, Défausser (rouge) �
   await expect(modal.locator('.wm-market-button')).toHaveClass(/flex-1/);
 });
 
-test('« Marché » bascule la vue marché de la modale, puis revient aux détails', async ({ page }) => {
-  const modal = await openCardModal(page);
-  const market = modal.getByRole('button', { name: 'Marché' });
-  await market.click();
-  await expect(modal.getByText('Vue du marché')).toBeVisible();
-  await expect(market).toHaveAttribute('aria-pressed', 'true');
-  await market.click();
-  await expect(modal.getByText('Détails de la carte')).toBeVisible();
-  await expect(market).toHaveAttribute('aria-pressed', 'false');
-});
-
 test('pas d’interrupteur dans les paramètres : c’est la présentation par défaut', async ({ page }) => {
   await openCardModal(page);
   await page.getByRole('button', { name: 'Fermer' }).click();

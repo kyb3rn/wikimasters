@@ -5,7 +5,9 @@ import { createRouter } from '@/core/router';
 import { createRuntime, exposeFeatures } from '@/core/runtime';
 import { featureChoice, onSettingsChange, setFeatureChoice, syncSettingsAcrossTabs } from '@/core/settings';
 import { features } from '@/features';
+import { trackSupabaseSession } from '@/site/api';
 import { balanceBottom } from '@/site/header';
+import { trackProStatus } from '@/site/pro';
 import { configureToasts } from '@/ui/toast';
 
 const log = createLogger();
@@ -22,6 +24,8 @@ function start(): void {
   initConsole({ version: __VERSION__, dev: __DEV__ });
 
   net.install(window);
+  trackSupabaseSession();
+  trackProStatus();
   const router = createRouter(window, createLogger('navigation'));
   configureToasts({ topOffset: () => Math.round((balanceBottom(document) ?? 44) + TOAST_GAP) });
 

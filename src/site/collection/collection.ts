@@ -19,6 +19,9 @@ export interface CollectionEntry {
   readonly count: number;
 }
 
+/** Voile avec roue posé sur la grille pendant un chargement (sauf le premier : toute la page tourne). */
+export const LIST_LOADING_VEIL = 'div.absolute.inset-0.z-20[aria-busy="true"]';
+
 export function isCollectionList(request: NetRequest): boolean {
   return request.method === 'GET' && request.url.pathname === '/api/my-collection';
 }

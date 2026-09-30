@@ -31,22 +31,25 @@ export function ReportButton({ label, disabled, pressed, onClick }: ReportButton
 export interface MarketButtonProps {
   /** Classes du bouton « Défausser » d'origine (allure grise du site), avant qu'on le passe en rouge. */
   readonly className: string;
-  /** Vue marché affichée. */
-  readonly active: boolean;
+  /** Ventes en cours de chargement. */
+  readonly busy: boolean;
+  /** Raison pour laquelle l'historique ne s'ouvre pas (compte non PRO) : bouton désactivé. */
+  readonly unavailable: string | undefined;
   readonly onClick: () => void;
 }
 
-/** « Marché », au centre des actions : bascule la vue marché de la modale (onglet du site caché). */
-export function MarketButton({ className, active, onClick }: MarketButtonProps) {
+/** « Marché », au centre des actions : ouvre l'historique des ventes de la carte, par-dessus la modale. */
+export function MarketButton({ className, busy, unavailable, onClick }: MarketButtonProps) {
   return (
     <button
       type="button"
       class={`${className} wm-market-button`}
-      aria-pressed={active}
-      title={active ? 'Revenir aux détails de la carte' : 'Voir le marché de la carte'}
+      disabled={busy || unavailable !== undefined}
+      aria-busy={busy}
+      title={unavailable ?? 'Historique des ventes de la carte'}
       onClick={onClick}
     >
-      <Icon name="market" size={16} />
+      <Icon name={busy ? 'spinner' : 'market'} size={16} class={busy ? 'wm-spin' : undefined} />
       Marché
     </button>
   );

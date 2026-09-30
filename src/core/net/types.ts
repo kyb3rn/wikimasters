@@ -50,6 +50,11 @@ export interface ListenOptions {
   readonly signal?: AbortSignal;
 }
 
+export interface InterceptOptions extends ListenOptions {
+  /** Après tous les autres intercepteurs : ne voit que ce qui partirait vraiment au réseau (pour le retarder). */
+  readonly last?: boolean;
+}
+
 /** Contenu d'un message WebSocket ; un binaire envoyé par la page est copié en `ArrayBuffer`. */
 export type SocketData = string | ArrayBuffer | Blob;
 
@@ -77,7 +82,7 @@ export type SocketObserver = (event: SocketEvent) => void | Promise<void>;
 export interface Net {
   /** Requête du script : passe par les intercepteurs et les observateurs, marquée `own`. */
   fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
-  intercept(match: Matcher, interceptor: Interceptor, options?: ListenOptions): void;
+  intercept(match: Matcher, interceptor: Interceptor, options?: InterceptOptions): void;
   observe(match: Matcher, observer: Observer, options?: ListenOptions): void;
   /**
    * Suit des requêtes de leur départ à leur fin, échec réseau compris (les observateurs, eux, ne voient

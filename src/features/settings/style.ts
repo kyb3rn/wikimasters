@@ -6,10 +6,11 @@ export const CSS = `
 .wm-root .wm-gear { padding-left: 0.4rem; padding-right: 0.4rem; }
 
 .wm-modal-body:has(.wm-settings-nav) { min-height: 340px; }
-.wm-settings-nav { flex: none; width: 220px; padding: 12px; display: flex; flex-direction: column; gap: 4px;
+.wm-settings-nav { flex: none; width: 240px; padding: 12px; display: flex; flex-direction: column; gap: 4px;
   border-right: 1px solid ${tokens.border}; overflow-y: auto; }
-.wm-settings-tab { text-align: left; padding: 8px 12px; border: 0; border-radius: 10px; background: none;
-  font: inherit; color: inherit; cursor: pointer; opacity: 0.75; }
+.wm-settings-tab { display: flex; align-items: center; gap: 10px; text-align: left; padding: 8px 12px; border: 0;
+  border-radius: 10px; background: none; font: inherit; color: inherit; white-space: nowrap; cursor: pointer; opacity: 0.75; }
+.wm-settings-tab svg { flex: none; }
 .wm-settings-tab:hover { opacity: 1; background: ${tokens.surfaceLight}; }
 .wm-settings-tab[aria-current="page"] { opacity: 1; font-weight: 600; color: ${tokens.accent}; background: ${accentTint(12)}; }
 .wm-settings-tab[data-about] { margin-top: auto; }
@@ -29,6 +30,7 @@ export const CSS = `
   display: flex; flex-direction: column; gap: 12px; }
 .wm-settings-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .wm-settings-row[data-stacked] { flex-direction: column; align-items: flex-start; gap: 8px; }
+.wm-settings-row[data-stacked] > .wm-settings-row-control { align-self: stretch; }
 .wm-settings-row-label { font-size: 13px; font-weight: 600; }
 .wm-settings-row-control { flex: none; display: flex; align-items: center; gap: 10px; }
 .wm-settings-about p { margin: 0 0 10px; font-size: 13px; line-height: 1.5; opacity: 0.85; }
@@ -38,6 +40,7 @@ export const CSS = `
   .wm-modal-body:has(.wm-settings-nav) { flex-direction: column; }
   .wm-settings-nav { width: auto; flex-direction: row; overflow-x: auto; border-right: 0;
     border-bottom: 1px solid ${tokens.border}; }
+  .wm-settings-tab { flex: none; }
   .wm-settings-tab[data-about] { margin-top: 0; margin-left: auto; }
   .wm-settings-row { flex-wrap: wrap; }
 }

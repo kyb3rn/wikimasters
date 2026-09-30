@@ -45,15 +45,23 @@ test('un engrenage juste à gauche du solde ouvre la fenêtre de paramètres', a
     'Paquets',
     'Modale de carte',
     'Enchères',
+    'Collection',
+    'Échanges',
+    'Marché',
+    'Profil',
+    'Toutes les cartes',
     'Développement',
     'À propos',
   ]);
   await expect(dialog.getByRole('button', { name: 'Défaussage rapide' })).toHaveAttribute('aria-current', 'page');
   await expect(dialog.getByRole('button', { name: 'Par défaut' })).toHaveCount(0);
-  // 912 × 620 (20 % plus large qu'avant), colonne des catégories de 220 px.
+  // Chaque onglet a son icône (Paquets : le puzzle de la navigation du site).
+  await expect(dialog.locator('.wm-settings-tab > svg')).toHaveCount(11);
+  await expect(dialog.getByRole('button', { name: 'Paquets' }).locator('svg path')).toHaveAttribute('d', /^M15\.39 4\.39/);
+  // 960 × 620, colonne des catégories de 240 px.
   const panel = await dialog.boundingBox();
-  expect([Math.round(panel?.width ?? 0), Math.round(panel?.height ?? 0)]).toEqual([912, 620]);
-  expect(await dialog.locator('.wm-settings-nav').evaluate((nav) => nav.getBoundingClientRect().width)).toBe(220);
+  expect([Math.round(panel?.width ?? 0), Math.round(panel?.height ?? 0)]).toEqual([960, 620]);
+  expect(await dialog.locator('.wm-settings-nav').evaluate((nav) => nav.getBoundingClientRect().width)).toBe(240);
 
   await dialog.getByRole('button', { name: 'Paquets' }).click();
   await expect(dialog.locator('.wm-settings-heading')).toHaveText([
@@ -82,6 +90,28 @@ test('l’onglet « À propos » présente le script et sa version', async ({ pa
   await expect(dialog).toContainText('WikiMasters ajoute au site des outils');
   await expect(dialog).toContainText('Version 0.1.0 (dev)');
   await expect(dialog.locator('.wm-modal-title')).toHaveText('Paramètres');
+});
+
+test('la fenêtre se rouvre sur le dernier onglet, même après un rechargement', async ({ page }) => {
+  await openPulls(page);
+  const dialog = page.getByRole('dialog', { name: 'Paramètres' });
+  const current = dialog.locator('.wm-settings-tab[aria-current="page"]');
+
+  await openSettings(page, 'Collection');
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await page.locator(`${GEAR}:visible`).click();
+  await expect(current).toHaveText('Collection');
+
+  await page.reload();
+  await page.locator(`${GEAR}:visible`).click();
+  await expect(current).toHaveText('Collection');
+
+  // Onglet retenu qui n'existe plus : le premier.
+  await page.evaluate(() => localStorage.setItem('wm-settings-tab-v1', JSON.stringify('Disparu')));
+  await page.reload();
+  await page.locator(`${GEAR}:visible`).click();
+  await expect(current).toHaveText('Défaussage rapide');
 });
 
 test('désactiver une fonctionnalité la retire tout de suite et reste mémorisé', async ({ page }) => {
@@ -169,7 +199,7 @@ test('défaussage rapide : protections seules dans sa catégorie, options dans P
     localStorage.setItem('wm-settings-v1', JSON.stringify({ features: {}, values: { 'pulls-discard-next': { protectStarred: false } } }));
   });
   await page.reload();
-  await page.locator(`${GEAR}:visible`).click();
+  await openSettings(page, 'Défaussage rapide');
   await expect(page.getByRole('switch', { name: 'Protéger les cartes en favori' })).toHaveAttribute('aria-checked', 'false');
 });
 

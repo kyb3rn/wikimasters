@@ -20,11 +20,16 @@ export interface NumberSetting extends CommonSetting {
   readonly unit?: string;
 }
 
-/** Une valeur parmi une liste (affichée en pastilles). */
+/** Une valeur parmi une liste. */
 export interface ChoiceSetting extends CommonSetting {
   readonly type: 'choice';
   readonly default: number;
   readonly options: readonly { readonly value: number; readonly label: string }[];
+  /**
+   * Pastilles (par défaut), ou curseur cranté sur toute la largeur : un cran par option (options croissantes),
+   * placé selon sa valeur.
+   */
+  readonly display?: 'pills' | 'slider';
 }
 
 export type SettingDefinition = BooleanSetting | NumberSetting | ChoiceSetting;

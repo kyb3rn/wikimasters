@@ -1,11 +1,34 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { FeatureCatalog, FeatureEntry } from '@/core/runtime';
 import { onSettingsChange, type SettingDefinition, type Settings } from '@/core/settings';
-import { ChoiceField, NumberField, Switch } from '@/ui/controls';
+import { jsonStore } from '@/core/storage';
+import { ChoiceField, NumberField, StepSlider, Switch } from '@/ui/controls';
+import { Icon, type IconName } from '@/ui/icons';
 import { Modal } from '@/ui/modal';
 
 /** Onglet fixe, toujours en dernier. */
 const ABOUT = 'À propos';
+
+/** Icônes des onglets : celles de la navigation ou des boutons du site quand il en a une. */
+const TAB_ICONS: Readonly<Record<string, IconName>> = {
+  Général: 'settings',
+  'Défaussage rapide': 'trash',
+  Paquets: 'puzzle',
+  'Modale de carte': 'window',
+  Enchères: 'gavel',
+  Collection: 'collection',
+  Échanges: 'handshake',
+  Marché: 'market',
+  Profil: 'user',
+  'Toutes les cartes': 'globe',
+  Développement: 'bug',
+  [ABOUT]: 'info',
+};
+
+/** Dernier onglet ouvert, rouvert à la prochaine ouverture (même après un rechargement). */
+const lastTab = jsonStore<string | undefined>('wm-settings-tab-v1', undefined, (raw) =>
+  typeof raw === 'string' ? raw : undefined,
+);
 
 export interface SettingsPanelProps {
   readonly catalog: FeatureCatalog;
@@ -25,24 +48,33 @@ export function SettingsPanel({ catalog, onClose }: SettingsPanelProps) {
 
   const entries = catalog.list().filter((entry) => !entry.feature.hidden);
   const tabs = [...new Set(entries.map((entry) => entry.feature.category)), ABOUT];
-  const [selected, setSelected] = useState(tabs[0]);
-  const current = selected !== undefined && tabs.includes(selected) ? selected : ABOUT;
+  const [selected, setSelected] = useState(() => lastTab.get());
+  // Onglet retenu disparu (catégorie supprimée, « Développement » hors dev) : le premier.
+  const current = selected !== undefined && tabs.includes(selected) ? selected : (tabs[0] ?? ABOUT);
+  const select = (tab: string) => {
+    setSelected(tab);
+    lastTab.set(tab);
+  };
 
   return (
-    <Modal title="Paramètres" onClose={onClose} width={912} height={620}>
+    <Modal title="Paramètres" onClose={onClose} width={960} height={620}>
       <nav class="wm-settings-nav" aria-label="Catégories">
-        {tabs.map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            class="wm-settings-tab"
-            data-about={tab === ABOUT ? '' : undefined}
-            aria-current={tab === current ? 'page' : undefined}
-            onClick={() => setSelected(tab)}
-          >
-            {tab}
-          </button>
-        ))}
+        {tabs.map((tab) => {
+          const icon = TAB_ICONS[tab];
+          return (
+            <button
+              key={tab}
+              type="button"
+              class="wm-settings-tab"
+              data-about={tab === ABOUT ? '' : undefined}
+              aria-current={tab === current ? 'page' : undefined}
+              onClick={() => select(tab)}
+            >
+              {icon && <Icon name={icon} size={18} />}
+              {tab}
+            </button>
+          );
+        })}
       </nav>
       <section class="wm-settings-content">
         {current === ABOUT ? (
@@ -143,6 +175,13 @@ function SettingRow({ settings, name, definition }: { settings: Settings; name: 
       <div class="wm-settings-row-control">
         {definition.type === 'boolean' ? (
           <Switch checked={value === true} label={definition.label} onChange={(next) => settings.set(name, next)} />
+        ) : definition.type === 'choice' && definition.display === 'slider' ? (
+          <StepSlider
+            value={typeof value === 'number' ? value : definition.default}
+            options={definition.options}
+            label={definition.label}
+            onChange={(next) => settings.set(name, next)}
+          />
         ) : definition.type === 'choice' ? (
           <ChoiceField
             value={typeof value === 'number' ? value : definition.default}

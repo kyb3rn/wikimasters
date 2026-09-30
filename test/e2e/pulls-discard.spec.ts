@@ -241,7 +241,7 @@ test('une défausse faite par le bouton du site marque aussi la carte', async ({
 
 test('paquet PRO : l’exemplaire vient de la requête Supabase faite par le site', async ({ page }) => {
   const discarded = await openPulls(page, accept);
-  await page.click('#open-pro');
+  await page.getByRole('region', { name: 'Pack Pro' }).getByRole('button', { name: 'Ouvrir' }).click();
   await expect(page.locator(TRASH)).toHaveAttribute('data-status', 'ready');
   await page.locator(TRASH).click();
   await expect.poll(() => index(page)).toBe(1);

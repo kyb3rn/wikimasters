@@ -119,8 +119,9 @@ const SCRIPT = `
     cards = body.cards; index = 0; seen = new Set([0]); revealed = new Set();
     build(); render();
     playSound('pack-rip');
+    return body;
   }
-  function done() { closeModal(); stage.replaceChildren(...choice); }
+  function done() { closeModal(); stage.replaceChildren(...choice); window.__pro.check(); }
 
   // Modale de carte du site (portail dans body) : favori, étiquette, enchères, défausse.
   function closeModal() { document.getElementById('auction-modal')?.remove(); document.getElementById('card-modal')?.remove(); }
@@ -212,6 +213,8 @@ const SCRIPT = `
     const button = (cls, html, onclick) => { const b = el('button', cls); b.type = 'button'; b.innerHTML = html; b.onclick = onclick; return b; };
     const back = el('div', 'fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm');
     back.id = 'card-modal';
+    // Comme le site : le composant de la modale (props card, onClose…) rend lui-même le fond.
+    back['__reactFiber$test'] = { memoizedProps: {}, return: { memoizedProps: { card, starred: false, count: 1, onClose: closeModal, userCardId: copyOf(card) }, return: null } };
     const panel = el('div', 'card-frame relative w-full animate-fade-in-up p-6');
     const close = button('absolute top-3 right-3', '×', closeModal); close.setAttribute('aria-label', 'Fermer');
 
@@ -330,7 +333,13 @@ const SCRIPT = `
     document.body.append(back);
   }
   document.getElementById('open').onclick = () => open('/api/packs/open');
-  document.getElementById('open-pro').onclick = () => open('/api/packs/pro-daily');
+  // Pack PRO : comme le site, « Ouverture… » pendant la requête, puis l'état donné par la réponse.
+  document.getElementById('pro').addEventListener('click', async (event) => {
+    const button = event.target.closest('button');
+    if (!button || button.disabled) return;
+    window.__pro.opening(true);
+    try { window.__pro.update(await open('/api/packs/pro-daily')); } finally { window.__pro.opening(false); }
+  });
 
   function build() {
     const root = el('div', 'flex flex-col items-center gap-4 md:gap-8 py-2 md:py-8 animate-fade-in-up');
@@ -440,7 +449,81 @@ const COUNTER_SCRIPT = `
 })();
 `;
 
+/**
+ * Cadre du pack PRO du jour (balisage du site) : titre, puis bouton (disponible), phrase (déjà réclamé) ou rien,
+ * selon la réponse de `GET /api/packs/pro-daily` (demandée au chargement et après chaque paquet refermé).
+ * Le bouton garde son nœud d'un état à l'autre, comme un rendu React ; états de la page lisibles et modifiables
+ * par son fiber (comme ceux de React). `window.__pro.check()` redemande l'état.
+ * (Le vrai site, quand son stockage dit le pack déjà ouvert aujourd'hui, ne redemande pas : non imité.)
+ */
+const PRO = `
+<div id="pro" class="w-full max-w-sm animate-fade-in-up rounded-xl border border-violet-500/25 bg-violet-950/20 px-4 py-3 flex flex-col gap-2">
+  <p class="text-xs font-medium text-violet-200/90">Pack PRO du jour</p>
+</div>`;
+
+const PRO_SCRIPT = `
+(() => {
+  const box = document.getElementById('pro');
+  const title = box.firstElementChild;
+  let eligible = false, claimed = false, opening = false;
+  function render() {
+    const current = title.nextElementSibling;
+    if (eligible) {
+      let button = current && current.tagName === 'BUTTON' ? current : null;
+      if (!button) {
+        current?.remove();
+        button = document.createElement('button');
+        button.type = 'button';
+        button.id = 'open-pro';
+        button.className = 'w-full px-3 py-2.5 rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white text-sm font-semibold';
+        box.append(button);
+      }
+      button.disabled = opening;
+      button.textContent = opening ? 'Ouverture…' : 'Ouvrir le pack PRO du jour';
+    } else if (claimed) {
+      if (!current || current.tagName !== 'P') {
+        current?.remove();
+        const line = document.createElement('p');
+        line.className = 'text-[11px] text-[var(--color-foreground)]/45 text-center';
+        line.textContent = 'Déjà réclamé aujourd’hui (heure de ton appareil). Reviens demain !';
+        box.append(line);
+      }
+    } else current?.remove();
+  }
+  // Comme le site : le jour de l'ouverture est retenu dans son stockage.
+  function update(body) {
+    eligible = !!body.eligible; claimed = !!body.claimed_today;
+    if (claimed && body.claim_date) localStorage.setItem('wikimasters:pro-daily-claimed', JSON.stringify({ userId: 'u0', date: body.claim_date }));
+    render();
+  }
+  async function check() {
+    try {
+      const response = await fetch('/api/packs/pro-daily');
+      if (response.ok) update(await response.json());
+    } catch (error) {}
+  }
+  // États de la page (hooks React) : profil, …, plateforme, disponible, déjà réclamé, ouverture en cours.
+  const hook = (get, set, next) => ({ get memoizedState() { return get(); }, queue: { dispatch: set }, next });
+  let states = hook(() => opening, (value) => { opening = value; render(); }, null);
+  states = hook(() => claimed, (value) => { claimed = value; render(); }, states);
+  states = hook(() => eligible, (value) => { eligible = value; render(); }, states);
+  states = hook(() => 'web', () => {}, states);
+  states = hook(() => ({ is_pro: true, packs_remaining: 3 }), () => {}, states);
+  box['__reactFiber$test'] = { memoizedProps: {}, return: { memoizedProps: {}, memoizedState: states, return: null } };
+  window.__pro = { check, update, opening(value) { opening = value; render(); } };
+  check();
+})();
+`;
+
+/** Pack classique : bouton du site (image du paquet puis « Ouvrir »). */
+const PACK_BUTTON = `
+<button id="open" class="relative flex flex-col items-center justify-center gap-4">
+  <img alt="Ouvrir un paquet" width="384" height="384" style="width: 64px; height: 64px" class="w-64 h-64 object-contain pointer-events-none"
+    src="/_next/image?url=%2Fcard_pack.png&amp;w=828&amp;q=75">
+  <span class="text-lg md:text-xl font-bold">Ouvrir</span>
+</button>`;
+
 export const PULLS_HTML = sitePage(
-  `<div id="stage"><button id="open">Ouvrir</button> <button id="open-pro">Pack PRO du jour</button>${COUNTER}</div>`,
-  COUNTER_SCRIPT + SCRIPT,
+  `<div id="stage" class="flex-1 flex flex-col items-center justify-center gap-4 md:gap-8 p-4 md:p-6">${PACK_BUTTON}${COUNTER}${PRO}</div>`,
+  COUNTER_SCRIPT + PRO_SCRIPT + SCRIPT,
 );
