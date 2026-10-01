@@ -81,24 +81,21 @@ const section = document.getElementById('friends-section');
 const sent = document.getElementById('sent-section');
 const received = document.getElementById('incoming-section');
 
-// États de la page, notés comme ceux de React (liste chaînée de hooks avec \`queue.dispatch\`).
-const hooks = [
-  { memoizedState: state.friendships, queue: { dispatch: (value) => { state.friendships = value; hooks[0].memoizedState = value; render(); } } },
-  { memoizedState: state.counts, queue: { dispatch: (value) => { state.counts = value; hooks[1].memoizedState = value; render(); } } },
-  { memoizedState: true, queue: { dispatch() {} } },
-];
-hooks.forEach((hook, i) => { hook.next = hooks[i + 1] ?? null; });
-const pageFiber = { memoizedProps: {}, return: null, memoizedState: hooks[0] };
-const divFiber = { memoizedProps: {}, return: pageFiber, stateNode: page };
-const sectionFiber = { memoizedProps: {}, return: divFiber, stateNode: section };
-section['__reactFiber$test'] = sectionFiber;
+const { fiber, hooks } = kit;
+const states = hooks([
+  [() => state.friendships, (value) => { state.friendships = value; render(); }],
+  [() => state.counts, (value) => { state.counts = value; render(); }],
+  [() => true],
+]);
+const pageFiber = fiber(null, {}, null, { memoizedState: states[0] });
+const sectionFiber = fiber(section, {}, fiber(null, {}, pageFiber, { stateNode: page }));
 
 async function load() {
   const response = await fetch('/api/friends');
   if (!response.ok) return;
   const body = await response.json();
-  hooks[0].queue.dispatch(body.friendships);
-  hooks[1].queue.dispatch(body.counts);
+  states[0].queue.dispatch(body.friendships);
+  states[1].queue.dispatch(body.counts);
 }
 
 document.getElementById('site-invite').addEventListener('click', (event) => {
@@ -137,7 +134,7 @@ function friendRow(f) {
     row.after(dm);
   });
   row.querySelector('.site-trade').addEventListener('click', () => { state.clicks.trade.push(user.username); });
-  row['__reactFiber$test'] = { memoizedProps: {}, stateNode: row, return: { memoizedProps: { friendId: user.id, username: user.username }, key: f.id, return: sectionFiber } };
+  fiber(row, {}, fiber(null, { friendId: user.id, username: user.username }, sectionFiber, { key: f.id }));
   return row;
 }
 

@@ -12,16 +12,14 @@ export const CATALOG_HTML = sitePage(
   `<div class="flex flex-wrap justify-center gap-3"><div id="grid-card" class="glow-l relative rounded-2xl"><h3>5G</h3></div></div>`,
   `
   const card = ${JSON.stringify(CATALOG_CARD)};
-  const el = (tag, cls) => { const e = document.createElement(tag); e.className = cls; return e; };
-  const icon = (name) => '<svg class="lucide lucide-' + name + '" width="16" height="16"></svg>';
-  const button = (cls, html, onclick) => { const b = el('button', cls); b.type = 'button'; b.innerHTML = html; b.onclick = onclick; return b; };
+  const { el, button, icon, fiber } = kit;
   let wished = false;
   const closeModal = () => document.getElementById('card-modal')?.remove();
   function openModal() {
     closeModal();
     const back = el('div', 'fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm');
     back.id = 'card-modal';
-    back['__reactFiber$test'] = { memoizedProps: {}, return: { memoizedProps: { card, onClose: closeModal }, return: null } };
+    fiber(back, {}, fiber(null, { card, onClose: closeModal }));
     const panel = el('div', 'card-frame relative w-full p-6');
     const close = button('absolute top-3 right-3', '×', closeModal); close.setAttribute('aria-label', 'Fermer');
 

@@ -10,14 +10,13 @@ import { openSite, sitePage } from './site';
  */
 const SCRIPT = `
 (() => {
-  const el = (tag, cls, text) => { const node = document.createElement(tag); if (cls) node.className = cls; if (text !== undefined) node.textContent = text; return node; };
+  const { el, fiber, hooks } = kit;
   const me = 'me';
   const trades = [
     { id: 't1', status: 'pending', initiator_id: me, recipient_id: 'b' },
     { id: 't2', status: 'declined', initiator_id: 'c', recipient_id: me },
   ];
-  const tradesHook = { memoizedState: trades, queue: { dispatch() {} }, next: null };
-  const pageFiber = { key: null, memoizedProps: {}, return: null, memoizedState: tradesHook };
+  const pageFiber = fiber(null, {}, null, { memoizedState: hooks([[() => trades]])[0] });
   const main = document.querySelector('main');
   const open = el('button', 'px-4 py-2', 'Nouvel échange');
   open.id = 'new-trade';
@@ -27,21 +26,20 @@ const SCRIPT = `
 
   open.onclick = () => {
     let friends = [], loading = true, query = '';
-    const hooks = [
-      { get memoizedState() { return friends; }, queue: { dispatch: (v) => { friends = v; render(); } } },
-      { get memoizedState() { return loading; }, queue: { dispatch: (v) => { loading = v; render(); } } },
-      { get memoizedState() { return query; }, queue: { dispatch: (v) => { query = v; render(); } } },
-    ];
-    hooks.forEach((hook, i) => { hook.next = hooks[i + 1] ?? null; });
+    const states = hooks([
+      [() => friends, (v) => { friends = v; render(); }],
+      [() => loading, (v) => { loading = v; render(); }],
+      [() => query, (v) => { query = v; render(); }],
+    ]);
     const close = () => overlay.remove();
     const props = { currentUserId: me, onSelect: (friend) => { close(); chosen.textContent = 'Échanger avec ' + friend.username; }, onClose: close };
-    const picker = { key: null, memoizedProps: props, return: pageFiber, memoizedState: hooks[0] };
+    const picker = fiber(null, props, pageFiber, { memoizedState: states[0] });
     const overlay = el('div', 'fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm');
     overlay.onclick = (event) => { if (event.target === overlay) close(); };
     const frame = el('div', 'w-full max-w-md max-h-[80vh] flex flex-col rounded-2xl border');
     const head = el('div', 'flex items-center justify-between p-5 border-b');
     const title = el('h2', 'text-lg font-bold', 'Choisir un ami');
-    title['__reactFiber$test'] = { memoizedProps: {}, stateNode: title, return: picker };
+    fiber(title, {}, picker);
     const x = el('button', 'p-1', '×');
     x.setAttribute('aria-label', 'Fermer');
     x.onclick = close;
@@ -56,7 +54,7 @@ const SCRIPT = `
       if (friends.length === 0) { list.replaceChildren(el('p', 'text-sm', 'Aucun ami pour le moment.')); return; }
       list.replaceChildren(...friends.map((friend) => {
         const row = el('button', 'w-full flex items-center gap-3 p-3 rounded-xl');
-        row['__reactFiber$test'] = { key: friend.id, memoizedProps: {}, stateNode: row, return: picker };
+        fiber(row, {}, picker, { key: friend.id });
         const avatar = el('div', 'w-10 h-10 rounded-full');
         avatar.innerHTML = '<span class="site-avatar">' + friend.username.slice(0, 2).toUpperCase() + '</span>';
         row.append(avatar, el('span', 'font-medium text-sm flex-1', friend.username), el('span', 'text-xs', 'Échanger →'));

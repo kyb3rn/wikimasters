@@ -46,14 +46,14 @@ Chacun imite une page d'après le code et les captures du site (dates en tête d
 
 | Fichier | Page imitée | Entrée |
 |---|---|---|
-| `collection.ts` | Collection : recherche, listes, pastilles, liste et compteurs, voile, pagination, « tirer pour rafraîchir » (fibers périmés compris), modale de carte (défausse, mise aux enchères), « Gérer les étiquettes » | `openCollection`, `COLLECTION_HTML`, `entry`, `faces`, `titles` |
-| `collection-selection.ts` | mode sélection de la Collection : barre du bas, modale d'étiquetage, défausse groupée, étiquettes lues à Supabase | `openSelectionPage`, `FAKE_TAGS` |
-| `global-collection.ts` | Toutes les cartes, modale de carte en vue catalogue | `CATALOG_HTML`, `CATALOG_CARD` |
+| `collection.ts` | Collection : recherche, listes, pastilles, liste et compteurs, voile, pagination, « tirer pour rafraîchir » (fibers périmés compris), modale de carte (défausse, mise aux enchères), « Gérer les étiquettes » | `openCollection`, `collectionScript`, `entry`, `faces`, `titles` |
+| `collection-selection.ts` | mode sélection de la Collection : barre du bas, modale d'étiquetage, défausse groupée, étiquettes lues à Supabase | `openSelectionPage` |
+| `global-collection.ts` | Toutes les cartes, modale de carte en vue catalogue | `CATALOG_HTML` |
 | `global-collection-list.ts` | liste de Toutes les cartes : filtres, effet de chargement, pages gardées en `sessionStorage`, états dans les hooks | `openGlobalCollection` |
 | `marketplace.ts` | onglet « Parcourir » : `<select>` du tri, « Charger la suite », `onRefresh`, retour d'une annonce | `openMarketplace` |
 | `profile-collection.ts` | profil d'un ami, onglets Vitrine et Collection (recréé à chaque ouverture, toute réponse affichée) | `openFriendCollection` |
-| `pulls.ts` | carrousel de /pulls (face recréée à chaque carte, sons Web Audio, étoile, props React, révélation des shiny, clic ignoré après un glissement, modale d'enchère chargée à sa première ouverture), cadre des paquets, pack PRO du jour | `openPulls`, `openCard`, `packFaces`, `PULLS_HTML`, `PACK`, `PRO_PACK`, `CAROUSEL`, `recordSounds`, `playedSounds` |
-| `friends.ts` | page Amis : amitiés, demandes, recherche de joueurs | `openFriendsPage`, `FRIENDSHIPS`, `PLAYERS` |
+| `pulls.ts` | carrousel de /pulls (face recréée à chaque carte, sons Web Audio, étoile, props React, révélation des shiny, clic ignoré après un glissement, modale d'enchère chargée à sa première ouverture), cadre des paquets, pack PRO du jour | `openPulls`, `openCard`, `packFaces`, `PACK`, `PRO_PACK`, `CAROUSEL`, `recordSounds`, `playedSounds` |
+| `friends.ts` | page Amis : amitiés, demandes, recherche de joueurs | `openFriendsPage` |
 | `friend-picker.ts` | /trades et « Choisir un ami » | `openFriendPickerPage` |
 | `trades.ts` | fenêtre « Échanger avec » : onglets, filtres, wikibidous, zone des cartes | `openTradeComposer` |
 
