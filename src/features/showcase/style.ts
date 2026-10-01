@@ -18,6 +18,7 @@ export const css = () => `
 .wm-showcase-field { height: ${tokens.fieldHeight}; }
 .wm-showcase-line { display: flex; align-items: stretch; gap: 8px; width: 100%; }
 .wm-showcase-line > input { flex: 1; min-width: 0; }
+.wm-showcase-listbox { width: 14rem; }
 .wm-showcase-face { position: relative; display: flex; align-items: flex-end; width: 150px; height: 210px; padding: 12px;
   border-radius: 12px; border: 1px solid ${tokens.border}; overflow: hidden; font-family: ${tokens.heading}; font-weight: 700;
   background: linear-gradient(160deg, #3b82f6 0%, #1e1b4b 70%); color: #fff; }

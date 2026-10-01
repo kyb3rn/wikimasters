@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { buttonClass } from '@/ui/button';
 import { ChoiceField, CloseButton } from '@/ui/controls';
+import { cx } from '@/ui/cx';
 import { Icon } from '@/ui/icons';
-import { useBackdropGuard, useSmoothExit } from '@/ui/modal';
+import { useModalBehavior } from '@/ui/modal';
 import { siteClass } from '@/ui/site';
 
 export interface DurationChoice {
@@ -38,10 +39,8 @@ export function SalePanel(props: SalePanelProps) {
   const cardSlot = useRef<HTMLDivElement>(null);
   const backdrop = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLDivElement>(null);
-  useSmoothExit(backdrop, panel);
-  useBackdropGuard(backdrop);
-  const latest = useRef(props);
-  latest.current = props;
+  // Échap ne va pas jusqu'à la modale de carte du site, en dessous : elle se fermerait aussi.
+  useModalBehavior({ overlay: backdrop, frame: panel, onClose: props.onCancel, locked: sending });
 
   useEffect(() => {
     input.current?.focus();
@@ -51,18 +50,6 @@ export function SalePanel(props: SalePanelProps) {
   useEffect(() => {
     if (card) cardSlot.current?.replaceChildren(card);
   }, [card]);
-
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      // La modale de carte du site, en dessous, se fermerait aussi.
-      event.preventDefault();
-      event.stopPropagation();
-      if (!latest.current.sending) latest.current.onCancel();
-    };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, []);
 
   const change = (next: string) => {
     setPrice(next);
@@ -78,25 +65,18 @@ export function SalePanel(props: SalePanelProps) {
 
   const left = quota ? Math.max(0, quota.max - quota.active) : undefined;
   const full = left === 0;
-  const status = error
-    ? { tone: 'error', text: error }
-    : full && quota
-      ? { tone: 'warning', text: `Limite de ${quota.max} enchères actives atteinte : retirer une vente du marché ou attendre la fin d'une enchère.` }
+  const warning =
+    !error && full && quota
+      ? `Limite de ${quota.max} enchères actives atteinte : retirer une vente du marché ou attendre la fin d'une enchère.`
       : undefined;
 
   return (
-    <div
-      ref={backdrop}
-      class="wm-sale-backdrop"
-      onClick={(event) => {
-        if (event.target === event.currentTarget) cancel();
-      }}
-    >
-      <div ref={panel} class="wm-sale" role="dialog" aria-modal="true" aria-label="Mise en vente">
+    <div ref={backdrop} class="wm-sale-backdrop">
+      <div ref={panel} class="wm-sale" role="dialog" aria-modal="true" aria-label="Mise en vente" tabIndex={-1}>
         <CloseButton class={siteClass.closeButtonPosition} disabled={sending} onClick={cancel} />
-        {status && (
-          <div class="wm-sale-status" data-tone={status.tone} role="alert">
-            {status.text}
+        {(error ?? warning) && (
+          <div class={cx('wm-sale-status', error ? siteClass.formError : 'wm-sale-warning')} role="alert">
+            {error ?? warning}
           </div>
         )}
         <div class="wm-sale-columns">
@@ -184,7 +164,7 @@ export function SalePanel(props: SalePanelProps) {
                 aria-busy={sending}
                 onClick={() => props.onConfirm()}
               >
-                {sending && <Icon name="spinner" size={16} class="wm-spin" />}
+                {sending && <Icon name="spinner" size={16} />}
                 {sending ? 'Mise en vente…' : 'Confirmer'}
               </button>
             </div>

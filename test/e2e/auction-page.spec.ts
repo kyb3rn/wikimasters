@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { openSite, sitePage } from './support/site';
+import { openSite, rect, sitePage } from './support/site';
 
 const AUCTION = '4196b6bd-8c8c-4d8f-ae1a-7fcdeeb982e3';
 
@@ -70,10 +70,10 @@ test('page d’une enchère : « Signaler l’image » sur l’image de la carte
   await expect(report).toBeVisible();
   await expect(page.locator('div.space-y-1\\.5')).toBeHidden();
 
-  const [button, image] = await Promise.all([report.boundingBox(), page.locator('.glow-sr > div').first().boundingBox()]);
+  const [button, image] = await Promise.all([rect(report), rect(page.locator('.glow-sr > div').first())]);
   // En bas à droite de l'image.
-  expect(button!.x + button!.width).toBeGreaterThan(image!.x + image!.width - 20);
-  expect(button!.y + button!.height).toBeGreaterThan(image!.y + image!.height - 20);
+  expect(button.x + button.width).toBeGreaterThan(image.x + image.width - 20);
+  expect(button.y + button.height).toBeGreaterThan(image.y + image.height - 20);
 
   await report.click();
   expect(await page.evaluate(() => (window as unknown as { reports: number }).reports)).toBe(1);

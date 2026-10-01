@@ -87,7 +87,7 @@ test('« Vue du marché » ouvre notre historique des ventes, pas la vue du site
   const server = { ...newServer(), hold: true };
   const button = await openAuction(page, server);
   await button.click();
-  await expect(button).toHaveClass(/wm-auction-market-busy/);
+  await expect(button).toHaveAttribute('aria-busy', 'true');
   await expect(button).toBeDisabled();
   server.release();
 
@@ -95,7 +95,7 @@ test('« Vue du marché » ouvre notre historique des ventes, pas la vue du site
   await expect(dialog).toBeVisible();
   // Rareté de l'exemplaire en vente : ses ventes par défaut.
   await expect(dialog.locator('h2 > span')).toHaveText('UR');
-  await expect(button).not.toHaveClass(/wm-auction-market-busy/);
+  await expect(button).not.toHaveAttribute('aria-busy', 'true');
   await expect(page.locator('#site-market')).toHaveCount(0);
   expect(server.sales).toBe(1);
 });

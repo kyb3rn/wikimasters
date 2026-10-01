@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { Fiber } from '@/core/react';
-import { pageStatesAmong, recountTagOptions, retagEntries } from '@/site/collection';
+import { pageStatesAmong, recountTagOptions, retagEntries } from '@/site/collection/page-state';
+import { stateComponent } from '../../support';
 
 const rare = { id: 't1', name: 'rare', color: '#f472b6' };
 const sport = { id: 't2', name: 'sport', color: '#60a5fa' };
@@ -33,24 +33,18 @@ describe('étiquettes posées ou retirées sur les exemplaires affichés', () =>
   });
 });
 
-/** Composant à états imité : ses hooks d'état, dans l'ordre. */
-function component(props: unknown, ...values: unknown[]): Fiber {
-  const memoizedState = values.reduceRight<unknown>((next, value) => ({ memoizedState: value, queue: { dispatch: () => {} }, next }), null);
-  return { memoizedProps: props, return: null, memoizedState };
-}
-
 describe('états de la page', () => {
-  const refresh = component({ onRefresh: () => {} }, 0);
+  const refresh = stateComponent({ onRefresh: () => {} }, 0).fiber;
 
   it('exemplaires, total, compteurs, catalogue : les premiers états de la page', () => {
-    const states = pageStatesAmong([refresh, component({}, [card('u1')], 1, [], null, new Set())]);
+    const states = pageStatesAmong([refresh, stateComponent({}, [card('u1')], 1, [], null, new Set()).fiber]);
     expect(states?.list.value).toEqual([card('u1')]);
     expect(states?.catalog.value).toBeNull();
   });
 
   it('forme inattendue : rien', () => {
-    expect(pageStatesAmong([refresh, component({}, [{ id: 'x' }], 1, [], null)])).toBeUndefined();
-    expect(pageStatesAmong([refresh, component({}, [], '1', [], null)])).toBeUndefined();
-    expect(pageStatesAmong([component({}, [], 1, [], null)])).toBeUndefined();
+    expect(pageStatesAmong([refresh, stateComponent({}, [{ id: 'x' }], 1, [], null).fiber])).toBeUndefined();
+    expect(pageStatesAmong([refresh, stateComponent({}, [], '1', [], null).fiber])).toBeUndefined();
+    expect(pageStatesAmong([stateComponent({}, [], 1, [], null).fiber])).toBeUndefined();
   });
 });

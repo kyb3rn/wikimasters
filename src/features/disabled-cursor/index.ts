@@ -1,7 +1,4 @@
-import { injectStyle, whenBody } from '@/core/dom';
 import type { Feature } from '@/core/runtime';
-
-const STYLE = 'disabled-cursor';
 
 /* Le contenu d'un bouton (icône, texte) hérite du curseur, sauf s'il en impose un : on l'impose aussi. */
 const CSS = `
@@ -17,9 +14,6 @@ export const disabledCursor: Feature = {
   required: true,
   hidden: true,
   async mount(ctx) {
-    await whenBody();
-    if (ctx.signal.aborted) return;
-    injectStyle(STYLE, CSS);
-    ctx.onDispose(() => document.getElementById(`wm-style-${STYLE}`)?.remove());
+    if (await ctx.ready()) ctx.style(CSS);
   },
 };

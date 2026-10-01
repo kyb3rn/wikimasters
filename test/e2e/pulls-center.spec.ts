@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openSite, sitePage } from './support/site';
+import { openSite, rect, sitePage } from './support/site';
 
 /**
  * Mise en page du site (29/09/2026) : `<main>` de hauteur fixe, qui défile, non flex ; son unique enfant
@@ -18,8 +18,7 @@ const html = (wrapper: string, height: number) =>
 
 /** Espace libre de `<main>` au-dessus et en dessous du contenu. */
 async function placement(page: Page) {
-  const [main, content] = [await page.locator('main').boundingBox(), await page.locator('#content').boundingBox()];
-  if (!main || !content) throw new Error('main ou contenu introuvable');
+  const [main, content] = [await rect(page.locator('main')), await rect(page.locator('#content'))];
   const top = content.y - main.y;
   return { top, bottom: main.height - content.height - top };
 }

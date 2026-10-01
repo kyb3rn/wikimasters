@@ -3,7 +3,7 @@ import { buttonClass } from '@/ui/button';
 import { Icon } from '@/ui/icons';
 import { Modal } from '@/ui/modal';
 import { siteClass } from '@/ui/site';
-import type { MarketCard } from './market';
+import type { CardRef } from '@/site/cards';
 
 /** Courbe en filigrane de l'encadré, celle du site. */
 const ART_LINE = 'M0,90 L60,70 L120,75 L180,45 L240,50 L300,25 L400,15';
@@ -11,7 +11,7 @@ const ART_LINE = 'M0,90 L60,70 L120,75 L180,45 L240,50 L300,25 L400,15';
 const heading = { fontFamily: 'var(--font-heading)' };
 
 export interface ProOfferProps {
-  readonly card: MarketCard;
+  readonly card: CardRef;
   readonly onClose: () => void;
 }
 

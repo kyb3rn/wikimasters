@@ -1,4 +1,4 @@
-import { defineSettings, readSettings } from '@/core/settings';
+import { defineSettings } from '@/core/settings';
 import { protectionReason, type CardFacts } from './protection';
 
 /** Protections communes à tous les défaussages rapides (paquets, modale de carte…). */
@@ -23,15 +23,4 @@ export function quickDiscardProtection(facts: CardFacts): string | undefined {
     starred: quickDiscardSettings.get('protectStarred'),
     tagged: quickDiscardSettings.get('protectTagged'),
   });
-}
-
-/** Les protections étaient d'abord des réglages du défaussage rapide des paquets : on les reprend une fois. */
-export function migrateLegacyProtections(): void {
-  const { values } = readSettings();
-  const legacy = values['pulls-discard-next'];
-  if (!legacy || values['quick-discard']) return;
-  for (const key of ['protectStarred', 'protectTagged'] as const) {
-    const value = legacy[key];
-    if (typeof value === 'boolean') quickDiscardSettings.set(key, value);
-  }
 }

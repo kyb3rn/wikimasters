@@ -2,6 +2,7 @@ export {
   escapeTarget,
   findSiteModals,
   isCornerCross,
+  isSiteModalOpen,
   isSiteOverlay,
   readSiteModal,
   SITE_OVERLAY,

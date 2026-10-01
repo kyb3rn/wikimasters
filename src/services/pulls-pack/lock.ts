@@ -1,6 +1,8 @@
-import { injectStyle, ROOT_CLASS, setClass, watchDom } from '@/core/dom';
+import { classMarks, injectStyle, ROOT_CLASS, watchDom } from '@/core/dom';
+import { createListeners } from '@/core/listeners';
 import { createLogger } from '@/core/log';
 import { PULLS_GRID_CLASSES } from '@/services/pulls-grid';
+import { FACE } from '@/site/cards';
 import { findCarousel } from '@/site/pulls';
 
 /** Action en cours sur la carte affichée par le carrousel. */
@@ -16,6 +18,8 @@ export interface CarouselLock {
  * leur propre état.
  */
 export const CAROUSEL_ACTION = 'wm-carousel-action';
+/** Conteneur d'un bouton posé en tête de nos actions d'une carte (`PackActionPlace`). */
+export const ACTION_START = 'wm-pack-action-start';
 
 const PAGINATION_LOCKED = 'wm-pagination-locked';
 const CAROUSEL_LOCKED = 'wm-carousel-locked';
@@ -24,34 +28,25 @@ const CAROUSEL_LOCKED = 'wm-carousel-locked';
 const LOCKED_EVENTS = ['click', 'pointerdown', 'pointerup', 'mousedown', 'mouseup', 'touchstart', 'touchend'];
 
 /* Dans la rangée du carrousel (écart gap-4 du site, 16 px), nos boutons et la flèche « suivante » sont
-   resserrés à 8 px ; l'écart autour des pastilles ne change pas.
+   resserrés à 8 px ; l'écart autour des pastilles ne change pas. Sous une carte de la grille, les boutons posés en
+   tête passent devant les autres.
    Verrou : navigation atténuée, curseur « interdit » partout dans le carrousel sauf sur nos boutons. Les
    clics et glissements sont bloqués en capture. */
 const CSS = `
 .${CAROUSEL_ACTION}:not(.${PULLS_GRID_CLASSES.actions} *) { margin-right: -8px; }
+.${PULLS_GRID_CLASSES.actions} > .${ACTION_START} > * { order: -1; }
 .${PAGINATION_LOCKED} > button, .${PAGINATION_LOCKED} > div { opacity: 0.35; transition: opacity 0.15s; }
-.${CAROUSEL_LOCKED} :is(button, [class*="glow-"]):not(.${CAROUSEL_ACTION}),
-.${CAROUSEL_LOCKED} [class*="glow-"] * { cursor: not-allowed !important; }
+.${CAROUSEL_LOCKED} :is(button, ${FACE}):not(.${CAROUSEL_ACTION}),
+.${CAROUSEL_LOCKED} ${FACE} * { cursor: not-allowed !important; }
 `;
 
-const log = createLogger('carrousel');
-const listeners = new Set<() => void>();
+const changes = createListeners(createLogger('carrousel'));
 let lock: CarouselLock | undefined;
 /** Suivi de la page tant que le verrou est posé (le carrousel peut être redessiné). */
 let marking: AbortController | undefined;
 /** Clic de programme en cours, qui traverse le verrou. */
 let passing = false;
 let guarded = false;
-
-function notify(): void {
-  for (const listener of [...listeners]) {
-    try {
-      listener();
-    } catch (error) {
-      log.error('abonné en échec', error);
-    }
-  }
-}
 
 function block(event: Event): void {
   if (!lock || passing || !(event.target instanceof Element)) return;
@@ -73,15 +68,6 @@ function ensureGuard(): void {
   for (const type of LOCKED_EVENTS) window.addEventListener(type, block, { capture: true, passive: false });
 }
 
-function mark(): void {
-  // Un passage de watchDom déjà commencé peut encore nous appeler juste après la levée du verrou.
-  if (!lock) return;
-  const carousel = findCarousel();
-  if (!carousel) return;
-  setClass(carousel.nav, PAGINATION_LOCKED, true);
-  setClass(carousel.root, CAROUSEL_LOCKED, true);
-}
-
 export function carouselLock(): CarouselLock | undefined {
   return lock;
 }
@@ -96,9 +82,17 @@ export function lockCarousel(owner: string, label: string): boolean {
   ensureGuard();
   lock = { owner, label };
   marking = new AbortController();
+  // Classes retirées à la levée du verrou, des seuls éléments marqués.
+  const marks = classMarks(marking.signal);
+  const mark = () => {
+    const carousel = findCarousel();
+    if (!carousel) return;
+    marks.set(carousel.nav, PAGINATION_LOCKED, true);
+    marks.set(carousel.root, CAROUSEL_LOCKED, true);
+  };
   mark();
   watchDom(mark, { signal: marking.signal });
-  notify();
+  changes.emit();
   return true;
 }
 
@@ -108,10 +102,7 @@ export function unlockCarousel(owner: string): void {
   lock = undefined;
   marking?.abort();
   marking = undefined;
-  document
-    .querySelectorAll(`.${PAGINATION_LOCKED}, .${CAROUSEL_LOCKED}`)
-    .forEach((element) => element.classList.remove(PAGINATION_LOCKED, CAROUSEL_LOCKED));
-  notify();
+  changes.emit();
 }
 
 /** Clic de programme sur un élément du carrousel (flèche, carte), qui traverse le verrou. */
@@ -125,7 +116,5 @@ export function clickThrough(element: HTMLElement): void {
 }
 
 export function onCarouselLockChange(listener: () => void, options: { signal: AbortSignal }): void {
-  if (options.signal.aborted) return;
-  listeners.add(listener);
-  options.signal.addEventListener('abort', () => listeners.delete(listener), { once: true });
+  changes.on(listener, options);
 }

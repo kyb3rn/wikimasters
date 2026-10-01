@@ -1,5 +1,5 @@
-import type { Page, Route } from '@playwright/test';
-import { openSite, sitePage, SUPABASE } from './site';
+import type { Page } from '@playwright/test';
+import { openSite, sitePage, type FakeSite } from './site';
 
 /** Exemplaire de la liste (données inventées, même forme que `GET /api/my-collection`). */
 export function entry(id: string, title: string, rarity = 'C', count = 1) {
@@ -15,34 +15,35 @@ export function entry(id: string, title: string, rarity = 'C', count = 1) {
   };
 }
 
+export type Entry = ReturnType<typeof entry>;
+
 /**
  * Imitation de la page Collection : champ de recherche (pris en compte 300 ms après la frappe, 3 caractères
- * au moins), deux listes déroulantes (étiquette, tri) et pastilles de rareté (L UR SR R PC C) qui remettent la page à 0
- * et relancent aussitôt la liste, liste et compteurs
- * (`/api/my-collection`, `/api/my-collection/stats`, en page 0 seulement), réponse périmée ignorée, voile
- * avec roue sur la grille pendant un chargement, affiché comme React dans une tâche suivante (`overlayShown`
- * compte ses apparitions), grille
- * dans l'ordre de la liste, modale de carte du site (confirmation de défausse, « Mettre aux
- * enchères » qui crée directement l'enchère). Comme le site, une défausse ou une mise aux enchères réussie
- * recharge la liste. Pagination au-dessus et au-dessous de la grille, dès que le total des compteurs dépasse
- * 50 : « Page x / y » (numéro changé en texte seul), « Chargement… » pendant un chargement, état `page` de la
- * page dans ses hooks. Composant « tirer pour rafraîchir » : `onRefresh` dans l'arbre React affiché ; les
- * fibers notés sur la rangée des listes et les barres sont la version précédente, dont l'`onRefresh` ne charge
- * rien (`staleRefresh`) et les états ont gardé leurs valeurs du début (`staleSetPage`). Listes déroulantes
- * comme celles du site (menu en portail, props React `ariaLabel`, `value`, `options`, `onChange`), dont
- * « Gérer les étiquettes… », qui ouvre la fenêtre du même nom (`manageOpened`).
- * `window.__collection.loads` : listes affichées.
+ * au moins), deux listes déroulantes du site (étiquette, tri) et pastilles de rareté (L UR SR R PC C) qui
+ * remettent la page à 0 et relancent aussitôt la liste, liste et compteurs (`/api/my-collection`,
+ * `/api/my-collection/stats`, en page 0 seulement), réponse périmée ignorée, voile avec roue sur la grille
+ * pendant un chargement, affiché comme React dans une tâche suivante (`overlayShown` compte ses apparitions),
+ * grille dans l'ordre de la liste, modale de carte du site (confirmation de défausse, « Mettre aux enchères »
+ * qui crée directement l'enchère). Comme le site, une défausse ou une mise aux enchères réussie recharge la
+ * liste. Pagination au-dessus et au-dessous de la grille, dès que le total des compteurs dépasse 50 : « Page x
+ * / y » (numéro changé en texte seul), « Chargement… » pendant un chargement, état `page` de la page dans ses
+ * hooks. Composant « tirer pour rafraîchir » : `onRefresh` dans l'arbre React affiché ; les fibers notés sur la
+ * rangée des listes et les barres sont la version précédente, dont l'`onRefresh` ne charge rien
+ * (`staleRefresh`) et les états ont gardé leurs valeurs du début (`staleSetPage`). « Gérer les étiquettes… »
+ * de la liste des étiquettes ouvre la fenêtre du même nom (`manageOpened`). `window.__collection.loads` :
+ * listes affichées.
+ *
+ * `selection` : le mode sélection (`collection-selection.ts`), inséré dans la fonction de la page. Il y voit
+ * `hooks`, `entries`, `grid`, `stage`, `load`, `loading`, `total`, `setDisabled` et remplace `renderSelection`
+ * et `toggleEntry` ; `selecting` et `selected` sont l'état de la page.
  */
-const SCRIPT = `
+export function collectionScript(selection = ''): string {
+  return `
 (() => {
-  const el = (tag, cls) => { const node = document.createElement(tag); node.className = cls; return node; };
-  const button = (cls, html, onclick) => { const b = el('button', cls); b.type = 'button'; b.innerHTML = html; b.onclick = onclick; return b; };
-  const icon = (name) => '<svg class="lucide lucide-' + name + '" width="16" height="16"></svg>';
+  const { el, button, icon, tailwindBase, chain, nextRouter, listbox, rarityPills } = kit;
+  const SELECTION = ${selection ? 'true' : 'false'};
   const stage = document.getElementById('stage');
-  // Comme la base de Tailwind et le site (16 px imposés aux champs).
-  const base = document.createElement('style');
-  base.textContent = '*, ::before, ::after { box-sizing: border-box; } input, select, textarea { font-size: 16px !important; }';
-  document.head.append(base);
+  tailwindBase();
   let page = 0;
   /** Exemplaires d'après les compteurs : 50 par page. */
   let total = 0;
@@ -51,14 +52,13 @@ const SCRIPT = `
   let requestId = 0;
   let loading = false;
   let loaded = false;
+  let entries = [];
+  let selecting = false;
+  const selected = new Set();
+  let renderSelection = () => {};
+  let toggleEntry = () => {};
   window.__collection = { loads: 0, staleRefresh: 0, staleSetPage: 0, overlayShown: 0, manageOpened: 0, siteTagActions: 0 };
-
-  // Routeur Next.js imité (contexte React au-dessus de <main>), comme sur /pulls.
-  const router = { push(href) { history.pushState(null, '', href); }, replace(href) { this.push(href); }, prefetch() {} };
-  document.querySelector('main')['__reactFiber$test'] = {
-    memoizedProps: {},
-    return: { memoizedProps: { value: router, children: null }, return: null },
-  };
+  nextRouter();
 
   // Fenêtre « Gérer les étiquettes », ouverte par l'option du même nom de la liste des étiquettes.
   function openManager() {
@@ -69,70 +69,27 @@ const SCRIPT = `
     const close = button('absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full', '×', () => back.remove());
     close.setAttribute('aria-label', 'Fermer');
     const head = el('div', 'border-b border-[var(--color-border)] p-4 pr-12');
-    const title = el('h2', 'text-lg font-bold');
-    title.textContent = 'Gérer les étiquettes';
-    head.append(title);
+    head.append(el('h2', 'text-lg font-bold', 'Gérer les étiquettes'));
     panel.append(close, head);
     back.append(panel);
     document.body.append(back);
   }
 
-  let menus = 0;
-  /**
-   * Liste déroulante du site : bouton (aria-controls, aria-expanded), menu rendu dans body (portail) sous le
-   * bouton tant qu'elle est ouverte, fermée par un mousedown hors du cadre et du menu. Composant React :
-   * \`props\` (ariaLabel, value, options, onChange), placé dans l'arbre plus bas. Son onChange est celui de la
-   * page : « Gérer les étiquettes… » ouvre la fenêtre, toute autre valeur change le filtre et recharge.
-   */
-  function select(ariaLabel, options, get, set) {
-    const wrap = el('div', 'relative min-w-0 flex-1');
-    const id = 'listbox-' + ++menus;
-    const toggle = button('flex w-full min-h-[42px] items-center rounded-lg', '', () => (list.isConnected ? close() : open()));
-    toggle.id = id + '-button';
-    toggle.setAttribute('aria-haspopup', 'listbox');
-    toggle.setAttribute('aria-expanded', 'false');
-    toggle.setAttribute('aria-controls', id);
-    toggle.setAttribute('aria-label', ariaLabel);
-    const list = el('ul', 'max-h-52 overflow-y-auto rounded-xl border py-1');
-    list.id = id;
-    list.setAttribute('role', 'listbox');
-    list.setAttribute('aria-labelledby', toggle.id);
-    const open = () => {
-      const box = toggle.getBoundingClientRect();
-      list.style.cssText = 'position:fixed;z-index:45;background:#161b22;top:' + (box.bottom + 6) + 'px;left:' + box.left + 'px;width:' + box.width + 'px';
-      document.body.append(list);
-      toggle.setAttribute('aria-expanded', 'true');
-    };
-    const close = () => {
-      list.remove();
-      toggle.setAttribute('aria-expanded', 'false');
-    };
-    document.addEventListener('mousedown', (event) => { if (!wrap.contains(event.target) && !list.contains(event.target)) close(); });
-    const show = () => { toggle.textContent = options.find(([value]) => value === get())[1]; props.value = get(); };
-    const props = {
-      ariaLabel,
-      value: get(),
-      options: options.map(([value, label]) => ({ value, label })),
+  /** Liste déroulante du site ; son onChange est celui de la page : toute valeur change le filtre et recharge. */
+  function select(label, options, get, set) {
+    const list = listbox({
+      label,
+      value: get,
+      options: () => options.map(([value, text]) => ({ value, label: text })),
       onChange(value) {
         if (value === '__manage_tags__') return openManager();
         set(value);
-        show();
+        list.render();
         page = 0;
         queueMicrotask(load);
       },
-    };
-    for (const [value, text] of options) {
-      const item = el('li', '');
-      item.setAttribute('role', 'none');
-      const option = button('flex w-full cursor-pointer items-center justify-start px-3 py-2 text-left text-sm', '', () => { close(); props.onChange(value); });
-      option.setAttribute('role', 'option');
-      option.textContent = text;
-      item.append(option);
-      list.append(item);
-    }
-    show();
-    wrap.append(toggle);
-    return { wrap, toggle, props };
+    });
+    return list;
   }
   // Champ de recherche puis rangée des listes, sur une ligne (écran large).
   const bar = el('div', 'flex flex-col gap-3 md:flex-row md:items-stretch');
@@ -165,34 +122,27 @@ const SCRIPT = `
     ),
     select('Trier la collection', [['rarity', 'Rareté'], ['name', 'Nom'], ['added', "Date d'ajout"]], () => sort, (value) => { sort = value; }),
   ];
-  filters.append(...lists.map(({ wrap }) => wrap));
+  filters.append(...lists.map(({ box }) => box));
   bar.append(search, filters);
-  // Pastilles de rareté, comme celles du site (couleur en style, cochée : ring-2) : chaque clic recharge aussitôt.
+  // Pastilles de rareté : chaque clic recharge aussitôt.
   const rarities = new Set();
-  const pills = el('div', 'flex flex-wrap gap-2');
-  const pillClass = (on) => 'px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer ' + (on ? 'ring-2 ring-white/30' : 'opacity-50 hover:opacity-80');
-  // « Réinitialiser rareté » en fin de rangée, dès qu'une rareté est cochée.
-  const reset = button('px-3 py-1 text-xs cursor-pointer', 'Réinitialiser rareté', () => {
-    rarities.clear();
-    for (const pill of pills.querySelectorAll('button[style]')) pill.className = pillClass(false);
-    reset.remove();
+  const rarityChanged = () => {
+    pills.render();
     page = 0;
     queueMicrotask(load);
-  });
-  for (const rarity of ['L', 'UR', 'SR', 'R', 'PC', 'C']) {
-    const color = 'var(--color-rarity-' + rarity.toLowerCase() + ')';
-    const pill = button(pillClass(false), rarity, () => {
+  };
+  const pills = rarityPills({
+    checked: () => rarities,
+    toggle(rarity) {
       if (rarities.has(rarity)) rarities.delete(rarity);
       else rarities.add(rarity);
-      pill.className = pillClass(rarities.has(rarity));
-      if (rarities.size > 0) pills.append(reset);
-      else reset.remove();
-      page = 0;
-      queueMicrotask(load);
-    });
-    pill.setAttribute('style', 'background-color: ' + color + '30; color: ' + color + ';');
-    pills.append(pill);
-  }
+      rarityChanged();
+    },
+    reset() {
+      rarities.clear();
+      rarityChanged();
+    },
+  });
 
   const overlay = el('div', 'absolute inset-0 z-20');
   // Comme Tailwind : position de « absolute » (inset-0 laissé aux feuilles de style).
@@ -208,7 +158,7 @@ const SCRIPT = `
   // Cadre de la grille : pagination au-dessus et au-dessous, s'il y a plus d'une page.
   const frame = el('div', 'scroll-mt-4 space-y-3');
   frame.append(content);
-  stage.append(bar, pills, frame);
+  stage.append(bar, pills.row, frame);
 
   // Changer de page : l'état « page », puis le défilement ; la liste part dans l'effet qui suit le rendu.
   const setPage = (next) => {
@@ -294,7 +244,7 @@ const SCRIPT = `
   };
   const siblings = (...nodes) => nodes.forEach((node, i) => { node.sibling = nodes[i + 1] ?? null; });
   // Hooks de la page : liste, total, chargement, un useRef (sans file), page ; avec la sélection : mode
-  // sélection (booléen) puis exemplaires cochés (Set), comme le site.
+  // sélection (booléen) puis exemplaires cochés (Set), comme le site. Valeurs écrites au rendu, comme React.
   const hookList = (dispatchPage, dispatchSelecting = () => {}, dispatchSelected = () => {}, dispatchList = () => {}, dispatchTagOptions = () => {}, dispatchCatalog = () => {}) => {
     const list = {
       list: { memoizedState: [], queue: { dispatch: dispatchList } },
@@ -304,13 +254,12 @@ const SCRIPT = `
       loading: { memoizedState: false, queue: { dispatch() {} } },
       ref: { memoizedState: { current: 0 }, queue: null },
       page: { memoizedState: 0, queue: { dispatch: dispatchPage } },
-      ...(window.__fakeSelection === true && {
+      ...(SELECTION && {
         selecting: { memoizedState: false, queue: { dispatch: dispatchSelecting } },
         selected: { memoizedState: new Set(), queue: { dispatch: dispatchSelected } },
       }),
     };
-    const order = Object.values(list);
-    order.forEach((hook, i) => { hook.next = order[i + 1] ?? null; });
+    chain(Object.values(list));
     return list;
   };
   const root = fiber(null, null, null);
@@ -335,9 +284,9 @@ const SCRIPT = `
   frameFiber.child = topFiber;
   siblings(topFiber, bottomFiber);
   // Listes : composant (ariaLabel, value, options, onChange) > cadre > bouton, noté sur le bouton.
-  const listFibers = lists.map(({ wrap, toggle, props }) => {
+  const listFibers = lists.map(({ box, toggle, props }) => {
     const component = fiber(props, null, filtersFiber);
-    toggle['__reactFiber$test'] = fiber({}, toggle, fiber({}, wrap, component));
+    toggle['__reactFiber$test'] = fiber({}, toggle, fiber({}, box, component));
     return component;
   });
   filtersFiber.child = listFibers[0];
@@ -396,14 +345,11 @@ const SCRIPT = `
       const item = el('div', 'relative isolate group');
       const face = el('div', 'w-[clamp(8.4rem,43vw,10rem)] h-[clamp(11.8rem,60vw,14rem)] glow-' + entry.card.rarity.toLowerCase() + ' relative rounded-2xl overflow-hidden cursor-pointer');
       face.style.cssText = 'width:160px;height:224px;background:#30363d;position:relative';
-      const title = el('h3', 'text-xs shrink-0 font-bold');
-      title.textContent = entry.card.wikipedia_title;
-      face.append(title);
+      face.append(el('h3', 'text-xs shrink-0 font-bold', entry.card.wikipedia_title));
       if (entry.tags.length > 0) {
         const tags = el('div', 'fake-tags');
         for (const tag of entry.tags) {
-          const chip = el('span', 'fake-tag');
-          chip.textContent = tag.name;
+          const chip = el('span', 'fake-tag', tag.name);
           chip.dataset.color = tag.color ?? '';
           tags.append(chip);
         }
@@ -428,13 +374,9 @@ const SCRIPT = `
     close.setAttribute('aria-label', 'Fermer');
     const face = el('div', 'w-72 h-[420px] glow-' + entry.card.rarity.toLowerCase() + ' relative rounded-2xl overflow-hidden');
     face.style.cssText = 'width:200px;height:280px;background:#30363d;position:relative';
-    const faceTitle = el('h3', 'text-base font-bold');
-    faceTitle.textContent = entry.card.wikipedia_title;
-    const star = button('p-0.5 rounded-md', '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="none" stroke="currentColor" d="M12 2l3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1z"></path></svg>', () => {});
+    const star = button('p-0.5 rounded-md', '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="none" stroke="currentColor" d="M12 2l3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1z"></path></svg>');
     star.setAttribute('aria-label', 'Ajouter aux favoris');
-    face.append(faceTitle, star);
-    const title = el('h2', 'text-xl font-bold');
-    title.textContent = entry.card.wikipedia_title;
+    face.append(el('h3', 'text-base font-bold', entry.card.wikipedia_title), star);
     const tag = el('input', 'w-full rounded-lg');
     tag.placeholder = 'Ajouter une étiquette…';
     const auction = button('flex-1 inline-flex items-center justify-center gap-2 py-2.5 rounded-lg', icon('gavel') + 'Mettre aux enchères', async () => {
@@ -447,7 +389,6 @@ const SCRIPT = `
       confirmBack.id = 'discard-confirm';
       confirmBack.onclick = (event) => event.stopPropagation();
       const box = el('div', 'card-frame max-w-sm w-full p-5');
-      const heading = el('h3', 'text-base font-bold'); heading.textContent = 'Défausser cette carte ?';
       const cancel = button('flex-1', 'Annuler', () => confirmBack.remove());
       const confirm = button('flex-1 bg-red-500', 'Défausser', async () => {
         confirm.disabled = cancel.disabled = true;
@@ -458,7 +399,7 @@ const SCRIPT = `
         closeModal();
         load();
       });
-      box.append(heading, cancel, confirm);
+      box.append(el('h3', 'text-base font-bold', 'Défausser cette carte ?'), cancel, confirm);
       confirmBack.append(box);
       back.append(confirmBack);
     });
@@ -466,333 +407,70 @@ const SCRIPT = `
     row.append(auction, discard);
     const actions = el('div', 'mt-3');
     actions.append(row);
-    panel.append(close, face, title, tag, actions);
+    panel.append(close, face, el('h2', 'text-xl font-bold', entry.card.wikipedia_title), tag, actions);
     back.append(panel);
     document.body.append(back);
   }
 
-  // ---- Mode sélection (COLLECTION_SELECTION_HTML seulement) ----
-  const SELECTION = window.__fakeSelection === true;
-  const TAGS = window.__fakeTags ?? [];
-  let entries = [];
-  let selecting = false;
-  const selected = new Set();
-  let discardError = null;
-  const svg = (name) => '<svg class="lucide lucide-' + name + '" width="14" height="14"></svg>';
-  // Comme React : n'écrit que ce qui change.
-  const setHTML = (node, html) => { if (node.__html !== html) { node.__html = html; node.innerHTML = html; } };
-  const chipStyle = (color) => {
-    const n = parseInt(color.slice(1), 16);
-    const rgb = (n >> 16 & 255) + ', ' + (n >> 8 & 255) + ', ' + (n & 255);
-    return 'background-color: rgba(' + rgb + ', 0.22); border-color: rgba(' + rgb + ', 0.5); color: rgba(248, 250, 252, 0.95);';
-  };
-  const norm = (text) => text.normalize('NFD').replace(/\\p{M}/gu, '').toLowerCase().trim();
-
-  // Titre et « Sélectionner » / « Quitter la sélection » (entrer ou sortir vide la sélection).
-  const titleRow = el('div', 'flex items-center justify-between gap-3');
-  const heading = el('h1', 'text-2xl font-bold');
-  heading.textContent = 'Collection';
-  const modeButton = button('inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border', '', () => {
-    selecting = !selecting;
-    selected.clear();
-    discardError = null;
-    renderSelection();
-  });
-  titleRow.append(heading);
-
-  // Barre du bas (portail dans body) : compte, puis les boutons ; erreur de défausse dessous.
-  const selBar = el('div', 'fixed bottom-4 z-[80] flex flex-col gap-3 card-frame bg-[var(--color-background)] p-3 shadow-xl');
-  selBar.style.cssText = 'left:0;bottom:16px;width:900px;display:flex;flex-direction:column;gap:12px;background:#161b22';
-  const selRow = el('div', 'flex flex-wrap items-center gap-3');
-  const countBox = el('div', 'flex items-center gap-2 text-sm');
-  const actionsBox = el('div', 'ml-auto flex flex-wrap items-center gap-2');
-  const barButton = 'inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs';
-  const pageButton = button(barButton, '', () => {
-    const all = entries.every((e) => selected.has(e.id));
-    for (const e of entries) all ? selected.delete(e.id) : selected.add(e.id);
-    renderSelection();
-  });
-  const tagButton = button(barButton, svg('tag') + 'Étiqueter', () => openBulk('add'));
-  const untagButton = button(barButton, svg('tag') + "Retirer l'étiquette", () => openBulk('remove'));
-  const discardButton = button(barButton + ' bg-red-500/90', '', () => { discardError = null; renderSelection(); openDiscardConfirm(); });
-  actionsBox.append(pageButton, tagButton, untagButton, discardButton);
-  selRow.append(countBox, actionsBox);
-  const selError = el('p', 'text-xs text-red-500');
-  selBar.append(selRow);
-
-  function toggleEntry(entry) {
-    if (selected.has(entry.id)) selected.delete(entry.id);
-    else selected.add(entry.id);
-    renderSelection();
-  }
-
-  function renderSelection() {
-    if (!SELECTION) return;
-    hooks.selecting.memoizedState = selecting;
-    hooks.selected.memoizedState = new Set(selected);
-    // Comme le site : son bouton n'est là qu'une fois les compteurs reçus, total non nul.
-    if (total > 0) { if (!modeButton.isConnected) titleRow.append(modeButton); }
-    else modeButton.remove();
-    setHTML(modeButton, selecting ? svg('x') + 'Quitter la sélection' : svg('square-check-big') + 'Sélectionner');
-    // Calque de chaque case : anneau d'accent si cochée.
-    for (const item of grid.children) {
-      let overlay = item.querySelector(':scope > div.pointer-events-none');
-      if (!selecting) { overlay?.remove(); continue; }
-      if (!overlay) {
-        overlay = el('div', '');
-        overlay.style.cssText = 'position:absolute;inset:0';
-        item.append(overlay);
-      }
-      const on = selected.has(item.__entry.id);
-      const cls = 'pointer-events-none absolute inset-0 z-10 rounded-2xl transition-all duration-300 group-hover:scale-105 ' +
-        (on ? 'ring-4 ring-[var(--color-accent)]' : 'bg-black/0 hover:bg-black/10');
-      if (overlay.className !== cls) overlay.className = cls;
-    }
-    if (!selecting) { selBar.remove(); return; }
-    if (!selBar.isConnected) document.body.append(selBar);
-    const n = entries.filter((e) => selected.has(e.id)).length;
-    setHTML(countBox, loading
-      ? '<span class="animate-spin"></span>Actualisation…'
-      : '<span class="font-semibold text-[var(--color-accent)]">' + n + '</span><span class="text-[var(--color-foreground)]/60">' + (n > 1 ? 'cartes sélectionnées' : 'carte sélectionnée') + '</span>');
-    const all = entries.length > 0 && entries.every((e) => selected.has(e.id));
-    setHTML(pageButton, all ? svg('square') + 'Désélectionner la page' : svg('square-check-big') + 'Tout sélectionner (page)');
-    setDisabled(pageButton, loading || entries.length === 0);
-    setDisabled(tagButton, loading || n === 0);
-    setDisabled(untagButton, loading || !entries.some((e) => selected.has(e.id) && e.tags.length > 0));
-    setHTML(discardButton, svg('trash-2') + 'Défausser (+' + n + ')');
-    setDisabled(discardButton, loading || n === 0);
-    if (discardError) { selError.textContent = discardError; if (!selError.isConnected) selBar.append(selError); }
-    else selError.remove();
-  }
-
-  /**
-   * Modale « Appliquer / Retirer une étiquette » : props React (mode, cards…) au-dessus du cadre, un bouton
-   * par étiquette (clé React = son id, gardé d'un rendu à l'autre), ligne « Créer » + couleur quand le nom
-   * tapé n'existe pas. Le site appliquerait l'étiquette au clic : siteTagActions compte ces clics.
-   */
-  function openBulk(mode) {
-    const cards = entries.filter((e) => selected.has(e.id));
-    let query = '';
-    let color = '#60a5fa';
-    const back = el('div', 'fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm');
-    back.id = 'bulk-tags';
-    const close = () => back.remove();
-    back.onclick = close;
-    const frame = el('div', 'card-frame relative max-w-md w-full max-h-[90vh] overflow-y-auto p-6');
-    frame.style.cssText = 'background:#161b22;width:448px;padding:24px';
-    frame.onclick = (event) => event.stopPropagation();
-    frame['__reactFiber$test'] = { memoizedProps: {}, return: { memoizedProps: { mode, cards, tagsCatalog: TAGS, onClose: close, onApplied() {} }, return: null } };
-    const closeButton = button('absolute top-3 right-3 flex h-9 w-9 items-center justify-center rounded-full', svg('x'), close);
-    closeButton.setAttribute('aria-label', 'Fermer');
-    const head = el('div', 'flex items-start gap-3 mb-4');
-    const headText = el('div', '');
-    const title = el('h2', 'text-lg font-bold');
-    title.textContent = mode === 'remove' ? 'Retirer une étiquette' : 'Appliquer une étiquette';
-    const sub = el('p', 'text-xs');
-    sub.textContent = 'Sur ' + cards.length + ' cartes sélectionnées.';
-    headText.append(title, sub);
-    head.append(headText);
-    const body = el('div', 'space-y-3');
-    const input = el('input', 'w-full rounded-lg px-3 py-2.5 text-sm');
-    input.type = 'text';
-    input.maxLength = 48;
-    input.placeholder = mode === 'remove' ? 'Chercher une étiquette…' : 'Chercher ou créer une étiquette…';
-    input.oninput = () => { query = input.value; renderList(); };
-    const list = el('div', 'max-h-64 overflow-y-auto space-y-1');
-    const siteAction = () => { window.__collection.siteTagActions++; };
-    const tagButtons = new Map();
-    const createRow = el('div', 'flex items-center gap-1 pr-2 rounded-lg');
-    const createButton = button('min-w-0 flex-1 flex items-center gap-2 px-3 py-2 rounded-lg text-sm', '', siteAction);
-    const createLabel = el('label', 'relative flex size-7 shrink-0 items-center justify-center rounded-lg border');
-    const colorInput = el('input', 'absolute inset-0 size-full cursor-pointer opacity-0');
-    colorInput.type = 'color';
-    colorInput.value = color;
-    colorInput.setAttribute('aria-label', 'Couleur de la nouvelle étiquette');
-    colorInput.oninput = () => { color = colorInput.value; renderList(); };
-    createLabel.append(el('span', 'size-[1.125rem] rounded'), colorInput);
-    createRow.append(createButton, createLabel);
-    body.append(input, list);
-    frame.append(closeButton, head, body);
-    back.append(frame);
-    document.body.append(back);
-
-    function renderList() {
-      const typed = query.trim();
-      const wanted = norm(typed);
-      const counts = new Map();
-      for (const card of cards) for (const tag of card.tags) counts.set(tag.id, (counts.get(tag.id) ?? 0) + 1);
-      const shown = TAGS.filter((tag) => (mode !== 'remove' || counts.has(tag.id)) && (!typed || norm(tag.name).includes(wanted)));
-      const exists = typed && TAGS.some((tag) => norm(tag.name) === wanted);
-      const nodes = shown.map((tag) => {
-        let node = tagButtons.get(tag.id);
-        if (!node) {
-          node = button('w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm text-left', '', siteAction);
-          node.innerHTML = '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border" style="' + chipStyle(tag.color) + '">' + tag.name + '</span>' +
-            (mode === 'remove' ? '<span class="text-xs tabular-nums">' + counts.get(tag.id) + '</span>' : '');
-          node['__reactFiber$test'] = { key: tag.id, memoizedProps: {}, return: null };
-          tagButtons.set(tag.id, node);
-        }
-        return node;
-      });
-      if (mode !== 'remove' && typed && !exists) {
-        setHTML(createButton, '<span>Créer</span><span class="min-w-0 truncate inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border" style="' + chipStyle(color) + '">' + typed + '</span>');
-        if (colorInput.value !== color) colorInput.value = color;
-        nodes.push(createRow);
-      }
-      if (nodes.length !== list.children.length || nodes.some((node, i) => list.children[i] !== node)) list.replaceChildren(...nodes);
-    }
-    renderList();
-  }
-
-  /** Confirmation de « Défausser (+n) », puis POST /api/user-cards/bulk-discard ; refusée : erreur affichée, reste ouverte. */
-  function openDiscardConfirm() {
-    const cards = entries.filter((e) => selected.has(e.id));
-    let sending = false;
-    const back = el('div', 'fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm');
-    back.id = 'bulk-discard';
-    back.onclick = () => { if (!sending) back.remove(); };
-    const box = el('div', 'card-frame max-w-sm w-full p-5');
-    box.onclick = (event) => event.stopPropagation();
-    const title = el('h3', 'text-base font-bold mb-2');
-    title.textContent = 'Défausser ' + cards.length + ' carte' + (cards.length > 1 ? 's' : '') + ' ?';
-    const error = el('p', 'text-xs text-red-500 mb-3');
-    const cancel = button('flex-1 py-2.5 rounded-lg border', 'Annuler', () => back.remove());
-    const confirm = button('flex-1 py-2.5 rounded-lg bg-red-500 text-white', 'Défausser', async () => {
-      sending = true;
-      cancel.disabled = confirm.disabled = true;
-      confirm.textContent = '…';
-      try {
-        const response = await fetch('/api/user-cards/bulk-discard', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ card_ids: cards.map((c) => c.id) }),
-        });
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          discardError = result.error ?? 'Erreur lors de la défausse';
-          error.textContent = discardError;
-          box.append(error);
-          renderSelection();
-          return;
-        }
-        back.remove();
-        selected.clear();
-        renderSelection();
-        load();
-      } finally {
-        sending = false;
-        cancel.disabled = confirm.disabled = false;
-        confirm.textContent = 'Défausser';
-      }
-    });
-    box.append(title, cancel, confirm);
-    back.append(box);
-    document.body.append(back);
-  }
-
-  if (SELECTION) {
-    stage.prepend(titleRow);
-    renderSelection();
-    // Comme le site : ses étiquettes, lues à Supabase avec la clé publique et le jeton de la session.
-    fetch('${SUPABASE}/rest/v1/tags?select=*&user_id=eq.u0&order=name.asc', {
-      headers: { apikey: 'cle-publique', authorization: 'Bearer ' + window.__fakeJwt },
-    }).then((r) => r.json()).then((rows) => { hooks.catalog.memoizedState = rows; }).catch(() => {});
-  }
+  ${selection}
 
   load();
 })();
 `;
-
-export const COLLECTION_HTML = sitePage('<div id="stage"></div>', SCRIPT);
-
-/** Étiquettes de l'utilisateur imité (table `tags` de Supabase). */
-export const FAKE_TAGS = [
-  { id: 't1', name: 'rare', color: '#f472b6' },
-  { id: 't2', name: 'sport', color: '#60a5fa' },
-  { id: 't3', name: 'histoire', color: '#4ade80' },
-];
-
-/** Jeton de session imité : son `sub` est l'utilisateur `u0`. */
-export const FAKE_JWT = `eyJhbGciOiJIUzI1NiJ9.${Buffer.from('{"sub":"u0"}').toString('base64url')}.signature`;
-
-/**
- * La même page avec le mode sélection du site : « Sélectionner » à droite du titre, cases cochées au clic,
- * barre du bas (compte, « Tout sélectionner (page) », « Étiqueter », « Retirer l'étiquette », « Défausser
- * (+n) »), modale d'étiquetage (`#bulk-tags`) et confirmation de défausse (`#bulk-discard`). Au chargement,
- * les étiquettes sont lues à Supabase avec la session : les tests servent ces requêtes.
- */
-export const COLLECTION_SELECTION_HTML = sitePage(
-  '<div id="stage"></div>',
-  `window.__fakeSelection = true; window.__fakeTags = ${JSON.stringify(FAKE_TAGS)}; window.__fakeJwt = '${FAKE_JWT}';` + SCRIPT,
-);
-
-type Entry = ReturnType<typeof entry>;
-
-export interface SelectionServer {
-  /** Requêtes à Supabase, dans l'ordre : méthode, adresse (chemin et paramètres), corps, en-têtes de session. */
-  readonly supabase: { method: string; url: string; body: unknown; apikey: string | null; authorization: string | null }[];
-  /** Défausses de la sélection demandées (`card_ids`). */
-  readonly discards: string[][];
 }
 
-export interface SelectionOptions {
-  readonly entries?: Entry[];
-  /** Réponse sur mesure à une requête Supabase : renvoie vrai si elle a été traitée (sinon : réussie). */
-  readonly supabase?: (route: Route, url: URL) => Promise<boolean>;
-  /** Réponse sur mesure à la défausse de la sélection (sinon : réussie, exemplaires retirés de la liste). */
-  readonly bulkDiscard?: (route: Route) => Promise<void>;
-  /** Attendue avant de répondre aux compteurs (compteurs lents). */
-  readonly beforeStats?: () => Promise<void>;
+const COLLECTION_HTML = sitePage('<div id="stage"></div>', collectionScript());
+
+/** Faces de la grille. */
+export const faces = (page: Page) => page.locator('#stage [class*="glow-"]');
+/** Titres des cartes de la grille, dans l'ordre. */
+export const titles = (page: Page) => faces(page).locator('h3');
+
+export interface CollectionServer {
+  /** Listes et compteurs demandés, notés par `noteList` et `noteStats`, dans l'ordre d'arrivée. */
+  readonly requests: string[];
+  /** Retient les réponses de la liste tant qu'il n'est pas résolu (`hold`). */
+  gate: Promise<void> | undefined;
+  /** Retient les réponses des compteurs tant qu'il n'est pas résolu. */
+  statsGate: Promise<void> | undefined;
+  /** Total des compteurs (50 exemplaires par page). */
+  total: number;
 }
 
-/** Page Collection avec le mode sélection, servie avec Supabase imité (étiquettes, associations). */
-export async function openSelectionPage(page: Page, options: SelectionOptions = {}): Promise<SelectionServer> {
-  const server: SelectionServer = { supabase: [], discards: [] };
-  let list = options.entries ?? [entry('u1', 'Tour Eiffel'), entry('u2', 'Musée du Louvre', 'R'), entry('u3', 'Mont Blanc', 'SR')];
-  let created = 0;
-  await page.route(`${SUPABASE}/**`, async (route) => {
-    const request = route.request();
-    const url = new URL(request.url());
-    const raw = request.postData();
-    server.supabase.push({
-      method: request.method(),
-      url: decodeURIComponent(url.pathname + url.search),
-      body: raw ? (JSON.parse(raw) as unknown) : undefined,
-      apikey: await request.headerValue('apikey'),
-      authorization: await request.headerValue('authorization'),
-    });
-    if (options.supabase && (await options.supabase(route, url))) return;
-    if (url.pathname === '/rest/v1/tags' && request.method() === 'GET') return route.fulfill({ json: FAKE_TAGS });
-    if (url.pathname === '/rest/v1/tags' && request.method() === 'POST') {
-      const rows = JSON.parse(raw ?? '[]') as { name: string; color: string }[];
-      return route.fulfill({ status: 201, json: rows.map((row) => ({ id: `n${++created}`, user_id: 'u0', ...row })) });
-    }
-    return route.fulfill({ status: request.method() === 'DELETE' ? 204 : 201, body: '' });
-  });
+export interface CollectionOptions {
+  /** Exemplaires de la liste demandée (par défaut : « Tour Eiffel », rare). */
+  readonly list?: (params: URLSearchParams) => Entry[];
+  /** Total des compteurs (par défaut : 1). */
+  readonly total?: number;
+  /** Ce qui est noté dans `requests` pour une liste (absent : rien). */
+  readonly noteList?: (params: URLSearchParams) => string;
+  /** Ce qui est noté dans `requests` pour des compteurs (absent : rien). */
+  readonly noteStats?: (params: URLSearchParams) => string;
+  /** Autres requêtes (défausse, enchère…). */
+  readonly handle?: FakeSite['handle'];
+}
+
+/** Ouvre la page Collection imitée, servie par un serveur imité ; n'attend pas la première liste. */
+export async function openCollection(page: Page, options: CollectionOptions = {}): Promise<CollectionServer> {
+  const server: CollectionServer = { requests: [], gate: undefined, statsGate: undefined, total: options.total ?? 1 };
+  const list = options.list ?? (() => [entry('u1', 'Tour Eiffel', 'R')]);
   await openSite(page, '/collection', {
-    html: COLLECTION_SELECTION_HTML,
+    html: COLLECTION_HTML,
     handle: async (route, url) => {
+      const params = url.searchParams;
       if (url.pathname === '/api/my-collection') {
-        await route.fulfill({ json: { collection: list, total: null, rarityCounts: {}, tagOptions: [], pendingTradeCardIds: [] } });
+        if (options.noteList) server.requests.push(options.noteList(params));
+        await server.gate;
+        await route.fulfill({ json: { collection: list(params), total: null, rarityCounts: {}, tagOptions: [], pendingTradeCardIds: [] } });
         return true;
       }
       if (url.pathname === '/api/my-collection/stats') {
-        await options.beforeStats?.();
-        const tagOptions = FAKE_TAGS.map((tag) => ({ ...tag, cardCount: list.filter((e) => e.tags.some((t) => t.id === tag.id)).length })).filter(
-          (tag) => tag.cardCount > 0,
-        );
-        await route.fulfill({ json: { total: list.length, rarityCounts: {}, tagOptions } });
+        if (options.noteStats) server.requests.push(options.noteStats(params));
+        await server.statsGate;
+        await route.fulfill({ json: { total: server.total, rarityCounts: {}, tagOptions: [] } });
         return true;
       }
-      if (url.pathname === '/api/user-cards/bulk-discard') {
-        const { card_ids } = JSON.parse(route.request().postData() ?? '{}') as { card_ids: string[] };
-        server.discards.push(card_ids);
-        if (options.bulkDiscard) await options.bulkDiscard(route);
-        else {
-          list = list.filter((e) => !card_ids.includes(e.id));
-          await route.fulfill({ json: { discarded_count: card_ids.length, failed: [] } });
-        }
-        return true;
-      }
-      return false;
+      return (await options.handle?.(route, url)) ?? false;
     },
   });
   return server;

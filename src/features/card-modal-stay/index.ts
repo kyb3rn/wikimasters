@@ -1,24 +1,28 @@
-import { injectStyle, watchDom, whenBody } from '@/core/dom';
+import { watchDom } from '@/core/dom';
 import { net } from '@/core/net';
 import type { Feature } from '@/core/runtime';
-import { findCardModals, readDiscard, type CardModal } from '@/site/cards';
+import { CARD_MARK_REASONS } from '@/services/card-marks';
+import { readDiscard } from '@/site/api';
+import { findCardModals, type CardModal } from '@/site/cards';
+import { isOwn } from '@/site/dom';
+import { SITE_OVERLAY } from '@/site/modals';
 import { lockControl, unlockAll } from '@/ui/lock';
-import { stampFace, unstampAll, type Stamp } from '@/ui/stamp';
+import { stampFace, STAMPS, unstampAll } from '@/ui/stamp';
+import { DISABLED_OPACITY } from '@/ui/theme';
 
 const OWNER = 'card-modal-stay';
 const KEPT = 'wm-kept-modal';
-const OVERLAY = 'div.fixed.inset-0';
-const DISCARDED: Stamp = { label: 'Défaussée', tone: 'danger', revealable: true };
 /** Au-delà, une défausse partie n'explique plus la fermeture de la modale. */
 const DISCARD_WINDOW_MS = 60_000;
 /** Un geste de fermeture de l'utilisateur explique une disparition de la modale pendant ce temps. */
 const CLOSE_WINDOW_MS = 1000;
+const CLOSE_BUTTON = 'button[aria-label="Fermer"]';
 
 // Remise dans la page, la modale rejouerait son animation d'apparition (`animate-fade-in-up`) : elle
-// doit seulement changer d'aspect, sur place.
+// doit seulement changer d'aspect, sur place. Nos boutons y sont inertes, comme ceux du site.
 const CSS = `
 .${KEPT}, .${KEPT} * { animation: none !important; }
-.${KEPT} .wm-root button { opacity: 0.4; cursor: not-allowed; }
+.${KEPT} .wm-root button { opacity: ${DISABLED_OPACITY}; cursor: not-allowed; }
 `;
 
 /**
@@ -36,7 +40,7 @@ export const cardModalStay: Feature = {
   routes: 'all',
   async mount(ctx) {
     const { signal, log } = ctx;
-    /** Modales de carte ouvertes au départ d'une défausse du site. */
+    /** Modales de carte ouvertes au départ d'une défausse du site (jusqu'à son échec). */
     const discarding = new Map<HTMLElement, { at: number; path: string }>();
     /** Modales que l'utilisateur vient de fermer lui-même. */
     const closing = new Map<HTMLElement, number>();
@@ -44,27 +48,24 @@ export const cardModalStay: Feature = {
     const kept = new Map<HTMLElement, string>();
     let open: HTMLElement[] = [];
 
-    net.intercept(
+    // Suivie jusqu'au bout : refusée, ou sans réponse du tout, elle n'explique plus la fermeture de la modale.
+    net.track(
       (request) => readDiscard(request) !== undefined && !request.own,
       () => {
-        for (const modal of findCardModals()) {
-          if (!kept.has(modal.root)) discarding.set(modal.root, { at: Date.now(), path: location.pathname });
-        }
-        return undefined;
-      },
-      { signal },
-    );
-    net.observe(
-      (request) => readDiscard(request) !== undefined && !request.own,
-      (exchange) => {
-        if (!exchange.ok) discarding.clear();
+        const roots = findCardModals()
+          .map((modal) => modal.root)
+          .filter((root) => !kept.has(root));
+        for (const root of roots) discarding.set(root, { at: Date.now(), path: location.pathname });
+        return (status) => {
+          if (status !== undefined && status < 400) return;
+          for (const root of roots) discarding.delete(root);
+        };
       },
       { signal },
     );
 
-    await whenBody();
-    if (signal.aborted) return;
-    injectStyle('card-modal-stay', CSS);
+    if (!(await ctx.ready())) return;
+    ctx.style(CSS);
 
     const stop = (event: Event) => {
       event.preventDefault();
@@ -76,10 +77,11 @@ export const cardModalStay: Feature = {
       (event) => {
         if (!(event.target instanceof Element)) return;
         const target = event.target;
-        const root = target.closest<HTMLElement>(OVERLAY);
+        const root = target.closest<HTMLElement>(SITE_OVERLAY);
         if (!root) return;
-        const closeButton = target.closest('button[aria-label="Fermer"]');
-        const closes = target === root || (closeButton !== null && closeButton.closest(OVERLAY) === root);
+        // Croix du site, ou la nôtre qui la remplace (site-modals) : l'une et l'autre se nomment « Fermer ».
+        const closeButton = target.closest(CLOSE_BUTTON);
+        const closes = target === root || closeButton?.closest(SITE_OVERLAY) === root;
         if (kept.has(root)) {
           if (closes) {
             stop(event);
@@ -112,7 +114,7 @@ export const cardModalStay: Feature = {
 
     function keep(root: HTMLElement): void {
       // La confirmation du site, encore dans la modale au moment où il l'a retirée.
-      root.querySelectorAll(OVERLAY).forEach((overlay) => overlay.remove());
+      root.querySelectorAll(SITE_OVERLAY).forEach((overlay) => overlay.remove());
       root.classList.add(KEPT);
       document.body.append(root);
       kept.set(root, location.pathname);
@@ -128,10 +130,10 @@ export const cardModalStay: Feature = {
     }
 
     function decorate(modal: CardModal): void {
-      if (modal.face) stampFace(modal.face, OWNER, DISCARDED);
+      if (modal.face) stampFace(modal.face, OWNER, { ...STAMPS.discarded, revealable: true });
       for (const control of modal.root.querySelectorAll<HTMLButtonElement | HTMLInputElement>('button, input')) {
-        if (control.closest('.wm-root') || control.getAttribute('aria-label') === 'Fermer') continue;
-        lockControl(control, { owner: OWNER, locked: true, reason: 'Carte défaussée' });
+        if (isOwn(control) || control === modal.closeButton) continue;
+        lockControl(control, { owner: OWNER, locked: true, reason: CARD_MARK_REASONS.discarded });
       }
     }
 

@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { openSite, sitePage } from './support/site';
+import { openSite, rect, sitePage } from './support/site';
 
 /** Hauteur du champ standard sans les variables du site : 5 × 0,25 rem + 2 px + 16 px × 1,25 / 0,875. */
 const STANDARD = 20 + 2 + (16 * 1.25) / 0.875;
@@ -42,8 +42,8 @@ const MAIN = `
 <div class="wm-root"><input id="ours" type="text" class="border py-2"></div>
 `;
 
-const height = async (locator: Locator) => (await locator.boundingBox())?.height ?? 0;
-const width = async (locator: Locator) => (await locator.boundingBox())?.width ?? 0;
+const height = async (locator: Locator) => (await rect(locator)).height;
+const width = async (locator: Locator) => (await rect(locator)).width;
 
 async function openFields(page: Page) {
   await openSite(page, '/collection', { html: sitePage(MAIN) });

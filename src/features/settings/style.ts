@@ -1,12 +1,6 @@
-import { tokens } from '@/ui/theme';
-
-const accentTint = (percent: number) => `color-mix(in srgb, ${tokens.accent} ${percent}%, transparent)`;
+import { alpha, tokens } from '@/ui/theme';
 
 export const CSS = `
-/* La barre du solde sur mobile laisse passer les clics (pointer-events: none), sauf sur ses boutons. Un léger
-   écart avec le solde. */
-.wm-root .wm-gear { pointer-events: auto; margin-right: 6px; }
-
 .wm-modal-body:has(.wm-settings-nav) { min-height: 340px; }
 .wm-settings-nav { flex: none; width: 240px; padding: 12px; display: flex; flex-direction: column; gap: 4px;
   border-right: 1px solid ${tokens.border}; overflow-y: auto; }
@@ -14,12 +8,12 @@ export const CSS = `
   border-radius: 10px; background: none; font: inherit; color: inherit; white-space: nowrap; cursor: pointer; opacity: 0.75; }
 .wm-settings-tab svg { flex: none; }
 .wm-settings-tab:hover { opacity: 1; background: ${tokens.surfaceLight}; }
-.wm-settings-tab[aria-current="page"] { opacity: 1; font-weight: 600; color: ${tokens.accent}; background: ${accentTint(12)}; }
+.wm-settings-tab[aria-current="page"] { opacity: 1; font-weight: 600; color: ${tokens.accent}; background: ${alpha(tokens.accent, 12, 'srgb')}; }
 .wm-settings-tab[data-about] { margin-top: auto; }
 .wm-settings-content { flex: 1; min-width: 0; padding: 16px 20px 20px; overflow-y: auto; }
 .wm-settings-heading { margin: 0 0 12px; font-family: ${tokens.heading}; font-size: 15px; font-weight: 700; }
 .wm-settings-feature { padding: 14px 16px; border: 1px solid ${tokens.border}; border-radius: 12px;
-  background: color-mix(in srgb, ${tokens.surfaceLight} 45%, transparent); }
+  background: ${alpha(tokens.surfaceLight, 45, 'srgb')}; }
 .wm-settings-feature + .wm-settings-feature { margin-top: 10px; }
 .wm-settings-section + .wm-settings-section { margin-top: 20px; }
 .wm-settings-feature[data-enabled="false"] .wm-settings-rows,

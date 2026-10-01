@@ -1,4 +1,4 @@
-import { blockSounds, trackSounds } from '@/core/audio';
+import { blockSounds } from '@/core/audio';
 import { childController } from '@/core/async';
 import type { Feature } from '@/core/runtime';
 import { onSettingsChange } from '@/core/settings';
@@ -19,8 +19,6 @@ export const pullsSound: Feature = {
   required: true,
   settings: pullsSoundSettings,
   mount(ctx) {
-    // Avant que le site ne charge ses sons : ils ne sont reconnus qu'à leur chargement.
-    trackSounds();
     if (isSiteSoundOff()) pullsSoundSettings.set('enabled', false);
     enableSiteSound();
     let muted: AbortController | undefined;

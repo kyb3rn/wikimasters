@@ -1,5 +1,6 @@
+import { textOf } from '@/core/text';
+import { siteButtons } from '@/site/dom';
 import { SITE_OVERLAY } from '@/site/modals';
-import { siteButtons, text } from './dom';
 
 /**
  * Confirmation « Défausser cette carte ? » que la modale de carte ouvre par-dessus elle (capture du
@@ -15,17 +16,15 @@ export interface DiscardConfirm {
   readonly confirmButton: HTMLButtonElement;
 }
 
-const OVERLAY = SITE_OVERLAY;
-
 export function findDiscardConfirm(doc: Document = document): DiscardConfirm | undefined {
-  for (const root of doc.querySelectorAll<HTMLElement>(OVERLAY)) {
+  for (const root of doc.querySelectorAll<HTMLElement>(SITE_OVERLAY)) {
     // Rendue dans le fond de la modale de carte, qui contient aussi son propre « Défausser » : ne
     // regarder que ce qui appartient à ce fond-ci.
-    const own = (element: Element) => element.closest(OVERLAY) === root;
-    if (![...root.querySelectorAll('h3')].some((h3) => own(h3) && text(h3).startsWith('Défausser cette carte'))) continue;
+    const own = (element: Element) => element.closest(SITE_OVERLAY) === root;
+    if (![...root.querySelectorAll('h3')].some((h3) => own(h3) && textOf(h3).startsWith('Défausser cette carte'))) continue;
     const buttons = siteButtons(root).filter(own);
-    const cancelButton = buttons.find((button) => text(button) === 'Annuler');
-    const confirmButton = buttons.find((button) => ['Défausser', '…'].includes(text(button)));
+    const cancelButton = buttons.find((button) => textOf(button) === 'Annuler');
+    const confirmButton = buttons.find((button) => ['Défausser', '…'].includes(textOf(button)));
     if (cancelButton && confirmButton) return { root, cancelButton, confirmButton };
   }
   return undefined;

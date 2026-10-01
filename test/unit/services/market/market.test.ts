@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CardSales } from '@/site/api';
+import { fakeStorage } from '../../support';
 
 const fetchCardSales = vi.fn<(cardId: string) => Promise<CardSales>>();
 vi.mock('@/site/api', async (original) => ({ ...(await original<object>()), fetchCardSales }));
@@ -15,13 +16,8 @@ const SALES: CardSales = {
   ],
 };
 
-let data: Map<string, string>;
 beforeEach(() => {
-  data = new Map();
-  vi.stubGlobal('localStorage', {
-    getItem: (key: string) => data.get(key) ?? null,
-    setItem: (key: string, value: string) => void data.set(key, value),
-  });
+  vi.stubGlobal('localStorage', fakeStorage());
   fetchCardSales.mockReset();
 });
 afterEach(() => vi.unstubAllGlobals());

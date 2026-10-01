@@ -1,15 +1,13 @@
-import { whenBody } from '@/core/dom';
 import type { Feature } from '@/core/runtime';
-import { replaceSitePagination } from '@/services/site-pagination';
+import { jumpByPageState, replaceSitePagination } from '@/services/site-pagination';
 import {
   findProfileCollectionFilters,
   findProfileCollectionPaginationBars,
   findProfileCollectionStates,
-  isProfileCollectionList,
   isProfileCollectionLoading,
-  readProfileCollectionPageLabel,
-  readProfileCollectionQuery,
+  profileCollectionList,
 } from '@/site/profile';
+import { PROFILE_ROUTE } from '@/site/routes';
 
 /**
  * Comme la pagination de la Collection : la barre du site est cachée, la nôtre posée à sa place. Première,
@@ -20,33 +18,21 @@ export const profileCollectionPagination: Feature = {
   name: 'Pagination',
   description: 'Première et dernière page, et saut direct à une page.',
   category: 'Profil',
-  routes: ['/profile/:name'],
+  routes: [PROFILE_ROUTE],
   required: true,
   hidden: true,
-  async mount(ctx) {
-    const { signal, log } = ctx;
-    await whenBody();
-    if (signal.aborted) return;
+  mount({ signal, log }) {
     replaceSitePagination(
       {
-        findBars: findProfileCollectionPaginationBars,
-        readLabel: readProfileCollectionPageLabel,
+        list: profileCollectionList,
+        findBars: () => findProfileCollectionPaginationBars(),
         isLoading: () => {
           const filters = findProfileCollectionFilters();
           return filters ? isProfileCollectionLoading(filters) : false;
         },
-        isList: isProfileCollectionList,
-        readPage: (url) => readProfileCollectionQuery(url).page,
-        jump(_site, from, index) {
-          const states = findProfileCollectionStates();
-          if (states?.page.value !== from) return undefined;
-          return () => {
-            states.page.set(index);
-            document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
-          };
-        },
+        jump: jumpByPageState(() => findProfileCollectionStates()?.page),
       },
-      { signal, log, hiddenClass: 'wm-pc-pagination-hidden' },
+      { signal, log },
     );
   },
 };

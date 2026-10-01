@@ -1,15 +1,7 @@
-import { whenBody } from '@/core/dom';
 import type { Feature } from '@/core/runtime';
 import { replaceSitePagination } from '@/services/site-pagination';
-import {
-  COLLECTION_ROUTE,
-  findCollectionPageSetter,
-  findCollectionPaginationBars,
-  isCollectionList,
-  isPageLoading,
-  readCollectionQuery,
-  readPageLabel,
-} from '@/site/collection';
+import { collectionList, findCollectionPageSetter, findCollectionPaginationBars, isPageLoading } from '@/site/collection';
+import { COLLECTION_ROUTE } from '@/site/routes';
 
 /**
  * Chaque barre de pagination du site est cachée, la nôtre posée juste après elle. Précédente et suivante
@@ -25,17 +17,12 @@ export const collectionPagination: Feature = {
   routes: [COLLECTION_ROUTE],
   required: true,
   hidden: true,
-  async mount(ctx) {
-    const { signal, log } = ctx;
-    await whenBody();
-    if (signal.aborted) return;
+  mount({ signal, log }) {
     replaceSitePagination(
       {
-        findBars: findCollectionPaginationBars,
-        readLabel: readPageLabel,
+        list: collectionList,
+        findBars: () => findCollectionPaginationBars(),
         isLoading: (bars) => bars.some(isPageLoading),
-        isList: isCollectionList,
-        readPage: (url) => readCollectionQuery(url).page,
         jump(site, from, index) {
           const setPage = findCollectionPageSetter(site.bar, from);
           if (!setPage) return undefined;
@@ -46,7 +33,7 @@ export const collectionPagination: Feature = {
           };
         },
       },
-      { signal, log, hiddenClass: 'wm-collection-pagination-hidden' },
+      { signal, log },
     );
   },
 };

@@ -1,12 +1,12 @@
-import { isRecord } from '@/core/guards';
-import { net } from '@/core/net';
+import { net, type NetRequest } from '@/core/net';
 import type { Feature } from '@/core/runtime';
 import { confirmUnfriend } from '@/services/friends';
-import { isFriendshipDelete } from '@/site/api';
+import { isFriendshipDelete, watchSiteRefusal } from '@/site/api';
 import { findUnfriendButton, parseUnfriendConfirm } from '@/site/profile';
+import { PROFILE_ROUTE } from '@/site/routes';
 import { toast } from '@/ui/toast';
 
-const TITLE = 'Amis';
+const bySite = (request: NetRequest) => isFriendshipDelete(request) && !request.own;
 
 /**
  * « Retirer des amis » (profil d'un ami) demande confirmation par `window.confirm` : le script lui répond
@@ -19,7 +19,7 @@ export const profileUnfriend: Feature = {
   name: 'Retirer un ami',
   description: 'Retirer un ami depuis son profil demande confirmation dans une fenêtre du site plutôt que celle du navigateur.',
   category: 'Profil',
-  routes: ['/profile/:name'],
+  routes: [PROFILE_ROUTE],
   required: true,
   hidden: true,
   mount(ctx) {
@@ -29,27 +29,15 @@ export const profileUnfriend: Feature = {
     let accept = false;
 
     net.track(
-      (request) => isFriendshipDelete(request) && !request.own,
+      bySite,
       () => {
         const done = waiting.splice(0);
-        return (status) => {
-          if (status === undefined) toast.error("Erreur réseau : l'ami n'a pas été retiré.", { title: TITLE });
-          for (const resolve of done) resolve();
-        };
+        return () => done.forEach((resolve) => resolve());
       },
       { signal },
     );
     // Le site ne montre pas ses refus : rien ne changerait, sans explication.
-    net.observe(
-      (request) => isFriendshipDelete(request) && !request.own,
-      async (exchange) => {
-        if (exchange.ok) return;
-        const body = await exchange.json().catch(() => undefined);
-        const message = isRecord(body) && typeof body.error === 'string' ? body.error : `Erreur ${exchange.status} du site.`;
-        toast.error(message, { title: TITLE });
-      },
-      { signal },
-    );
+    watchSiteRefusal(bySite, (message) => toast.error(message, { title: 'Amis' }), { signal });
 
     function confirmAgain(): Promise<void> {
       const button = findUnfriendButton();

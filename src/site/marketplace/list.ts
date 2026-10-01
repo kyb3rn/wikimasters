@@ -1,9 +1,12 @@
-import { isRecord } from '@/core/guards';
+import { isRecord, parseJson } from '@/core/guards';
 import type { NetRequest } from '@/core/net';
-import { currentFiberAncestors } from '@/core/react';
+import { textOf } from '@/core/text';
+import { isOwn } from '@/site/dom';
+import { appendRarities, checkedRarities, readBaseListQuery, type BaseListQuery, type ListSource } from '@/site/list-query';
+import { refreshAbove } from '@/site/list-page';
 import { findRarityPills, type RarityPills } from '@/site/rarity-pills';
 
-/**
+/*
  * Onglet « Parcourir » du marché (code du site, 30/09/2026) : `GET /api/marketplace?page=&limit=50&sort=[&mine=1][&q=][&rarity=…]`
  * (`page` à partir de 1, `mine=1` tant qu'il n'a pas reçu ses listes personnelles). Un changement de tri, de
  * raretés ou de recherche recharge la page 1, sans roue : la grille change à la réponse. « Charger la suite »
@@ -12,16 +15,9 @@ import { findRarityPills, type RarityPills } from '@/site/rarity-pills';
  * page s'actualise par le rappel `onRefresh` de son composant « tirer pour rafraîchir » (aussi son
  * « Rafraîchir » quand la liste est vide).
  */
-export const MARKETPLACE_ROUTE = '/marketplace';
 
-export interface MarketplaceQuery {
-  readonly sort: string;
-  readonly search: string;
-  /** Raretés cochées, triées. */
-  readonly rarities: string;
-  /** À partir de 1. */
-  readonly page: number | undefined;
-}
+/** `page` à partir de 1. */
+export type MarketplaceQuery = BaseListQuery;
 
 const isMarketplace = (request: NetRequest) => request.method === 'GET' && request.url.pathname === '/api/marketplace';
 
@@ -36,14 +32,7 @@ export function isMarketplaceMineRefresh(request: NetRequest): boolean {
 }
 
 export function readMarketplaceQuery(url: URL): MarketplaceQuery {
-  const params = url.searchParams;
-  const page = Number(params.get('page'));
-  return {
-    sort: params.get('sort') ?? '',
-    search: params.get('q') ?? '',
-    rarities: params.getAll('rarity').sort().join(','),
-    page: params.has('page') && Number.isInteger(page) ? page : undefined,
-  };
+  return readBaseListQuery(url.searchParams);
 }
 
 export function sameMarketplaceChoice(a: MarketplaceQuery, b: MarketplaceQuery): boolean {
@@ -56,7 +45,7 @@ export function withMarketplaceFilters(url: URL, query: MarketplaceQuery): URL {
   params.set('sort', query.sort);
   if (url.searchParams.has('mine')) params.set('mine', url.searchParams.get('mine') ?? '1');
   if (query.search) params.set('q', query.search);
-  for (const rarity of query.rarities ? query.rarities.split(',') : []) params.append('rarity', rarity);
+  appendRarities(params, query.rarities);
   const next = new URL(url.href);
   next.search = params.toString();
   return next;
@@ -98,7 +87,7 @@ export function findMarketplaceFilters(doc: Document = document): MarketplaceFil
 /** « Charger la suite » (« Chargement… » pendant sa requête), sous la grille de « Parcourir ». */
 export function findMarketplaceLoadMore(doc: Document = document): HTMLButtonElement | undefined {
   return [...(doc.querySelector('main')?.querySelectorAll<HTMLButtonElement>('button') ?? [])].find(
-    (button) => /^(Charger la suite|Chargement…)$/.test(button.textContent?.trim() ?? '') && !button.closest('.wm-root'),
+    (button) => /^(Charger la suite|Chargement…)$/.test(textOf(button)) && !isOwn(button),
   );
 }
 
@@ -108,37 +97,47 @@ export function findMarketplaceLoadMore(doc: Document = document): HTMLButtonEle
  */
 export function findMarketplaceRefresh(doc: Document = document): (() => unknown) | undefined {
   const line = findMarketplaceFilters(doc)?.line;
-  if (!line) return undefined;
-  for (const fiber of currentFiberAncestors(line)) {
-    const props = fiber.memoizedProps;
-    if (isRecord(props) && typeof props.onRefresh === 'function') {
-      const refresh = props.onRefresh as () => unknown;
-      return () => refresh();
-    }
-  }
-  return undefined;
+  return line && refreshAbove(line);
 }
 
-/** Requêtes de la liste et ce qu'elles disent (pour la recherche retenue, le délai, la mémoire des filtres). */
-export const marketplaceList = {
-  isList: isMarketplaceList,
-  readQuery: readMarketplaceQuery,
-  sameChoice: sameMarketplaceChoice,
-};
+/** État de la page gardé dans l'onglet quand on ouvre une annonce, remis (puis effacé) par le site au retour. */
+const KEPT_LIST = 'marketplace_list_v3';
+
+/**
+ * Filtres de la liste que le site va remettre sans la redemander (au retour d'une annonce) : la recherche
+ * lancée, pas le texte du champ. À lire avant que la page ne s'affiche (le site efface l'entrée en la lisant).
+ */
+export function readMarketplaceKeptQuery(): MarketplaceQuery | undefined {
+  let text: string | null;
+  try {
+    text = sessionStorage.getItem(KEPT_LIST);
+  } catch {
+    return undefined;
+  }
+  const raw = text === null ? undefined : parseJson(text);
+  if (!isRecord(raw)) return undefined;
+  const { submittedSearch, sort, rarityFilter } = raw;
+  if (typeof submittedSearch !== 'string' || typeof sort !== 'string' || !Array.isArray(rarityFilter)) return undefined;
+  if (!rarityFilter.every((rarity): rarity is string => typeof rarity === 'string')) return undefined;
+  return { sort, search: submittedSearch, rarities: [...rarityFilter].sort().join(','), page: 1 };
+}
 
 /** « Charger la suite » : page ajoutée à la liste affichée. */
 export const isMarketplaceAppend = (query: MarketplaceQuery) => (query.page ?? 1) > 1;
 
 /** Choix affichés par les contrôles de la page (tri, raretés), sans recherche ni page. */
 export function readMarketplaceChoice(filters: MarketplaceFilters): MarketplaceQuery {
-  return {
-    sort: filters.sort.value,
-    search: '',
-    rarities: filters.pills.pills
-      .filter((pill) => pill.checked)
-      .map((pill) => pill.rarity)
-      .sort()
-      .join(','),
-    page: undefined,
-  };
+  return { sort: filters.sort.value, search: '', rarities: checkedRarities(filters.pills), page: undefined };
 }
+
+/** Liste de l'onglet (recherche retenue, délai, mémoire des filtres). */
+export const marketplaceList: ListSource<MarketplaceQuery> = {
+  id: 'marketplace',
+  isList: isMarketplaceList,
+  readQuery: readMarketplaceQuery,
+  sameChoice: sameMarketplaceChoice,
+  appends: isMarketplaceAppend,
+  field: () => findMarketplaceFilters()?.field,
+  // Au retour d'une annonce, la liste gardée par le site s'affiche sans requête.
+  kept: readMarketplaceKeptQuery,
+};

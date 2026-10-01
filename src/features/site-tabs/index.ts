@@ -1,9 +1,7 @@
-import { injectStyle, setClass, watchDom, whenBody } from '@/core/dom';
+import { classMarks, watchDom } from '@/core/dom';
 import type { Feature } from '@/core/runtime';
-import { ACTIVE_SEGMENT_TAB, findSegmentTabBars } from '@/site/tabs';
+import { ACTIVE_SEGMENT_TAB, findSegmentTabBars, RESTYLED_SEGMENT_TABS as TABS } from '@/site/tabs';
 import { tokens } from '@/ui/theme';
-
-const TABS = 'wm-site-tabs';
 
 /*
  * Menus en segments à l'allure des onglets soulignés du site (voir site/tabs.ts) : cadre sans fond ni arrondi,
@@ -19,21 +17,15 @@ const CSS = `
 export const siteTabs: Feature = {
   id: 'site-tabs',
   name: 'Onglets',
-  description: 'Tous les menus d’onglets du site ont la même allure que ceux du marché : onglet choisi souligné.',
+  description: "Tous les menus d'onglets du site ont la même allure que ceux du marché : onglet choisi souligné.",
   category: 'Général',
   routes: 'all',
   required: true,
   hidden: true,
   async mount(ctx) {
-    await whenBody();
-    if (ctx.signal.aborted) return;
-    injectStyle('site-tabs', CSS);
-    watchDom(
-      () => {
-        for (const bar of findSegmentTabBars()) setClass(bar, TABS, true);
-      },
-      { signal: ctx.signal },
-    );
-    ctx.onDispose(() => document.querySelectorAll(`.${TABS}`).forEach((bar) => bar.classList.remove(TABS)));
+    if (!(await ctx.ready())) return;
+    ctx.style(CSS);
+    const marks = classMarks(ctx.signal);
+    watchDom(() => marks.only(TABS, findSegmentTabBars()), { signal: ctx.signal });
   },
 };

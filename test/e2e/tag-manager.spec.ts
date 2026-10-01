@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
-import { COLLECTION_HTML, entry } from './support/collection';
-import { openSite, sitePage } from './support/site';
+import { faces, openCollection } from './support/collection';
+import { openSite, rect, sitePage } from './support/site';
 
 const LONG = 'Monuments historiques de la région parisienne et d’ailleurs, à revoir un jour';
 
@@ -44,7 +44,6 @@ function managerPage(rows: number): string {
 }
 
 const frame = (page: Page) => page.locator('.card-frame-solid');
-const box = async (page: Page, selector: string) => (await page.locator(selector).first().boundingBox()) ?? { x: 0, y: 0, width: 0, height: 0 };
 
 async function openManager(page: Page, rows: number, height: number) {
   await page.setViewportSize({ width: 1280, height });
@@ -56,7 +55,7 @@ test('fenêtre 20 % plus large (614 px), au plus 900 px de haut, 90 % de l’éc
   await openManager(page, 40, 1200);
   // Arrondi : l'animation d'entrée du cadre laisse des fractions de pixel.
   const size = async () => {
-    const { width, height } = await box(page, '.card-frame-solid');
+    const { width, height } = await rect(frame(page));
     return [Math.round(width), Math.round(height)];
   };
   expect(await size()).toEqual([614, 900]);
@@ -74,49 +73,34 @@ test('« n cartes » sur une ligne, collé aux boutons quand le nom est long (le
 
   const [name, counted, colour] = await Promise.all([
     long.locator('span.truncate').evaluate((el) => el.scrollWidth > el.clientWidth),
-    count.boundingBox(),
-    long.getByRole('button', { name: 'Couleur' }).boundingBox(),
+    rect(count),
+    rect(long.getByRole('button', { name: 'Couleur' })),
   ]);
   expect(name).toBe(true);
   // Une seule ligne (hauteur de ligne de text-xs : 16 px), puis l'écart de la rangée (gap-2 : 8 px) avant « Couleur ».
-  expect(counted?.height).toBe(16);
-  expect(Math.round((colour?.x ?? 0) - ((counted?.x ?? 0) + (counted?.width ?? 0)))).toBe(8);
+  expect(counted.height).toBe(16);
+  expect(Math.round(colour.x - (counted.x + counted.width))).toBe(8);
 });
 
 const GEAR = (page: Page) => page.getByRole('button', { name: 'Gérer les étiquettes', exact: true });
 const TAG_LIST = (page: Page) => page.getByRole('button', { name: 'Filtrer par étiquette' });
 
 /** Page Collection imitée : `requests` garde les listes demandées. */
-async function openCollection(page: Page) {
-  const server = { requests: [] as string[] };
-  await openSite(page, '/collection', {
-    html: COLLECTION_HTML,
-    handle: async (route, url) => {
-      if (url.pathname === '/api/my-collection') {
-        server.requests.push(`liste ${url.searchParams.get('tag_id') ?? '-'}`);
-        await route.fulfill({ json: { collection: [entry('u1', 'Tour Eiffel', 'R')], total: null, rarityCounts: {}, tagOptions: [], pendingTradeCardIds: [] } });
-        return true;
-      }
-      if (url.pathname === '/api/my-collection/stats') {
-        await route.fulfill({ json: { total: 1, rarityCounts: {}, tagOptions: [] } });
-        return true;
-      }
-      return false;
-    },
-  });
-  await expect(page.locator('#stage [class*="glow-"]')).toHaveCount(1);
+async function openOneCard(page: Page) {
+  const server = await openCollection(page, { noteList: (params) => `liste ${params.get('tag_id') ?? '-'}` });
+  await expect(faces(page)).toHaveCount(1);
   return server;
 }
 
 const manageOpened = (page: Page) => page.evaluate(() => (window as unknown as { __collection: { manageOpened: number } }).__collection.manageOpened);
 
 test('engrenage carré collé à droite de la liste des étiquettes ; l’option « Gérer les étiquettes… » quitte la liste', async ({ page }) => {
-  await openCollection(page);
+  await openOneCard(page);
   await expect(GEAR(page)).toBeVisible();
-  const [list, gear] = await Promise.all([TAG_LIST(page).boundingBox(), GEAR(page).boundingBox()]);
-  expect(Math.round(gear?.x ?? 0)).toBe(Math.round((list?.x ?? 0) + (list?.width ?? 0)));
-  expect(Math.round(gear?.height ?? 0)).toBe(Math.round(list?.height ?? 0));
-  expect(Math.round(gear?.width ?? 0)).toBe(Math.round(gear?.height ?? 0));
+  const [list, gear] = await Promise.all([rect(TAG_LIST(page)), rect(GEAR(page))]);
+  expect(Math.round(gear.x)).toBe(Math.round(list.x + list.width));
+  expect(Math.round(gear.height)).toBe(Math.round(list.height));
+  expect(Math.round(gear.width)).toBe(Math.round(gear.height));
 
   await TAG_LIST(page).click();
   await expect(page.getByRole('option')).toHaveText(['Toutes les étiquettes', 'Sans étiquette', '#rare']);
@@ -124,7 +108,7 @@ test('engrenage carré collé à droite de la liste des étiquettes ; l’option
 });
 
 test('l’engrenage ouvre la fenêtre du site sans changer de filtre ni recharger ; le menu ouvert se referme', async ({ page }) => {
-  const server = await openCollection(page);
+  const server = await openOneCard(page);
   await TAG_LIST(page).click();
   await expect(page.getByRole('listbox')).toBeVisible();
 

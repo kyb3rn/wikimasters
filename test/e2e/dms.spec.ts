@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { openSite, sitePage } from './support/site';
+import { openSite, rect, sitePage } from './support/site';
 
 /**
  * Conversation privée de /dms (capture du 29/09/2026) : modale en portail dans `body`, en-tête photo (ou
@@ -43,7 +43,7 @@ test('conversation de /dms : pseudo et photo mènent au profil de l’interlocut
   // La photo reste celle du site, notre lien la recouvre.
   const photo = chat.getByRole('link', { name: 'Profil de Sarah Vachol' });
   await expect(chat.locator('img')).toBeVisible();
-  const [link, avatar] = await Promise.all([photo.boundingBox(), chat.locator('div.w-9.h-9').boundingBox()]);
+  const [link, avatar] = await Promise.all([rect(photo), rect(chat.locator('div.w-9.h-9'))]);
   expect(link).toEqual(avatar);
 
   // Autre conversation, sans photo : initiales, même lien.

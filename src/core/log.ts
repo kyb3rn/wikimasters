@@ -22,6 +22,11 @@ export function createLogger(scope?: string): Logger {
   };
 }
 
+/** Tableau dans la console, sans préfixe : réponse d'une commande de `window.wm` (`wm.features.list()`). */
+export function logTable(rows: unknown): void {
+  console.table(rows);
+}
+
 /** Message lisible d'une erreur quelconque. */
 export function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;

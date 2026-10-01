@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
-import { CAROUSEL, PACK, PULLS_HTML } from './support/pulls';
-import { openSite, presetSettings } from './support/site';
+import { CAROUSEL, openPulls as openFakePulls } from './support/pulls';
+import { openSettings, presetSettings } from './support/site';
 
 // Le carrousel du site, sans « toutes les cartes d'un coup ».
 test.beforeEach(({ page }) => presetSettings(page, CAROUSEL));
@@ -8,7 +8,7 @@ test.beforeEach(({ page }) => presetSettings(page, CAROUSEL));
 const proceed = (page: Page) => page.locator('main button.px-8');
 
 async function openPulls(page: Page) {
-  await openSite(page, '/pulls', { html: PULLS_HTML, api: { '/api/packs/open': PACK } });
+  await openFakePulls(page);
   await page.click('#open');
 }
 
@@ -34,9 +34,7 @@ test('présentation par défaut : pas d’interrupteur, un ancien choix « désa
   await openPulls(page);
   await expect(proceed(page)).toHaveClass(/wm-remaining-text/);
 
-  await page.locator('button[aria-label="Paramètres WikiMasters"]:visible').click();
-  const dialog = page.getByRole('dialog', { name: 'Paramètres' });
-  await dialog.getByRole('button', { name: 'Paquets' }).click();
+  const dialog = await openSettings(page, 'Paquets');
   await expect(dialog).toContainText('Navigation au clavier');
   await expect(dialog).not.toContainText('Cartes restantes');
 });

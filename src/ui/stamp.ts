@@ -14,6 +14,12 @@ export interface Stamp {
   readonly revealable?: boolean;
 }
 
+/** Tampons communs : carte défaussée, carte mise aux enchères. */
+export const STAMPS = {
+  discarded: { label: 'Défaussée', tone: 'danger' },
+  listed: { label: 'En vente', tone: 'success' },
+} as const satisfies Record<string, Stamp>;
+
 const STAMPED = 'wm-stamped';
 
 const CSS = `
@@ -99,6 +105,16 @@ export function isStamped(face: HTMLElement): boolean {
 /** Faces tamponnées par `owner` (pour retirer celles qui ne doivent plus l'être). */
 export function stampedFaces(owner: string, root: ParentNode = document): HTMLElement[] {
   return [...root.querySelectorAll<HTMLElement>(`[data-wm-stamp="${owner}"]`)];
+}
+
+/**
+ * Les tampons de `owner` sous `root` exactement sur ces faces : posés ou mis à jour, retirés des autres faces qu'il
+ * avait tamponnées. Idempotent.
+ */
+export function syncStamps(owner: string, wanted: Iterable<readonly [HTMLElement, Stamp]>, root: ParentNode = document): void {
+  const faces = new Map(wanted);
+  for (const face of stampedFaces(owner, root)) if (!faces.has(face)) stampFace(face, owner, undefined);
+  for (const [face, stamp] of faces) stampFace(face, owner, stamp);
 }
 
 /** Retire tous les tampons de `owner` (démontage de sa fonctionnalité). */

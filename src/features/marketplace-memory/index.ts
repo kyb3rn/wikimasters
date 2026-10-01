@@ -1,32 +1,10 @@
-import { waitUntil } from '@/core/async';
-import { isRecord } from '@/core/guards';
-import { setReactInputValue } from '@/core/react';
 import type { Feature } from '@/core/runtime';
-import { jsonStore } from '@/core/storage';
-import { trackListMemory, type ApplyResult, type Saved } from '@/services/list-search';
+import { applyRarities, applySearch, savedFiltersStore, trackListMemory, type ApplyResult } from '@/services/list-search';
 import { chooseSelectValue } from '@/site/listbox';
-import {
-  findMarketplaceFilters,
-  isMarketplaceMineRefresh,
-  MARKETPLACE_ROUTE,
-  marketplaceList,
-  withMarketplaceFilters,
-  type MarketplaceQuery,
-} from '@/site/marketplace';
+import { findMarketplaceFilters, isMarketplaceMineRefresh, marketplaceList, withMarketplaceFilters, type MarketplaceQuery } from '@/site/marketplace';
+import { MARKETPLACE_ROUTE } from '@/site/routes';
 
-type SavedFilters = Saved<MarketplaceQuery>;
-
-export function parseSavedFilters(raw: unknown): SavedFilters | undefined {
-  if (!isRecord(raw)) return undefined;
-  const { sort, search, rarities } = raw;
-  if (typeof sort !== 'string' || !sort || typeof search !== 'string' || typeof rarities !== 'string') return undefined;
-  return { sort, search, rarities };
-}
-
-const savedFilters = jsonStore<SavedFilters | undefined>('wm-marketplace-filters-v1', undefined, parseSavedFilters);
-
-/** Délai pour que « Rechercher » du site prenne le texte remis dans le champ. */
-const SUBMIT_TIMEOUT = 2000;
+const savedFilters = savedFiltersStore<MarketplaceQuery>('wm-marketplace-filters-v1', { sort: 'text', search: 'string', rarities: 'string' });
 
 /** Remet les contrôles du site aux filtres retenus (tri, raretés, puis la recherche). */
 function applyFilters(target: MarketplaceQuery, signal: AbortSignal): ApplyResult {
@@ -37,21 +15,8 @@ function applyFilters(target: MarketplaceQuery, signal: AbortSignal): ApplyResul
     chooseSelectValue(filters.sort, target.sort);
     changed = true;
   }
-  const rarities = new Set(target.rarities ? target.rarities.split(',') : []);
-  for (const pill of filters.pills.pills) {
-    if (pill.checked === rarities.has(pill.rarity)) continue;
-    pill.button.click();
-    changed = true;
-  }
-  if (filters.field.value.trim() !== target.search) {
-    setReactInputValue(filters.field, target.search);
-    changed = true;
-    // « Rechercher » ne s'active qu'une fois le texte pris par la page.
-    const submit = () => findMarketplaceFilters()?.submit;
-    void waitUntil(() => submit()?.disabled === false, { signal, timeoutMs: SUBMIT_TIMEOUT }).then((ready) => {
-      if (ready) submit()?.click();
-    });
-  }
+  if (applyRarities(filters.pills, target.rarities)) changed = true;
+  if (applySearch(filters.field, target.search, () => findMarketplaceFilters()?.submit, signal)) changed = true;
   return changed ? 'applied' : 'unchanged';
 }
 
@@ -68,8 +33,7 @@ export const marketplaceMemory: Feature = {
   routes: [MARKETPLACE_ROUTE],
   required: true,
   hidden: true,
-  mount(ctx) {
-    const { signal, log } = ctx;
+  mount({ signal, log }) {
     trackListMemory({
       source: marketplaceList,
       signal,

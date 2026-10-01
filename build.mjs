@@ -4,6 +4,10 @@
 //   node build.mjs --dev           dist/wikimasters.dev.js        + outils de diagnostic, source map
 //                                  dist/wikimasters.loader.user.js  script de chargement à installer une fois
 //   node build.mjs --dev --watch   idem, reconstruit à chaque sauvegarde
+//
+// `WM_DEV_BUNDLE=<fichier> node build.mjs --dev` : version de dev écrite dans ce fichier, script de chargement
+// inchangé (plusieurs séries de tests Edge en parallèle, chacune avec son fichier ; lu par test/e2e/support/site.ts).
+// Version à installer : rien n'est écrit s'il y reste un octet d'un outil de dev (voir DEV_ONLY).
 
 import * as esbuild from 'esbuild';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -16,6 +20,13 @@ const watch = args.has('--watch');
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
+
+/**
+ * Fonctionnalités de développement : listées sous `__DEV__` seulement (features/index.ts), esbuild les retire de la
+ * version à installer tant que leurs modules n'ont pas d'effet au chargement. Un octet de l'un d'eux dans le fichier
+ * fait échouer le build.
+ */
+const DEV_ONLY = /^src\/features\/(debug|showcase|market-search)\//;
 
 const MATCHES = ['https://wiki-masters.com/*', 'https://www.wiki-masters.com/*'];
 
@@ -48,7 +59,11 @@ function metadata({ name, version, extra = [] }) {
   ];
 }
 
-const outfile = path.join(root, 'dist', dev ? 'wikimasters.dev.js' : 'wikimasters.user.js');
+// `WM_DEV_BUNDLE` : voir l'en-tête ; le script de chargement installé dans Tampermonkey garde le fichier habituel.
+const customDevBundle = dev ? process.env.WM_DEV_BUNDLE : undefined;
+const outfile = customDevBundle
+  ? path.resolve(root, customDevBundle)
+  : path.join(root, 'dist', dev ? 'wikimasters.dev.js' : 'wikimasters.user.js');
 const loaderFile = path.join(root, 'dist', 'wikimasters.loader.user.js');
 
 /** @type {import('esbuild').BuildOptions} */
@@ -105,12 +120,38 @@ async function writeLoader() {
   await writeFile(loaderFile, header + body, 'utf8');
 }
 
-if (dev) await writeLoader();
+if (dev && !customDevBundle) await writeLoader();
+
+/** Fichiers de `DEV_ONLY` présents dans la sortie, avec leur nombre d'octets. */
+function devCodeIn(metafile) {
+  return Object.values(metafile.outputs).flatMap((output) =>
+    Object.entries(output.inputs)
+      .filter(([input, { bytesInOutput }]) => bytesInOutput > 0 && DEV_ONLY.test(input))
+      .map(([input, { bytesInOutput }]) => `${input} (${bytesInOutput} octets)`),
+  );
+}
 
 if (watch) {
   const context = await esbuild.context(options);
   await context.watch();
   console.log(`Surveillance de src/ : ${path.relative(root, outfile)} reconstruit à chaque sauvegarde.`);
-} else {
+} else if (dev) {
   await esbuild.build(options);
+} else {
+  // Rien n'est écrit avant la vérification : un fichier fautif n'arrive jamais dans dist/ (le résumé d'esbuild,
+  // qui l'annoncerait, est remplacé par le nôtre).
+  const result = await esbuild.build({ ...options, write: false, metafile: true, logLevel: 'warning' });
+  const leaks = devCodeIn(result.metafile);
+  if (leaks.length > 0) {
+    console.error(
+      'Code de développement dans la version à installer (un effet au chargement de ces modules les garde) :\n' +
+        leaks.map((leak) => `  ${leak}`).join('\n'),
+    );
+    process.exit(1);
+  }
+  for (const file of result.outputFiles) {
+    await mkdir(path.dirname(file.path), { recursive: true });
+    await writeFile(file.path, file.contents);
+    console.log(`${path.relative(root, file.path)}  ${(file.contents.length / 1024).toFixed(1)} Ko`);
+  }
 }

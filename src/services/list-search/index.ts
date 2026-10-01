@@ -1,8 +1,19 @@
-export { listWait, submitAfterTyping, trackListDelay, type ListDelayOptions, type TypingOptions } from './delay';
-export { trackListHold, type ListHold, type ListHoldOptions } from './hold';
-export { trackListMemory, type ApplyResult, type ListMemoryOptions, type Saved } from './memory';
+export { submitAfterTyping, trackListDelay, type ListDelayOptions, type SubmitAfterTypingOptions } from './delay';
+export { defineListSearchFeature, type ListSearchConfig, type ListSearchHoldOptions } from './feature';
+export { filterLineCss, type FilterLineParts, type FilterLineSizes } from './filter-line';
+export {
+  applyRarities,
+  applySearch,
+  savedFiltersStore,
+  trackListMemory,
+  type ApplyResult,
+  type ListMemoryOptions,
+  type Saved,
+  type SavedShape,
+} from './memory';
+export { applySearchPlaceholder, SEARCH_PLACEHOLDER } from './placeholder';
 export { placeRarityFilter, type RarityFilterOptions, type RarityFilterSpot } from './rarity-filter';
 export { RarityFilter, type RarityFilterProps } from './RarityFilter';
-export { markRestored, restoredQuery } from './restored';
-export { SearchButton, type SearchButtonProps } from './SearchButton';
-export { SEARCH_DELAY, sameFilters, type ListQuery, type ListSource, type SearchStatus } from './types';
+export { SEARCH_BUTTON_CLASS, SearchButton, snugSearchButtonCss, type SearchButtonProps } from './SearchButton';
+export { WishlistToggle, type WishlistToggleProps } from './WishlistToggle';
+export type { SearchStatus } from './types';

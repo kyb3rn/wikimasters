@@ -1,7 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
-import { entry, FAKE_JWT, openSelectionPage } from './support/collection';
+import { entry, faces } from './support/collection';
+import { openSelectionPage } from './support/collection-selection';
+import { expectDomIdle, FAKE_JWT, letTimePass } from './support/site';
 
-const faces = (page: Page) => page.locator('#stage [class*="glow-"]');
 const modal = (page: Page) => page.locator('#bulk-tags');
 const input = (page: Page) => modal(page).locator('input[type="text"]');
 const option = (page: Page, name: string) => modal(page).locator('.max-h-64 > button', { hasText: name });
@@ -89,7 +90,7 @@ test('étiquettes choisies une à une, en pastilles au-dessus du champ, envoyée
     { id: 'n1', name: 'Nouvelle', color: '#60a5fa', cardCount: 2 },
   ]);
   expect(state.catalog).toContainEqual({ id: 'n1', name: 'Nouvelle', color: '#60a5fa' });
-  await page.waitForTimeout(300);
+  await letTimePass(page, 300);
   expect(await counter(page, 'loads')).toBe(before);
   // Toujours en sélection, les deux cartes cochées ; elles ont maintenant des étiquettes à retirer.
   await expect(page.locator('.wm-selection-count')).toHaveText('2sélectionnées');
@@ -181,9 +182,5 @@ test('au repos, la sélection et la modale ne resynchronisent plus la page', asy
   await openBulk(page, 'Étiqueter', 0, 2);
   await option(page, 'rare').click();
   await input(page).fill('Nouvelle');
-  await page.waitForTimeout(300);
-  const domSyncs = () => page.evaluate(() => window.wm?.debug?.domSyncs() ?? -1);
-  const before = await domSyncs();
-  await page.waitForTimeout(500);
-  expect(await domSyncs()).toBe(before);
+  await expectDomIdle(page);
 });

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
-import { CAROUSEL, PACK, PULLS_HTML } from './support/pulls';
-import { openSite, presetSettings } from './support/site';
+import { CAROUSEL, openCard, openPulls, packFaces } from './support/pulls';
+import { openSettings, presetSettings } from './support/site';
 
 // Le carrousel du site, sans « toutes les cartes d'un coup ».
 test.beforeEach(({ page }) => presetSettings(page, CAROUSEL));
@@ -20,9 +20,8 @@ async function openSale(
   const held = new Promise<void>((resolve) => {
     sale.release = resolve;
   });
-  await openSite(page, '/pulls', {
-    html: PULLS_HTML,
-    api: { '/api/packs/open': PACK, '/api/marketplace/mine': options.mine ?? { sellingCount: 2, maxConcurrentAuctions: 10 } },
+  await openCard(page, {
+    api: { '/api/marketplace/mine': options.mine ?? { sellingCount: 2, maxConcurrentAuctions: 10 } },
     handle: async (route, url) => {
       if (url.pathname !== '/api/marketplace' || route.request().method() !== 'POST') return false;
       sale.posted.push(route.request().postDataJSON());
@@ -31,8 +30,6 @@ async function openSale(
       return true;
     },
   });
-  await page.click('#open');
-  await page.locator('main [class*="glow-"]').click();
   await page.locator('#card-modal').getByRole('button', { name: 'Vendre' }).click();
   return sale;
 }
@@ -150,10 +147,8 @@ test('durée par défaut réglée : sélectionnée à l’ouverture et envoyée'
 
 test('paramètres : durée par défaut au choix, sans interrupteur ; un ancien choix « désactivée » est ignoré', async ({ page }) => {
   await presetSettings(page, { features: { 'auction-modal-layout': false }, values: {} });
-  await openSite(page, '/pulls', { html: PULLS_HTML, api: { '/api/packs/open': PACK } });
-  await page.locator('button[aria-label="Paramètres WikiMasters"]:visible').click();
-  const settings = page.getByRole('dialog', { name: 'Paramètres' });
-  await settings.getByRole('button', { name: 'Enchères' }).click();
+  await openPulls(page);
+  const settings = await openSettings(page, 'Enchères');
   // Une seule section « Mise aux enchères » : la modale (sans interrupteur), puis rester sur la carte.
   await expect(settings.locator('.wm-settings-heading')).toHaveText(['Mise aux enchères']);
   const [layout, stay] = [settings.locator('.wm-settings-feature').first(), settings.locator('.wm-settings-feature').nth(1)];
@@ -167,7 +162,7 @@ test('paramètres : durée par défaut au choix, sans interrupteur ; un ancien c
   await settings.getByRole('button', { name: 'Fermer' }).click();
 
   await page.click('#open');
-  await page.locator('main [class*="glow-"]').click();
+  await packFaces(page).click();
   await page.locator('#card-modal').getByRole('button', { name: 'Vendre' }).click();
   await expect(dialog(page).getByRole('radio', { name: '30 min' })).toHaveAttribute('aria-checked', 'true');
 });

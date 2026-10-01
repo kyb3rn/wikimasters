@@ -4,10 +4,7 @@
 
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { sanitizeCapture, type StoredCapture } from '@/features/debug';
-
-const JWT = /eyJ[\w-]{8,}\.[\w-]{8,}\.[\w-]{8,}/;
-const EMAIL = /[\w.%+-]+@[A-Za-z][A-Za-z0-9-]*(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b/;
+import { containsSecret, sanitizeCapture, type StoredCapture } from '@/features/debug';
 
 /** Tout le texte d'une capture, binaires compris (décodés en latin1). */
 function allText(capture: StoredCapture): string {
@@ -33,7 +30,7 @@ for (const file of files) {
     changed++;
   }
   const text = allText(capture);
-  if (JWT.test(text) || EMAIL.test(text)) leaks.push(file);
+  if (containsSecret(text)) leaks.push(file);
 }
 
 console.log(`${files.length} captures relues, ${changed} réécrites.`);

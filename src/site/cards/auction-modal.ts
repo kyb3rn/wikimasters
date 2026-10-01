@@ -1,5 +1,7 @@
+import { textOf } from '@/core/text';
+import { siteButtons } from '@/site/dom';
 import { SITE_OVERLAY } from '@/site/modals';
-import { siteButtons, text } from './dom';
+import { FACE } from './face';
 
 /**
  * Modale « Mettre aux enchères » du site, ouverte par-dessus la modale de carte (code du site relevé
@@ -10,7 +12,7 @@ import { siteButtons, text } from './dom';
  *       button[aria-label=Fermer]
  *       h2 « Mettre aux enchères », « Un exemplaire sera mis en réserve… »,
  *         « Enchères actives : n/max » (seulement une fois `GET /api/marketplace/mine` revenu)
- *       petite face `[class*="glow-"]` (w-28 h-40) et résumé du marché
+ *       petite face (`FACE`, w-28 h-40) et résumé du marché
  *       « Mise de départ » : Diminuer · input[aria-label="Mise de départ"] (« 10 » au départ) · Augmenter
  *       « Durée » : 10 min · 30 min · 1 h (défaut) · 3 h · 6 h · 12 h, l'actif porte bg-[var(--color-accent)]
  *       p.text-red-500 : erreur (message de la réponse, « Erreur réseau »…), absente sinon
@@ -49,30 +51,30 @@ export function parseDuration(label: string): number | undefined {
 
 export function findAuctionModal(doc: Document = document): AuctionModal | undefined {
   for (const root of doc.querySelectorAll<HTMLElement>(SITE_OVERLAY)) {
-    const heading = [...root.querySelectorAll('h2')].some((h2) => text(h2) === 'Mettre aux enchères');
+    const heading = [...root.querySelectorAll('h2')].some((h2) => textOf(h2) === 'Mettre aux enchères');
     const priceInput = root.querySelector<HTMLInputElement>('input[aria-label="Mise de départ"]');
     if (!heading || !priceInput) continue;
     const buttons = siteButtons(root);
-    const cancelButton = buttons.find((button) => text(button) === 'Annuler');
-    const launchButton = buttons.find((button) => /^(Lancer l.enchère|Mise en vente)/.test(text(button)));
+    const cancelButton = buttons.find((button) => textOf(button) === 'Annuler');
+    const launchButton = buttons.find((button) => /^(Lancer l.enchère|Mise en vente)/.test(textOf(button)));
     if (!cancelButton || !launchButton) continue;
 
     const durations = buttons.flatMap((button) => {
-      const minutes = parseDuration(text(button));
+      const minutes = parseDuration(textOf(button));
       if (minutes === undefined) return [];
-      return [{ label: text(button), minutes, button, active: button.classList.contains('bg-[var(--color-accent)]') }];
+      return [{ label: textOf(button), minutes, button, active: button.classList.contains('bg-[var(--color-accent)]') }];
     });
     const quota = /Enchères actives\s*:\s*(\d+)\s*\/\s*(\d+)/.exec(root.textContent ?? '');
     return {
       root,
-      face: [...root.querySelectorAll<HTMLElement>('[class*="glow-"]')].find((el) => el.querySelector('h3')),
+      face: [...root.querySelectorAll<HTMLElement>(FACE)].find((el) => el.querySelector('h3')),
       priceInput,
       durations,
       cancelButton,
       launchButton,
-      sending: text(launchButton).startsWith('Mise en vente'),
+      sending: textOf(launchButton).startsWith('Mise en vente'),
       quota: quota ? { active: Number(quota[1]), max: Number(quota[2]) } : undefined,
-      error: text(root.querySelector('p.text-red-500')) || undefined,
+      error: textOf(root.querySelector('p.text-red-500')) || undefined,
     };
   }
   return undefined;

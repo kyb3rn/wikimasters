@@ -19,7 +19,7 @@ const style = (shape: Restyle['shape'], tone: string, fill: string, size = 'md')
 
 describe('boutons du site : allure standard', () => {
   it('fond vert plein : vert plein, largeur du site gardée', () => {
-    expect(site("flex-1 py-2.5 rounded-lg bg-[var(--color-accent)] text-[var(--color-accent-foreground)] text-sm font-semibold")).toEqual(
+    expect(site('flex-1 py-2.5 rounded-lg bg-[var(--color-accent)] text-[var(--color-accent-foreground)] text-sm font-semibold')).toEqual(
       style('standard', 'accent', 'solid'),
     );
     // Gros bouton (texte de base, py-3) : grand.

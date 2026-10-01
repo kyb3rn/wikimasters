@@ -1,3 +1,7 @@
+import type { NetRequest } from '@/core/net';
+import { textOf } from '@/core/text';
+import { SITE_OVERLAY } from '@/site/modals';
+
 /*
  * /guild sans guilde (code du 30/09/2026) : dans la page, sous les onglets, la carte « Vous n'êtes dans aucune
  * guilde » (`card-frame p-8`, château lucide `size-14`, bouton « Créer une guilde »), remplacée par React, au clic,
@@ -7,8 +11,6 @@
  * pendant la requête (« Création… »). Réussite : formulaire fermé, page de la guilde chargée. « Annuler » garde
  * les valeurs saisies pour la prochaine ouverture ; une requête en échec réseau ne montre rien.
  */
-
-export const GUILD_ROUTE = '/guild';
 
 export interface GuildCreationForm {
   readonly root: HTMLElement;
@@ -22,9 +24,12 @@ export interface GuildCreationForm {
   readonly sending: boolean;
 }
 
-/** Cadres de la page (pas ceux d'une modale, comme « Modifier la guilde »). */
+/**
+ * Cadres de la page : pas ceux d'une modale (« Modifier la guilde »), ni une copie inerte posée par le script (la
+ * carte « Vous n'êtes dans aucune guilde » gardée derrière sa fenêtre).
+ */
 const pageFrames = (doc: Document) =>
-  [...doc.querySelectorAll<HTMLElement>('main div.card-frame')].filter((frame) => !frame.closest('.fixed'));
+  [...doc.querySelectorAll<HTMLElement>('main div.card-frame')].filter((frame) => !frame.closest(`${SITE_OVERLAY}, [inert]`));
 
 /** Carte « Vous n'êtes dans aucune guilde » et son bouton « Créer une guilde ». */
 export function findNoGuildCard(doc: Document = document): { root: HTMLElement; createButton: HTMLButtonElement } | undefined {
@@ -43,7 +48,7 @@ export function findGuildCreationForm(doc: Document = document): GuildCreationFo
     const cancelButton = root.querySelector<HTMLButtonElement>(':scope > div > h2 ~ button');
     const submitButton = root.querySelector<HTMLButtonElement>(':scope > button');
     if (!nameInput || !descriptionInput || !cancelButton || !submitButton) continue;
-    const error = root.querySelector(':scope > p')?.textContent?.trim();
+    const error = textOf(root.querySelector(':scope > p'));
     return {
       root,
       nameInput,
@@ -59,5 +64,4 @@ export function findGuildCreationForm(doc: Document = document): GuildCreationFo
 }
 
 /** Requête de création d'une guilde. */
-export const isGuildCreation = (request: { readonly method: string; readonly url: URL }): boolean =>
-  request.method === 'POST' && request.url.pathname === '/api/guilds';
+export const isGuildCreation = (request: NetRequest): boolean => request.method === 'POST' && request.url.pathname === '/api/guilds';

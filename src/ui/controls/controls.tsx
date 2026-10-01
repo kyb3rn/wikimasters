@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { injectStyle } from '@/core/dom';
 import { buttonClass } from '@/ui/button';
+import { cx } from '@/ui/cx';
 import { Icon } from '@/ui/icons';
 import { siteClass } from '@/ui/site';
 import { tokens } from '@/ui/theme';
@@ -61,7 +62,7 @@ export function CloseButton({ onClick, disabled, class: extra }: CloseButtonProp
   return (
     <button
       type="button"
-      class={extra ? `${extra} ${className}` : className}
+      class={cx(extra, className)}
       aria-label="Fermer"
       disabled={disabled}
       onClick={onClick}

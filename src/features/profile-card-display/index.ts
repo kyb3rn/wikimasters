@@ -1,16 +1,11 @@
-import type { Feature } from '@/core/runtime';
-import { CARD_DISPLAY_NAME, defineCardDisplay } from '@/services/card-display';
+import { cardDisplayFeature } from '@/services/card-display';
+import { MY_PROFILE_ROUTE, PROFILE_ROUTE } from '@/site/routes';
 
-// Espacement du site sur ordinateur : `md:gap-[26px]`.
-const display = defineCardDisplay('profile-card-display', 26);
-
-export const profileCardDisplay: Feature = {
+export const profileCardDisplay = cardDisplayFeature({
   id: 'profile-card-display',
-  name: CARD_DISPLAY_NAME,
-  description: "Taille des cartes des profils (vitrines, collection, choix d'une carte de vitrine) et espace entre elles.",
   category: 'Profil',
-  routes: ['/profile', '/profile/:name'],
-  required: true,
-  settings: display.settings,
-  mount: display.mount,
-};
+  routes: [MY_PROFILE_ROUTE, PROFILE_ROUTE],
+  description: "Taille des cartes des profils (vitrines, collection, choix d'une carte de vitrine) et espace entre elles.",
+  // Espacement du site sur ordinateur : `md:gap-[26px]`.
+  siteGap: 26,
+});

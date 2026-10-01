@@ -1,34 +1,32 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CARD_SCALES, cardDisplayCss, defineCardDisplay } from '@/services/card-display';
+import { CARD_SCALES, cardDisplayCss, cardDisplayFeature, cardGridClass, type CardDisplayConfig } from '@/services/card-display';
+import { fakeStorage } from '../../support';
 
-beforeEach(() => {
-  const data = new Map<string, string>();
-  vi.stubGlobal('localStorage', {
-    getItem: (key: string) => data.get(key) ?? null,
-    setItem: (key: string, value: string) => void data.set(key, value),
-  });
-});
+beforeEach(() => vi.stubGlobal('localStorage', fakeStorage()));
 afterEach(() => vi.unstubAllGlobals());
+
+const display = (id: string, siteGap: number, extra: Partial<CardDisplayConfig> = {}) =>
+  cardDisplayFeature({ id, category: 'Démo', routes: 'all', description: 'Démo.', siteGap, ...extra });
 
 describe('affichage des cartes', () => {
   it('aux valeurs du site, aucune règle : ses espacements selon la largeur restent les siens', () => {
-    expect(cardDisplayCss(100, 26, 26)).toBe('');
+    expect(cardDisplayCss('demo', 100, 26, 26)).toBe('');
   });
 
   it('la taille agrandit chaque case de la grille, pas un voile de chargement', () => {
-    expect(cardDisplayCss(150, 26, 26)).toBe('.wm-card-grid > :not([aria-busy]) { zoom: 1.5; }');
-    expect(cardDisplayCss(75, 26, 26)).toBe('.wm-card-grid > :not([aria-busy]) { zoom: 0.75; }');
-    expect(cardDisplayCss(112.5, 26, 26)).toBe('.wm-card-grid > :not([aria-busy]) { zoom: 1.125; }');
+    expect(cardDisplayCss('demo', 150, 26, 26)).toBe('.wm-demo > :not([aria-busy]) { zoom: 1.5; }');
+    expect(cardDisplayCss('demo', 75, 26, 26)).toBe('.wm-demo > :not([aria-busy]) { zoom: 0.75; }');
+    expect(cardDisplayCss('demo', 112.5, 26, 26)).toBe('.wm-demo > :not([aria-busy]) { zoom: 1.125; }');
   });
 
   it('l’espacement remplace celui du site dès qu’il en diffère', () => {
-    expect(cardDisplayCss(100, 40, 26)).toBe('.wm-card-grid { gap: 40px !important; }');
-    expect(cardDisplayCss(100, 0, 20)).toBe('.wm-card-grid { gap: 0px !important; }');
-    expect(cardDisplayCss(200, 8, 26).split('\n')).toHaveLength(2);
+    expect(cardDisplayCss('demo', 100, 40, 26)).toBe('.wm-demo { gap: 40px !important; }');
+    expect(cardDisplayCss('demo', 100, 0, 20)).toBe('.wm-demo { gap: 0px !important; }');
+    expect(cardDisplayCss('demo', 200, 8, 26).split('\n')).toHaveLength(2);
   });
 
   it('huit crans de 50 à 200 %, 100 % par défaut ; espacement du site par défaut, de 0 à 64 px', () => {
-    const { settings } = defineCardDisplay('demo-card-display', 26);
+    const { settings } = display('demo-card-display', 26);
     expect(CARD_SCALES).toEqual([50, 75, 87.5, 100, 112.5, 125, 150, 200]);
     expect(settings.schema.scale.options.map((option) => option.label)).toEqual([
       '50 %',
@@ -56,9 +54,16 @@ describe('affichage des cartes', () => {
     expect(settings.get('scale')).toBe(100);
   });
 
+  it('une fonctionnalité obligatoire par réglage, en section « Apparence » de son onglet ; ses grilles portent sa classe', () => {
+    const feature = display('guild-card-display', 26);
+    expect(feature).toMatchObject({ id: 'guild-card-display', name: 'Apparence', category: 'Démo', routes: 'all', required: true });
+    expect(feature.hidden).toBeUndefined();
+    expect(cardGridClass('guild-card-display')).toBe('wm-guild-card-display');
+  });
+
   it('chaque page a ses propres réglages', () => {
-    const collection = defineCardDisplay('collection-card-display', 26);
-    const market = defineCardDisplay('marketplace-card-display', 20);
+    const collection = display('collection-card-display', 26);
+    const market = display('marketplace-card-display', 20);
     collection.settings.set('scale', 200);
     expect(market.settings.get('scale')).toBe(100);
     expect(market.settings.get('gap')).toBe(20);

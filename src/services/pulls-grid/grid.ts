@@ -1,4 +1,7 @@
 import { ROOT_CLASS } from '@/core/dom';
+import { createListeners } from '@/core/listeners';
+import { createLogger } from '@/core/log';
+import { textOf } from '@/core/text';
 
 /** Classes de la grille, mises en forme par la fonctionnalité qui l'affiche. */
 export const PULLS_GRID_CLASSES = {
@@ -31,7 +34,7 @@ export interface PullsGridSlot {
   readonly actions: HTMLElement;
 }
 
-const listeners = new Set<() => void>();
+const changes = createListeners(createLogger('grille des paquets'));
 
 function box(className: string): HTMLDivElement {
   const element = document.createElement('div');
@@ -60,7 +63,7 @@ function readSlot(element: HTMLElement, index: number): PullsGridSlot | undefine
     index,
     element,
     face,
-    title: face?.querySelector('h3')?.textContent?.trim(),
+    title: face && textOf(face.querySelector('h3')),
     arrived: element.dataset.state === 'arrived',
     actions,
   };
@@ -94,13 +97,7 @@ export function markArrived(slot: PullsGridSlot): void {
 
 /** À appeler après tout changement de la grille (carte arrivée, copie remplacée, grille retirée). */
 export function notifyPullsGridChange(): void {
-  for (const listener of [...listeners]) {
-    try {
-      listener();
-    } catch {
-      // Un abonné défaillant n'empêche pas les autres d'être prévenus.
-    }
-  }
+  changes.emit();
 }
 
 /**
@@ -108,7 +105,5 @@ export function notifyPullsGridChange(): void {
  * une fonctionnalité qui y pose des boutons ou des tampons s'y abonne en plus.
  */
 export function onPullsGridChange(listener: () => void, options: { signal: AbortSignal }): void {
-  if (options.signal.aborted) return;
-  listeners.add(listener);
-  options.signal.addEventListener('abort', () => listeners.delete(listener), { once: true });
+  changes.on(listener, options);
 }

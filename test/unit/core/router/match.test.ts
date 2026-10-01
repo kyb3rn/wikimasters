@@ -21,7 +21,7 @@ describe('matchRoute', () => {
     expect(matchRoute('/profile/:pseudo', '/profile/%E0%A4%A')).toEqual({ pseudo: '%E0%A4%A' });
   });
 
-  it("exige le même nombre de segments sans joker", () => {
+  it('exige le même nombre de segments sans joker', () => {
     expect(matchRoute('/marketplace', '/marketplace/abc')).toBeNull();
     expect(matchRoute('/marketplace/:id', '/marketplace')).toBeNull();
   });

@@ -1,25 +1,17 @@
-import { injectStyle, setClass, watchDom, whenBody } from '@/core/dom';
+import { watchDom } from '@/core/dom';
 import { net } from '@/core/net';
 import { matchRoute } from '@/core/router';
 import type { Feature } from '@/core/runtime';
-import { openMarketModal, type MarketCard } from '@/services/market';
+import { openMarketModal } from '@/services/market';
 import { parseAuctionCard, readAuctionRequest } from '@/site/api';
+import type { CardRef } from '@/site/cards';
+import { AUCTION_ROUTE } from '@/site/routes';
 import { lockControl, unlockAll } from '@/ui/lock';
 
 const OWNER = 'auction-market';
-const BUSY = 'wm-auction-market-busy';
 
 /** Bouton « Vue du marché » de la page d'une enchère, à côté du titre de la carte (icône lucide `chart-line`). */
 const BUTTON = 'main button[aria-label="Vue du marché"]';
-
-const CSS = `
-/* Historique en cours de chargement : une roue à la place du graphique. */
-.${BUSY} svg.lucide-chart-line { display: none; }
-.${BUSY}::before { content: ''; width: 18px; height: 18px; border: 2px solid currentColor; border-right-color: transparent;
-  border-radius: 50%; animation: wm-spin 0.8s linear infinite; }
-.${BUSY}.wm-site-disabled { opacity: 1 !important; }
-@keyframes wm-spin { to { transform: rotate(360deg); } }
-`;
 
 /**
  * Page d'une enchère : son bouton « Vue du marché » ouvre notre historique des ventes (ou, sans PRO, l'offre
@@ -29,7 +21,7 @@ const CSS = `
 export const auctionMarket: Feature = {
   id: 'auction-market',
   name: 'Historique des ventes',
-  description: 'Page d’une enchère : « Vue du marché » ouvre l’historique des ventes de la carte.',
+  description: "Page d'une enchère : « Vue du marché » ouvre l'historique des ventes de la carte.",
   category: 'Marché',
   // La page charge l'enchère en arrivant : sa réponse peut précéder le changement d'adresse.
   routes: 'all',
@@ -37,7 +29,7 @@ export const auctionMarket: Feature = {
   hidden: true,
   async mount(ctx) {
     const { signal } = ctx;
-    const cards = new Map<string, MarketCard>();
+    const cards = new Map<string, CardRef>();
     let busy = false;
 
     net.observe(
@@ -47,25 +39,22 @@ export const auctionMarket: Feature = {
         if (!exchange.ok || !auctionId) return;
         const card = parseAuctionCard(await exchange.json().catch(() => undefined));
         if (card) cards.set(auctionId, card);
-        else ctx.log.warn('carte de l’enchère illisible', auctionId);
+        else ctx.log.warn("carte de l'enchère illisible", auctionId);
       },
       { signal },
     );
 
-    await whenBody();
-    if (signal.aborted) return;
-    injectStyle('auction-market', CSS);
+    if (!(await ctx.ready())) return;
 
     const currentCard = () => {
-      const auctionId = matchRoute('/marketplace/:id', location.pathname)?.id;
+      const auctionId = matchRoute(AUCTION_ROUTE, location.pathname)?.id;
       return auctionId ? cards.get(auctionId) : undefined;
     };
 
+    // Historique en cours de chargement : la roue à la place du graphique.
     function sync(): void {
       const button = document.querySelector<HTMLButtonElement>(BUTTON);
-      if (!button) return;
-      setClass(button, BUSY, busy);
-      lockControl(button, { owner: OWNER, locked: busy, reason: 'Chargement de l’historique…' });
+      if (button) lockControl(button, { owner: OWNER, locked: busy, reason: "Chargement de l'historique…", busy });
     }
 
     // Avant React (écouteur de la racine) : le site n'ouvre pas sa vue.
@@ -89,9 +78,6 @@ export const auctionMarket: Feature = {
     );
 
     watchDom(sync, { signal });
-    ctx.onDispose(() => {
-      document.querySelectorAll(`.${BUSY}`).forEach((el) => el.classList.remove(BUSY));
-      unlockAll(OWNER);
-    });
+    ctx.onDispose(() => unlockAll(OWNER));
   },
 };

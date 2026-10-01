@@ -1,7 +1,8 @@
-import { injectStyle, setClass, watchDom, whenBody } from '@/core/dom';
+import { classMarks, watchDom } from '@/core/dom';
 import type { Feature } from '@/core/runtime';
-import { placeRarityFilter } from '@/services/list-search';
+import { applySearchPlaceholder, placeRarityFilter } from '@/services/list-search';
 import { findProfileCollectionFilters } from '@/site/profile';
+import { PROFILE_ROUTE } from '@/site/routes';
 
 const AREA = 'wm-pc-filter-area';
 /** Sur la zone des filtres quand l'ami a des étiquettes (deux listes au lieu d'une). */
@@ -9,7 +10,6 @@ const TAGGED = 'wm-pc-tagged';
 const LINE = 'wm-pc-filter-line';
 const FIELD = 'wm-pc-search-field';
 const LISTS = 'wm-pc-lists';
-const PLACEHOLDER = 'Rechercher par nom ou description';
 
 /*
  * Ligne comme celle de la Collection : champ, cases de rareté, listes (étiquette, tri), puis le bouton de la
@@ -42,32 +42,25 @@ export const profileCollectionFilters: Feature = {
   name: 'Ligne des filtres',
   description: "Les filtres de la collection d'un ami sont présentés comme ceux de la Collection.",
   category: 'Profil',
-  routes: ['/profile/:name'],
+  routes: [PROFILE_ROUTE],
   required: true,
   hidden: true,
   async mount(ctx) {
     const { signal } = ctx;
-    await whenBody();
-    if (signal.aborted) return;
-    injectStyle('profile-collection-filters', CSS);
+    if (!(await ctx.ready())) return;
+    ctx.style(CSS);
 
-    watchDom(
-      () => {
-        const filters = findProfileCollectionFilters();
-        if (!filters) return;
-        setClass(filters.area, AREA, true);
-        setClass(filters.area, TAGGED, filters.tag !== undefined);
-        setClass(filters.line, LINE, true);
-        setClass(filters.field, FIELD, true);
-        setClass(filters.lists, LISTS, true);
-        // React ne réécrit le texte d'aide que s'il change de son côté.
-        if (filters.field.placeholder !== PLACEHOLDER) {
-          filters.field.dataset.wmPlaceholder = filters.field.placeholder;
-          filters.field.placeholder = PLACEHOLDER;
-        }
-      },
-      { signal },
-    );
+    const marks = classMarks(signal);
+    watchDom(() => {
+      const filters = findProfileCollectionFilters();
+      if (!filters) return;
+      marks.only(AREA, [filters.area]);
+      marks.only(TAGGED, filters.tag ? [filters.area] : []);
+      marks.only(LINE, [filters.line]);
+      marks.only(FIELD, [filters.field]);
+      marks.only(LISTS, [filters.lists]);
+      applySearchPlaceholder(filters.field, signal);
+    }, { signal });
 
     placeRarityFilter({
       signal,
@@ -75,16 +68,6 @@ export const profileCollectionFilters: Feature = {
         const filters = findProfileCollectionFilters();
         return filters && { parent: filters.line, before: filters.lists, pills: filters.pills };
       },
-    });
-
-    ctx.onDispose(() => {
-      for (const field of document.querySelectorAll<HTMLInputElement>(`input.${FIELD}`)) {
-        if (field.dataset.wmPlaceholder !== undefined) field.placeholder = field.dataset.wmPlaceholder;
-        delete field.dataset.wmPlaceholder;
-      }
-      for (const name of [AREA, TAGGED, LINE, FIELD, LISTS]) {
-        document.querySelectorAll(`.${name}`).forEach((element) => element.classList.remove(name));
-      }
     });
   },
 };

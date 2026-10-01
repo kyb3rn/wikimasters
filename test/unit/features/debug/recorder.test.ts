@@ -1,27 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import type { NetExchange, NetRequest, SocketEvent } from '@/core/net';
-import { captureFileName } from '@/features/debug/capture';
-import {
-  createRecorder,
-  isRecordable,
-  toRecord,
-  toSocketRecord,
-  type RecordedExchange,
-} from '@/features/debug/recorder';
-
-function request(url: string, init: Partial<NetRequest> = {}): NetRequest {
-  return { url: new URL(url), method: 'GET', headers: new Headers(), body: undefined, own: false, ...init };
-}
+import type { NetExchange, SocketEvent } from '@/core/net';
+import { createRecorder, isRecordable, toRecord, toSocketRecord } from '@/features/debug/recorder';
+import { netRequest, recordedExchange } from '../../support';
 
 /** Échange dont le corps se lit comme dans `core/net` : octets, texte UTF-8 ou JSON. */
 function fakeExchange(
   body: string | Uint8Array,
   contentType: string | null,
-  { url = 'https://www.wiki-masters.com/api/x', ...init }: Partial<Omit<NetRequest, 'url'>> & { url?: string } = {},
+  { url = '/api/x', ...init }: Parameters<typeof netRequest>[1] & { url?: string } = {},
 ): NetExchange {
   const bytes = typeof body === 'string' ? new TextEncoder().encode(body) : body;
   const exchange: NetExchange = {
-    request: request(url, init),
+    request: netRequest(url, init),
     status: 200,
     ok: true,
     headers: new Headers(contentType ? { 'content-type': contentType } : {}),
@@ -33,22 +23,6 @@ function fakeExchange(
     json: async () => JSON.parse(await exchange.text()) as unknown,
   };
   return exchange;
-}
-
-function entry(body: string): RecordedExchange {
-  return {
-    at: '',
-    method: 'GET',
-    url: '',
-    own: false,
-    synthetic: false,
-    status: 200,
-    duration: 0,
-    requestHeaders: {},
-    responseHeaders: {},
-    body,
-    truncated: false,
-  };
 }
 
 const LIMITS = { maxEntries: 10, maxBodyChars: 100, maxTotalChars: 1000, maxSocketEvents: 10 };
@@ -67,22 +41,22 @@ function socketEvent(seq: number, init: Partial<SocketEvent> = {}): SocketEvent 
 describe('enregistreur', () => {
   it("oublie les plus anciens au-delà du nombre maximal d'échanges", () => {
     const recorder = createRecorder({ ...LIMITS, maxEntries: 2 });
-    ['a', 'b', 'c'].forEach((body) => recorder.add(entry(body)));
+    ['a', 'b', 'c'].forEach((body) => recorder.add(recordedExchange({ body })));
     expect(recorder.list().map((e) => e.body)).toEqual(['b', 'c']);
   });
 
   it('oublie les plus anciens au-delà du volume maximal, en gardant toujours le dernier', () => {
     const recorder = createRecorder({ ...LIMITS, maxTotalChars: 10 });
-    ['aaaa', 'bbbb', 'cccc'].forEach((body) => recorder.add(entry(body)));
+    ['aaaa', 'bbbb', 'cccc'].forEach((body) => recorder.add(recordedExchange({ body })));
     expect(recorder.list().map((e) => e.body)).toEqual(['bbbb', 'cccc']);
-    recorder.add(entry('x'.repeat(50)));
+    recorder.add(recordedExchange({ body: 'x'.repeat(50) }));
     expect(recorder.list()).toHaveLength(1);
   });
 
   it('ignore les fichiers statiques de Next.js', () => {
-    expect(isRecordable(request('https://www.wiki-masters.com/_next/static/chunks/a.js'))).toBe(false);
-    expect(isRecordable(request('https://www.wiki-masters.com/api/marketplace'))).toBe(true);
-    expect(isRecordable(request('https://x.supabase.co/rest/v1/user_cards'))).toBe(true);
+    expect(isRecordable(netRequest('https://www.wiki-masters.com/_next/static/chunks/a.js'))).toBe(false);
+    expect(isRecordable(netRequest('https://www.wiki-masters.com/api/marketplace'))).toBe(true);
+    expect(isRecordable(netRequest('https://x.supabase.co/rest/v1/user_cards'))).toBe(true);
   });
 
   it('enregistre un échange, secrets masqués et corps coupé', async () => {
@@ -162,12 +136,5 @@ describe('enregistreur', () => {
     const recorder = createRecorder({ ...LIMITS, maxSocketEvents: 3 });
     for (const seq of [2, 1, 4, 3]) recorder.addSocket(await toSocketRecord(socketEvent(seq, { data: `m${seq}` }), 100));
     expect(recorder.sockets().map((e) => e.seq)).toEqual([2, 3, 4]);
-  });
-
-  it('nomme le fichier de capture d’après la page et l’heure', () => {
-    const date = new Date(2026, 8, 29, 14, 30, 5);
-    expect(captureFileName('/marketplace/3f2a-11', date)).toBe('wm-capture-marketplace-3f2a-11-20260929-143005.json');
-    expect(captureFileName('/', date)).toBe('wm-capture-accueil-20260929-143005.json');
-    expect(captureFileName('/profile/%C3%89lo', date)).toBe('wm-capture-profile-_C3_89lo-20260929-143005.json');
   });
 });

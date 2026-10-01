@@ -1,6 +1,7 @@
-import { injectStyle, setClass, watchDom, whenBody } from '@/core/dom';
+import { classMarks, watchDom } from '@/core/dom';
 import type { Feature } from '@/core/runtime';
-import { findPackButton, PULLS_ROUTE } from '@/site/pulls';
+import { findPackButton } from '@/site/pulls';
+import { PULLS_ROUTE } from '@/site/routes';
 
 const RAISED = 'wm-open-label';
 
@@ -24,16 +25,15 @@ export const pullsOpenLabel: Feature = {
   required: true,
   hidden: true,
   async mount(ctx) {
-    await whenBody();
-    if (ctx.signal.aborted) return;
-    injectStyle('pulls-open-label', CSS);
+    if (!(await ctx.ready())) return;
+    ctx.style(CSS);
+    const marks = classMarks(ctx.signal);
     watchDom(
       () => {
         const button = findPackButton();
-        if (button) setClass(button.label, RAISED, true);
+        if (button) marks.set(button.label, RAISED, true);
       },
       { signal: ctx.signal },
     );
-    ctx.onDispose(() => document.querySelectorAll(`.${RAISED}`).forEach((el) => el.classList.remove(RAISED)));
   },
 };

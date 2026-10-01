@@ -1,3 +1,5 @@
+import { textOf } from '@/core/text';
+import { SITE_OVERLAY } from '@/site/modals';
 import { findRarityPills, type RarityPills } from '@/site/rarity-pills';
 
 /**
@@ -20,9 +22,9 @@ export interface CardPicker {
 }
 
 export function findCardPicker(doc: Document = document): CardPicker | undefined {
-  for (const overlay of doc.querySelectorAll<HTMLElement>('div.fixed.inset-0')) {
+  for (const overlay of doc.querySelectorAll<HTMLElement>(SITE_OVERLAY)) {
     const frame = overlay.firstElementChild;
-    if (!(frame instanceof HTMLElement) || frame.querySelector('h3')?.textContent?.trim() !== 'Choisir une carte') continue;
+    if (!(frame instanceof HTMLElement) || textOf(frame.querySelector('h3')) !== 'Choisir une carte') continue;
     const pills = findRarityPills(frame);
     const search = pills?.row.parentElement;
     const field = search?.querySelector<HTMLInputElement>(':scope > input[type="text"]');

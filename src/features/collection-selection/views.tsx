@@ -1,8 +1,9 @@
 import type { ComponentChildren } from 'preact';
+import type { ConfirmStage } from '@/services/site-confirm';
 import { buttonClass } from '@/ui/button';
 import { Icon, type IconName } from '@/ui/icons';
 import { siteClass } from '@/ui/site';
-import { selectedLabel, type ConfirmStage } from './confirm';
+import { selectedLabel } from './label';
 
 export interface ToggleProps {
   readonly active: boolean;
@@ -110,7 +111,7 @@ export function SelectionActions(props: ActionsProps) {
             second={asking}
             first={
               <>
-                {discard.busy ? <Icon name="spinner" size={16} class="wm-spin" /> : <Icon name="trash" size={16} />}
+                <Icon name="trash" busy={discard.busy} size={16} />
                 Défausser tout
               </>
             }

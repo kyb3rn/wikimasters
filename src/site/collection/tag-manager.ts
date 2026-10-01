@@ -1,5 +1,6 @@
+import { textOf } from '@/core/text';
+import { findListbox } from '@/site/listbox';
 import { findSiteModals } from '@/site/modals';
-import { findCollectionSelect } from './filters';
 
 /**
  * Fenêtre « Gérer les étiquettes » (code du site, 29/09/2026 ; pas encore de capture), ouverte par la liste
@@ -14,13 +15,11 @@ export interface TagManager {
   readonly counts: HTMLElement[];
 }
 
-const text = (element: Element | null) => (element?.textContent ?? '').replace(/\s+/g, ' ').trim();
-
 export function findTagManager(doc: Document = document): TagManager | undefined {
   for (const { frame } of findSiteModals(doc)) {
-    if (!frame || text(frame.querySelector('h2')) !== 'Gérer les étiquettes') continue;
+    if (!frame || textOf(frame.querySelector('h2')) !== 'Gérer les étiquettes') continue;
     const counts = [...frame.querySelectorAll<HTMLElement>('div.flex.items-center.min-w-0 > span')].filter((span) =>
-      /^\d+ cartes?$/.test(text(span)),
+      /^\d+ cartes?$/.test(textOf(span)),
     );
     return { frame, counts };
   }
@@ -35,7 +34,7 @@ const MANAGE_TAGS = '__manage_tags__';
 
 /** De quoi ouvrir la fenêtre comme cette option, si la liste des étiquettes l'a. Relit les props à chaque appel. */
 export function tagManagerOpener(tag: HTMLButtonElement): (() => void) | undefined {
-  const select = findCollectionSelect(tag);
+  const select = findListbox(tag);
   if (!select?.options.some((option) => option.value === MANAGE_TAGS)) return undefined;
   return () => select.onChange(MANAGE_TAGS);
 }
@@ -50,7 +49,7 @@ export function findManageTagsOption(tag: HTMLButtonElement, doc: Document = doc
   const menu = id ? doc.getElementById(id) : null;
   if (!menu) return undefined;
   for (const option of menu.querySelectorAll<HTMLElement>('[role="option"]')) {
-    if (!text(option).startsWith('Gérer les étiquettes')) continue;
+    if (!textOf(option).startsWith('Gérer les étiquettes')) continue;
     const item = option.parentElement;
     return item && item !== menu ? item : option;
   }

@@ -6,7 +6,7 @@ export function GearButton({ onClick }: { readonly onClick: () => void }) {
   return (
     <button
       type="button"
-      class={`${buttonClass('round', { fill: 'ghost', size: 'sm' })} wm-gear`}
+      class={buttonClass('round', { fill: 'ghost', size: 'sm' })}
       aria-label="Paramètres WikiMasters"
       title="Paramètres WikiMasters"
       onClick={onClick}

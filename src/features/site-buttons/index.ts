@@ -1,5 +1,7 @@
-import { ROOT_CLASS, watchDom, whenBody } from '@/core/dom';
+import { watchDom } from '@/core/dom';
 import type { Feature } from '@/core/runtime';
+import { normalizeText } from '@/core/text';
+import { isOwn } from '@/site/dom';
 import { applyButtonClass } from '@/ui/button';
 import { classify, type SiteButton } from './rules';
 
@@ -7,7 +9,7 @@ import { classify, type SiteButton } from './rules';
 function hasText(button: HTMLButtonElement): boolean {
   const walker = document.createTreeWalker(button, NodeFilter.SHOW_TEXT);
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-    if (!node.textContent?.trim()) continue;
+    if (normalizeText(node.textContent) === '') continue;
     const badge = node.parentElement?.closest('.absolute');
     if (!badge || badge === button || !button.contains(badge)) return true;
   }
@@ -36,8 +38,7 @@ export const siteButtons: Feature = {
   required: true,
   hidden: true,
   async mount(ctx) {
-    await whenBody();
-    if (ctx.signal.aborted) return;
+    if (!(await ctx.ready())) return;
 
     // Classes de chaque bouton à son dernier passage : React ne les réécrit que si les siennes changent (les
     // nôtres disparaissent alors), un bouton inchangé n'est pas relu.
@@ -46,7 +47,7 @@ export const siteButtons: Feature = {
       () => {
         for (const button of document.querySelectorAll('button')) {
           if (seen.get(button) === button.className) continue;
-          if (!button.closest(`.${ROOT_CLASS}`)) {
+          if (!isOwn(button)) {
             const restyle = classify(read(button));
             applyButtonClass(button, restyle?.shape, restyle?.style);
           }
@@ -57,7 +58,7 @@ export const siteButtons: Feature = {
     );
     ctx.onDispose(() => {
       for (const button of document.querySelectorAll('button.wm-button')) {
-        if (!button.closest(`.${ROOT_CLASS}`)) applyButtonClass(button, undefined);
+        if (!isOwn(button)) applyButtonClass(button, undefined);
       }
     });
   },

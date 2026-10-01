@@ -1,5 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
-import { openSite, sitePage } from './support/site';
+import { expectDomIdle, letTimePass, openSite, rect, sitePage } from './support/site';
 
 // En-tête de son profil relevé sur le site (captures du 29/09/2026), données inventées. Le faux site n'a pas
 // Tailwind : seule la mise en page du script compte ici.
@@ -109,13 +109,8 @@ test('remplace l’en-tête du site et sa carte « Cartes uniques » : photo, ps
 test('mise en page : photo au centre à cheval sur le bas du fond, cartes de part et d’autre, visibilité en haut à droite', async ({ page }) => {
   await page.setViewportSize({ width: 1400, height: 900 });
   await openProfile(page);
-  const box = async (selector: string) => {
-    const found = await header(page).locator(selector).boundingBox();
-    if (!found) throw new Error(`${selector} introuvable`);
-    return found;
-  };
-  const frame = await header(page).boundingBox();
-  if (!frame) throw new Error('en-tête introuvable');
+  const box = (selector: string) => rect(header(page).locator(selector));
+  const frame = await rect(header(page));
   const cover = await box('.wm-profile-cover');
   const avatar = await box('.wm-profile-avatar');
   const name = await box('.wm-profile-name');
@@ -194,15 +189,11 @@ test('la pastille de la photo ouvre la fenêtre « Photo de profil » du site', 
 test('profil d’un autre joueur : en-tête du site inchangé', async ({ page }) => {
   await openSite(page, '/profile/Autre', { html: sitePage(OTHER_PROFILE) });
   await expect(page.locator('#site-header')).toBeVisible();
-  await page.waitForTimeout(300);
+  await letTimePass(page, 300);
   await expect(header(page)).toHaveCount(0);
 });
 
 test('au repos, le script ne resynchronise plus la page (pas de boucle)', async ({ page }) => {
   await openProfile(page);
-  const syncs = () => page.evaluate(() => window.wm?.debug?.domSyncs() ?? -1);
-  await page.waitForTimeout(300);
-  const before = await syncs();
-  await page.waitForTimeout(600);
-  expect(await syncs()).toBe(before);
+  await expectDomIdle(page);
 });

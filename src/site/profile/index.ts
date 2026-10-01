@@ -2,7 +2,7 @@ export { findCardPicker, type CardPicker } from './card-picker';
 export {
   findOwnProfileHeader,
   findUniqueCardsStat,
-  isProfileVisibilityRequest,
+  isProfileVisibilityChange,
   splitProfileLine,
   type OwnProfileHeader,
   type ProfileAvatar,
@@ -16,21 +16,15 @@ export { profilePath } from './path';
 export {
   findProfileCollectionFilters,
   findProfileCollectionPaginationBars,
+  findProfileCollectionReload,
   findProfileCollectionStates,
   hasProfileCollectionCards,
-  isProfileCollectionList,
   isProfileCollectionLoading,
   PROFILE_COLLECTION_SPINNER,
-  PROFILE_COLLECTION_TYPING_DELAY,
   profileCollectionList,
-  profileCollectionStatesAmong,
   readProfileCollectionChoice,
-  readProfileCollectionPageLabel,
-  readProfileCollectionQuery,
-  reloadProfileCollection,
-  sameProfileCollectionChoice,
   type ProfileCollectionFilters,
-  type ProfileCollectionPaginationBar,
   type ProfileCollectionQuery,
   type ProfileCollectionStates,
 } from './collection';
+export { showsProfileNotFound } from './not-found';

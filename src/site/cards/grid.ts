@@ -1,4 +1,5 @@
-import { ROOT_CLASS } from '@/core/dom';
+import { isOwn } from '@/site/dom';
+import { FACE } from './face';
 
 /**
  * Grilles de cartes du site (captures du 29/09/2026) : rangée `flex flex-wrap justify-center` dont chaque enfant
@@ -22,8 +23,8 @@ const isWrapRow = (element: Element) =>
 /** Rangées du site qui contiennent des faces de cartes (hors nos interfaces). */
 export function findCardGrids(root: ParentNode = document): HTMLElement[] {
   const grids = new Set<HTMLElement>();
-  for (const face of root.querySelectorAll<HTMLElement>('[class*="glow-"]')) {
-    if (!face.querySelector('h3') || face.parentElement?.closest('[class*="glow-"]') || face.closest(`.${ROOT_CLASS}`)) continue;
+  for (const face of root.querySelectorAll<HTMLElement>(FACE)) {
+    if (!face.querySelector('h3') || face.parentElement?.closest(FACE) || isOwn(face)) continue;
     let element = face.parentElement;
     for (let depth = 0; element && depth < MAX_DEPTH; depth++, element = element.parentElement) {
       if (isWrapRow(element)) {

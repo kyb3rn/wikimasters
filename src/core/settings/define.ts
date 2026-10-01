@@ -17,16 +17,13 @@ export function defineSettings<S extends SettingsSchema>(namespace: string, sche
   }
 
   function write(key: string, value: unknown): void {
-    updateSettings((current) => {
-      const entries: Record<string, unknown> = { ...(current.values[namespace] ?? {}) };
-      if (value === undefined) delete entries[key];
-      else entries[key] = value;
-      return { ...current, values: { ...current.values, [namespace]: entries } };
-    });
+    updateSettings((current) => ({
+      ...current,
+      values: { ...current.values, [namespace]: { ...current.values[namespace], [key]: value } },
+    }));
   }
 
   return {
-    namespace,
     schema,
     get(key) {
       const definition = schema[key];
@@ -38,14 +35,11 @@ export function defineSettings<S extends SettingsSchema>(namespace: string, sche
       if (!definition) throw new Error(`réglage inconnu : ${namespace}.${key}`);
       write(key, validate(definition, value));
     },
-    reset(key) {
-      write(key, undefined);
-    },
   };
 }
 
 /** Valeur utilisable : du bon type, bornée ; sinon la valeur par défaut. */
-export function validate(definition: SettingDefinition, value: unknown): boolean | number {
+function validate(definition: SettingDefinition, value: unknown): boolean | number {
   if (definition.type === 'boolean') return typeof value === 'boolean' ? value : definition.default;
   if (definition.type === 'choice') {
     return definition.options.some((option) => option.value === value) ? (value as number) : definition.default;

@@ -1,8 +1,6 @@
-import { injectStyle, ROOT_CLASS, whenBody } from '@/core/dom';
+import { ROOT_CLASS } from '@/core/dom';
 import type { Feature } from '@/core/runtime';
 import { COLOR_PICKER, FIELD_HEIGHT, HEX_ROW_BUTTON, LISTBOX_FIELD, SELECT_FIELD, SEND_BUTTON, TEXT_FIELD } from '@/site/fields';
-
-const STYLE = 'site-fields';
 
 /**
  * Hors couche : l'emporte sur les classes du site (Tailwind, en couches). Leurs voisins suivent : bouton
@@ -26,9 +24,6 @@ export const siteFields: Feature = {
   required: true,
   hidden: true,
   async mount(ctx) {
-    await whenBody();
-    if (ctx.signal.aborted) return;
-    injectStyle(STYLE, CSS);
-    ctx.onDispose(() => document.getElementById(`wm-style-${STYLE}`)?.remove());
+    if (await ctx.ready()) ctx.style(CSS);
   },
 };

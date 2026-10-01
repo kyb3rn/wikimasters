@@ -1,4 +1,5 @@
 import type { NetRequest } from '@/core/net';
+import { textOf } from '@/core/text';
 
 /**
  * En-tête de son propre profil (`/profile`, captures du 29/09/2026) :
@@ -65,8 +66,6 @@ export interface UniqueCardsStat {
   readonly stat: ProfileStat;
 }
 
-const text = (element: Element | null | undefined) => (element?.textContent ?? '').replace(/\s+/g, ' ').trim();
-
 const COUNT = /^(\d[\d\s]*)\s*(cartes?)$/i;
 
 /**
@@ -94,7 +93,7 @@ function readAvatar(button: HTMLButtonElement): ProfileAvatar | undefined {
   const image = button.querySelector('img');
   const src = image?.getAttribute('src');
   if (image && src) return { kind: 'image', src, alt: image.alt, style: image.getAttribute('style') ?? '' };
-  const initials = text(button.querySelector(':scope > span:first-child'));
+  const initials = textOf(button.querySelector(':scope > span:first-child'));
   return initials ? { kind: 'initials', text: initials } : undefined;
 }
 
@@ -103,15 +102,15 @@ function readVisibility(root: HTMLElement): ProfileVisibility | undefined {
     const action = button.getAttribute('aria-label') ?? '';
     if (!/^Rendre (privé|public)$/.test(action)) continue;
     const label = [...(button.parentElement?.children ?? [])].find((el) => el !== button && el.tagName === 'SPAN');
-    return { button, isPublic: action === 'Rendre privé', label: text(label), action };
+    return { button, isPublic: action === 'Rendre privé', label: textOf(label), action };
   }
   return undefined;
 }
 
 function readTags(identity: Element): ProfileTag[] {
   return [...identity.querySelectorAll(':scope > div > span')].map((chip) => {
-    const count = text(chip.children[1]).replace(/^×\s*/, '');
-    return { name: text(chip.children[0] ?? chip), count: count || undefined, style: chip.getAttribute('style') ?? '' };
+    const count = textOf(chip.children[1]).replace(/^×\s*/, '');
+    return { name: textOf(chip.children[0] ?? chip), count: count || undefined, style: chip.getAttribute('style') ?? '' };
   });
 }
 
@@ -123,12 +122,12 @@ export function findOwnProfileHeader(doc: Document = document): OwnProfileHeader
     const identity = avatarButton?.nextElementSibling;
     const title = identity?.querySelector(':scope > h1');
     if (!avatarButton || !root || !identity || !title) continue;
-    const line = [...identity.querySelectorAll(':scope > p span.whitespace-nowrap')].map((part) => text(part));
+    const line = [...identity.querySelectorAll(':scope > p span.whitespace-nowrap')].map((part) => textOf(part));
     return {
       root,
       avatarButton,
       avatar: readAvatar(avatarButton),
-      name: text(title),
+      name: textOf(title),
       ...splitProfileLine(line),
       tags: readTags(identity),
       visibility: readVisibility(root),
@@ -140,16 +139,16 @@ export function findOwnProfileHeader(doc: Document = document): OwnProfileHeader
 export function findUniqueCardsStat(doc: Document = document): UniqueCardsStat | undefined {
   for (const frame of doc.querySelectorAll('main .card-frame.text-center')) {
     const [value, label] = frame.children;
-    if (frame.children.length !== 2 || text(label) !== 'Cartes uniques') continue;
+    if (frame.children.length !== 2 || textOf(label) !== 'Cartes uniques') continue;
     const parent = frame.parentElement;
     const root = parent?.children.length === 1 && parent.tagName !== 'MAIN' ? parent : frame;
     if (!(root instanceof HTMLElement)) continue;
-    return { root, stat: { value: text(value), label: text(label) } };
+    return { root, stat: { value: textOf(value), label: textOf(label) } };
   }
   return undefined;
 }
 
 /** Changement de visibilité du profil (`PATCH /api/profile/<pseudo>` `{ is_public }`). */
-export function isProfileVisibilityRequest(request: NetRequest): boolean {
+export function isProfileVisibilityChange(request: NetRequest): boolean {
   return request.method === 'PATCH' && /^\/api\/profile\/[^/]+$/.test(request.url.pathname);
 }

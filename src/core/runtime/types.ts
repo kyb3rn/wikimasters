@@ -1,21 +1,27 @@
 import type { Logger } from '@/core/log';
-import type { RouteParams } from '@/core/router';
 import type { Settings } from '@/core/settings';
 
 export interface FeatureContext {
-  readonly id: string;
   /** Journal préfixé `[WM <id>]`. */
   readonly log: Logger;
   /** Interrompu au démontage : à passer à chaque écouteur, observateur, minuterie. */
   readonly signal: AbortSignal;
-  /** Chemin de la page au montage. */
-  readonly path: string;
-  /** Paramètres du motif reconnu (`{}` pour `routes: 'all'`). */
-  readonly params: RouteParams;
   /** Toutes les fonctionnalités et leur état (sert à la fenêtre de paramètres). */
   readonly catalog: FeatureCatalog;
   /** Action à faire au démontage (retirer un élément, rétablir un style…). */
   onDispose(action: () => void): void;
+  /**
+   * Attend `<body>` (le montage commence à `document-start`) ; faux si la fonctionnalité a été démontée
+   * entre-temps : `if (!(await ctx.ready())) return;`
+   */
+  ready(): Promise<boolean>;
+  /**
+   * Feuille de style de la fonctionnalité (`<style id="wm-style-<id>[-<name>]">`), retirée au démontage. Posée tout
+   * de suite, ou dès `<body>` si `<head>` n'existe pas encore. Un nouvel appel du même nom remplace son contenu.
+   */
+  style(css: string, name?: string): void;
+  /** Masque un élément pour cette fonctionnalité, ou le rend (`hidden` faux) : `setHidden`. Tous rendus au démontage. */
+  hide(element: Element, hidden?: boolean): void;
 }
 
 export interface Feature {
@@ -37,8 +43,6 @@ export interface Feature {
    * Un changement de paramètres (autre annonce, autre profil) la démonte puis la remonte.
    */
   readonly routes: 'all' | readonly string[];
-  /** Active tant que l'utilisateur ne l'a pas désactivée. Vrai par défaut. */
-  readonly enabledByDefault?: boolean;
   /** Toujours active, sans interrupteur (la fenêtre de paramètres elle-même). */
   readonly required?: boolean;
   /** Absente de la fenêtre de paramètres. */
@@ -47,7 +51,7 @@ export interface Feature {
   readonly settings?: Settings;
   /**
    * Démarre la fonctionnalité. Au chargement d'une page, appelé dès `document-start` :
-   * le DOM n'existe pas encore, l'attendre si besoin. Tout ce qui est posé doit être
+   * le DOM n'existe pas encore, l'attendre si besoin (`ctx.ready()`). Tout ce qui est posé doit être
    * lié à `ctx.signal` ou à `ctx.onDispose`.
    */
   mount(ctx: FeatureContext): void | Promise<void>;

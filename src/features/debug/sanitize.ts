@@ -1,7 +1,7 @@
 import type { Capture } from './capture';
 import { binaryContent, fromBase64, socketBinaryContent, type Content } from './content';
 import type { RecordedExchange, RecordedSocketEvent } from './recorder';
-import { redactBody, redactText, redactUrl } from './redact';
+import { redactBody, redactHeaderRecord, redactText, redactUrl } from './redact';
 
 /** Capture relue d'un fichier : format 1 (sans temps réel) ou 2. */
 export type StoredCapture = Omit<Capture, 'version' | 'sockets'> & {
@@ -32,9 +32,9 @@ function sanitizeExchange(exchange: RecordedExchange): RecordedExchange {
   return {
     ...rest,
     url: redactUrl(exchange.url),
-    requestHeaders: mapValues(exchange.requestHeaders, redactText),
+    requestHeaders: redactHeaderRecord(exchange.requestHeaders),
     ...(exchange.requestBody !== undefined && { requestBody: redactBody(exchange.requestBody) }),
-    responseHeaders: mapValues(exchange.responseHeaders, redactText),
+    responseHeaders: redactHeaderRecord(exchange.responseHeaders),
     body: body.text,
     ...(body.encoding === 'base64' && { bodyEncoding: 'base64' as const }),
     truncated: exchange.truncated || body.truncated,
@@ -55,8 +55,4 @@ function sanitizeSocketEvent(event: RecordedSocketEvent): RecordedSocketEvent {
     ...(content.encoding && { dataEncoding: content.encoding }),
     ...((truncated || content.truncated) && { truncated: true }),
   };
-}
-
-function mapValues(record: Record<string, string>, change: (value: string) => string): Record<string, string> {
-  return Object.fromEntries(Object.entries(record).map(([key, value]) => [key, change(value)]));
 }

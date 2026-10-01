@@ -1,16 +1,11 @@
-import type { Feature } from '@/core/runtime';
-import { CARD_DISPLAY_NAME, defineCardDisplay } from '@/services/card-display';
+import { cardDisplayFeature } from '@/services/card-display';
+import { GLOBAL_COLLECTION_ROUTE } from '@/site/routes';
 
-// Espacement du site sur ordinateur : `md:gap-[26px]`.
-const display = defineCardDisplay('global-collection-card-display', 26);
-
-export const globalCollectionCardDisplay: Feature = {
+export const globalCollectionCardDisplay = cardDisplayFeature({
   id: 'global-collection-card-display',
-  name: CARD_DISPLAY_NAME,
-  description: 'Taille des cartes du catalogue et espace entre elles.',
   category: 'Toutes les cartes',
-  routes: ['/global-collection'],
-  required: true,
-  settings: display.settings,
-  mount: display.mount,
-};
+  routes: [GLOBAL_COLLECTION_ROUTE],
+  description: 'Taille des cartes du catalogue et espace entre elles.',
+  // Espacement du site sur ordinateur : `md:gap-[26px]`.
+  siteGap: 26,
+});

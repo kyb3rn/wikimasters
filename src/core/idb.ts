@@ -75,42 +75,37 @@ export function idbStore(options: IdbStoreOptions): IdbStore {
     return current;
   }
 
-  async function run<T>(mode: IDBTransactionMode, action: (objects: IDBObjectStore) => IDBRequest, fallback: T): Promise<T> {
+  /** Base indisponible ou requête en échec : `fallback`, lu à ce moment-là dans la copie en mémoire. */
+  async function run<T>(mode: IDBTransactionMode, action: (objects: IDBObjectStore) => IDBRequest, fallback: () => T): Promise<T> {
     const db = await open();
-    if (!db) return fallback;
+    if (!db) return fallback();
     return new Promise<T>((resolve) => {
       try {
         const request = action(db.transaction(store, mode).objectStore(store));
         request.onsuccess = () => resolve(request.result as T);
-        request.onerror = () => resolve(fallback);
+        request.onerror = () => resolve(fallback());
       } catch {
-        resolve(fallback);
+        resolve(fallback());
       }
     });
   }
 
+  const nothing = () => undefined;
+
   return {
-    async get(id) {
-      const db = await open();
-      if (!db) return memory.get(id);
-      return run<unknown>('readonly', (objects) => objects.get(id), undefined);
-    },
+    get: (id) => run<unknown>('readonly', (objects) => objects.get(id), () => memory.get(id)),
     async put(value) {
       memory.set(value.id, value);
-      await run('readwrite', (objects) => objects.put(value), undefined);
+      await run('readwrite', (objects) => objects.put(value), nothing);
     },
     async delete(id) {
       memory.delete(id);
-      await run('readwrite', (objects) => objects.delete(id), undefined);
+      await run('readwrite', (objects) => objects.delete(id), nothing);
     },
-    async values() {
-      const db = await open();
-      if (!db) return [...memory.values()];
-      return run<unknown[]>('readonly', (objects) => objects.getAll(), []);
-    },
+    values: () => run<unknown[]>('readonly', (objects) => objects.getAll(), () => [...memory.values()]),
     async clear() {
       memory.clear();
-      await run('readwrite', (objects) => objects.clear(), undefined);
+      await run('readwrite', (objects) => objects.clear(), nothing);
     },
   };
 }

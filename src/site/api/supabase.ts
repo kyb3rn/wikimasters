@@ -1,6 +1,6 @@
-import { isRecord } from '@/core/guards';
+import { isRecord, parseJson } from '@/core/guards';
 import { net, type NetRequest } from '@/core/net';
-import { SiteApiError } from './request';
+import { NETWORK_ERROR, SiteApiError } from './errors';
 
 /**
  * Base Supabase du site (`https://<projet>.supabase.co`), appelée directement par son client : étiquettes,
@@ -35,21 +35,28 @@ export function trackSupabaseSession(): void {
   );
 }
 
-/** Pour les tests : oublie la session. */
-export function resetSupabaseSession(): void {
-  session = undefined;
-}
-
 /** Utilisateur de la session (`sub` du jeton), s'il est lisible. */
 export function supabaseUserId(): string | undefined {
   const payload = session?.authorization.slice('Bearer '.length).split('.')[1];
   if (!payload) return undefined;
+  let json: unknown;
   try {
-    const json: unknown = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
-    return isRecord(json) && typeof json.sub === 'string' ? json.sub : undefined;
+    json = parseJson(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
   } catch {
+    // Pas du base64.
     return undefined;
   }
+  return isRecord(json) && typeof json.sub === 'string' ? json.sub : undefined;
+}
+
+/**
+ * De quoi ouvrir le temps réel de Supabase avec la session du site : adresse de sa WebSocket (celle du site, clé
+ * publique comprise) et jeton de la session, renouvelé avec elle.
+ */
+export function supabaseRealtimeAccess(): { readonly url: string; readonly token: string } | undefined {
+  if (!session) return undefined;
+  const url = `${session.origin.replace(/^http/, 'ws')}/realtime/v1/websocket?apikey=${encodeURIComponent(session.apikey)}&vsn=2.0.0`;
+  return { url, token: session.authorization.slice('Bearer '.length) };
 }
 
 /**
@@ -59,7 +66,7 @@ export function supabaseUserId(): string | undefined {
  */
 export async function supabaseFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const current = session;
-  if (!current) throw new SiteApiError('session du site introuvable : recharger la page', 0);
+  if (!current) throw new SiteApiError('Session du site introuvable : rechargez la page.', 0);
   const headers = new Headers(init.headers);
   headers.set('apikey', current.apikey);
   headers.set('authorization', current.authorization);
@@ -67,14 +74,14 @@ export async function supabaseFetch(path: string, init: RequestInit = {}): Promi
   try {
     return await net.fetch(current.origin + path, { ...init, headers });
   } catch {
-    throw new SiteApiError('erreur réseau', 0);
+    throw new SiteApiError(NETWORK_ERROR, 0);
   }
 }
 
 /**
  * Appel de l'API REST de Supabase (`/rest/v1/…`) avec la session du site, par `net.fetch`. Une seule
- * tentative. `failure` : le message montré si le serveur refuse (les siens sont techniques, en anglais) ;
- * le code Postgres (`23505` : doublon) reste dans `SiteApiError.code`.
+ * tentative. `failure` : le message montré si le serveur refuse, sans point final (les siens sont techniques, en
+ * anglais) ; le code Postgres (`23505` : doublon) reste dans `SiteApiError.code`.
  */
 export async function supabaseRequest<T>(
   path: string,
@@ -84,18 +91,21 @@ export async function supabaseRequest<T>(
 ): Promise<T> {
   const response = await supabaseFetch(path, init);
   const text = await response.text().catch(() => '');
-  let body: unknown;
-  try {
-    body = text ? JSON.parse(text) : undefined;
-  } catch {
-    body = undefined;
-  }
+  const body = text ? parseJson(text) : undefined;
   if (!response.ok) {
     const code = isRecord(body) && typeof body.code === 'string' ? body.code : undefined;
-    const message = response.status === 401 ? 'session expirée : recharger la page' : `${failure} (erreur ${response.status})`;
+    const message = response.status === 401 ? 'Session expirée : rechargez la page.' : `${failure} (erreur ${response.status}).`;
     throw new SiteApiError(message, response.status, code);
   }
   const value = parse(body);
-  if (value === undefined) throw new SiteApiError('réponse inattendue du site', response.status);
+  if (value === undefined) throw new SiteApiError('Réponse inattendue du site.', response.status);
   return value;
+}
+
+/**
+ * Profil du joueur connecté demandé par le site à Supabase (`rpc/get_my_profile`, `rpc/sync_profile_packs` :
+ * `{ id, username, is_pro, … }`).
+ */
+export function isMyProfileRpc(request: NetRequest): boolean {
+  return request.method === 'POST' && /\/rest\/v1\/rpc\/(?:get_my_profile|sync_profile_packs)$/.test(request.url.pathname);
 }

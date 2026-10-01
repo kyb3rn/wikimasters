@@ -1,9 +1,12 @@
-import { watchDom, whenBody } from '@/core/dom';
-import { net, type NetExchange } from '@/core/net';
+import { watchDom } from '@/core/dom';
+import { parseJson } from '@/core/guards';
+import { cacheResponse, net, replayResponse, type CachedResponse } from '@/core/net';
 import type { Feature } from '@/core/runtime';
-import { findCardModals, readAuctionCreation, readDiscard } from '@/site/cards';
+import { normalizeText } from '@/core/text';
+import { markModalCard, type CardMark } from '@/services/card-marks';
+import { readAuctionCreation, readDiscard } from '@/site/api';
+import { findCardModals } from '@/site/cards';
 import {
-  COLLECTION_ROUTE,
   findCollectionFaces,
   isBulkDiscard,
   isCollectionList,
@@ -14,8 +17,9 @@ import {
   selectionMarkOf,
   type CollectionEntry,
 } from '@/site/collection';
-import { lockControl, unlockAll } from '@/ui/lock';
-import { stampedFaces, stampFace, unstampAll, type Stamp } from '@/ui/stamp';
+import { COLLECTION_ROUTE } from '@/site/routes';
+import { unlockAll } from '@/ui/lock';
+import { STAMPS, syncStamps, unstampAll, type Stamp } from '@/ui/stamp';
 
 const OWNER = 'collection-stay';
 /** Le site recharge la liste dès la réponse de l'action : au-delà, une requête n'est plus ce rechargement. */
@@ -25,19 +29,10 @@ const CACHE_SIZE = 8;
 /** Une carte décochée par le script ne l'est pas deux fois avant que le site ait redessiné. */
 const DESELECT_GAP_MS = 500;
 
-type Action = 'discarded' | 'listed';
-
-interface Cached {
-  readonly body: string;
-  readonly contentType: string;
-}
-
-const normalize = (text: string | undefined) => (text ?? '').replace(/\s+/g, ' ').trim();
-
 /** Un exemplaire sur plusieurs : la carte reste dans la collection. */
-function stampOf(action: Action, count: number): Stamp {
-  if (action === 'discarded') return { label: count > 1 ? '1 défaussée' : 'Défaussée', tone: 'danger' };
-  return { label: count > 1 ? '1 en vente' : 'En vente', tone: 'success' };
+function stampOf(mark: CardMark, count: number): Stamp {
+  const stamp = STAMPS[mark];
+  return count > 1 ? { ...stamp, label: `1 ${stamp.label.toLowerCase()}` } : stamp;
 }
 
 export const collectionStay: Feature = {
@@ -45,15 +40,15 @@ export const collectionStay: Feature = {
   name: 'Collection sans rechargement',
   description:
     "Après une défausse (même de toute la sélection) ou une mise aux enchères, la liste n'est pas rechargée : la carte reste, marquée « Défaussée » ou « En vente », jusqu'au prochain chargement de la liste. Elle ne se sélectionne plus.",
-  category: 'Général',
+  category: 'Collection',
   routes: [COLLECTION_ROUTE],
   required: true,
   hidden: true,
   async mount(ctx) {
     const { signal, log } = ctx;
-    const cache = new Map<string, Cached>();
+    const cache = new Map<string, CachedResponse>();
     /** Exemplaires défaussés ou mis en vente depuis cette page. */
-    const done = new Map<string, Action>();
+    const done = new Map<string, CardMark>();
     /** Rechargement attendu : chaque requête (liste, compteurs) n'est resservie qu'une fois. */
     let quiet: { until: number; served: Set<'list' | 'stats'> } | undefined;
     /** Dernière liste demandée, et celle affichée (sa réponse). */
@@ -63,14 +58,18 @@ export const collectionStay: Feature = {
     let doneFaces = new Set<HTMLElement>();
     const deselectedAt = new WeakMap<HTMLElement, number>();
 
-    function remember(exchange: NetExchange, body: string): void {
-      const href = exchange.request.url.href;
+    function remember(href: string, cached: CachedResponse): void {
       cache.delete(href);
-      cache.set(href, { body, contentType: exchange.headers.get('content-type') ?? 'application/json' });
+      cache.set(href, cached);
       for (const oldest of cache.keys()) {
         if (cache.size <= CACHE_SIZE) break;
         cache.delete(oldest);
       }
+    }
+
+    function expectReload(): void {
+      quiet = { until: performance.now() + QUIET_MS, served: new Set() };
+      sync();
     }
 
     net.track(
@@ -84,15 +83,11 @@ export const collectionStay: Feature = {
       (request) => isCollectionList(request) || isCollectionStats(request),
       async (exchange) => {
         if (!exchange.ok) return;
-        const body = await exchange.text();
-        if (!exchange.synthetic) remember(exchange, body);
+        const cached = await cacheResponse(exchange);
+        if (!exchange.synthetic) remember(exchange.request.url.href, cached);
         // Une réponse d'une liste abandonnée entre-temps (autre filtre) n'est pas celle affichée.
         if (!isCollectionList(exchange.request) || exchange.request.url.href !== requested) return;
-        try {
-          shown = parseCollection(JSON.parse(body)) ?? [];
-        } catch {
-          shown = [];
-        }
+        shown = parseCollection(parseJson(cached.body)) ?? [];
         sync();
       },
       { signal },
@@ -104,12 +99,11 @@ export const collectionStay: Feature = {
       (request) => {
         const discard = readDiscard(request);
         const id = discard?.userCardId ?? readAuctionCreation(request)?.userCardId;
-        const action: Action = discard ? 'discarded' : 'listed';
+        const mark: CardMark = discard ? 'discarded' : 'listed';
         return (status) => {
           if (!id || status === undefined || status >= 400) return;
-          done.set(id, action);
-          quiet = { until: performance.now() + QUIET_MS, served: new Set() };
-          sync();
+          done.set(id, mark);
+          expectReload();
         };
       },
       { signal },
@@ -122,8 +116,7 @@ export const collectionStay: Feature = {
         return (status) => {
           if (ids.length === 0 || status === undefined || status >= 400) return;
           for (const id of ids) done.set(id, 'discarded');
-          quiet = { until: performance.now() + QUIET_MS, served: new Set() };
-          sync();
+          expectReload();
         };
       },
       { signal },
@@ -149,13 +142,13 @@ export const collectionStay: Feature = {
         if (!cached) return undefined;
         quiet.served.add(kind);
         log.debug('rechargement évité', request.url.pathname + request.url.search);
-        return new Response(cached.body, { status: 200, headers: { 'content-type': cached.contentType } });
+        // Lue sans attendre : le voile de chargement du site n'a pas le temps d'apparaître.
+        return replayResponse(cached);
       },
       { signal },
     );
 
-    await whenBody();
-    if (signal.aborted) return;
+    if (!(await ctx.ready())) return;
 
     // En sélection, un exemplaire défaussé ou mis en vente ne se coche plus : il n'existe plus pour le site.
     window.addEventListener(
@@ -189,24 +182,19 @@ export const collectionStay: Feature = {
       // Grille en cours de remplacement (autre page, autre filtre) : rien à marquer.
       if (faces.length === shown.length) {
         shown.forEach((entry, index) => {
-          const action = done.get(entry.id);
+          const mark = done.get(entry.id);
           const face = faces[index];
-          if (action && face && normalize(face.querySelector('h3')?.textContent ?? '') === normalize(entry.title)) {
-            wanted.set(face, stampOf(action, entry.count));
+          if (mark && face && normalizeText(face.querySelector('h3')?.textContent) === normalizeText(entry.title)) {
+            wanted.set(face, stampOf(mark, entry.count));
           }
         });
       }
-      const discarded = new Set(shown.filter((entry) => done.get(entry.id) === 'discarded').map((entry) => normalize(entry.title)));
-      for (const modal of findCardModals()) {
-        const locked = discarded.has(normalize(modal.title));
-        for (const control of [modal.discardButton, modal.auctionButton, modal.tagInput]) {
-          if (control) lockControl(control, { owner: OWNER, locked, reason: 'Carte déjà défaussée' });
-        }
-        if (locked && modal.face) wanted.set(modal.face, { ...stampOf('discarded', 1), revealable: true });
-      }
-      doneFaces = new Set([...wanted.keys()].filter((face) => faces.includes(face)));
-      for (const face of stampedFaces(OWNER)) if (!wanted.has(face)) stampFace(face, OWNER, undefined);
-      for (const [face, stamp] of wanted) stampFace(face, OWNER, stamp);
+      doneFaces = new Set(wanted.keys());
+      const main = document.querySelector('main');
+      if (main) syncStamps(OWNER, wanted, main);
+      // Les mises en vente sont verrouillées dans la modale par auction-stay.
+      const discarded = new Set(shown.filter((entry) => done.get(entry.id) === 'discarded').map((entry) => normalizeText(entry.title)));
+      for (const modal of findCardModals()) markModalCard(modal, OWNER, discarded.has(normalizeText(modal.title)) ? 'discarded' : undefined);
       deselectDone();
     }
 

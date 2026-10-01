@@ -1,18 +1,17 @@
-import { h, type ComponentChild } from 'preact';
-import { childController } from '@/core/async';
-import { injectStyle, setClass, watchDom, whenBody } from '@/core/dom';
+import { h } from 'preact';
+import { renameText, watchDom } from '@/core/dom';
 import { net } from '@/core/net';
 import type { Feature } from '@/core/runtime';
-import { marketNeedsPro, onMarketAvailabilityChange, openMarketModal } from '@/services/market';
-import { isWishlistChange } from '@/site/api';
-import { findCardModals, findDiscardConfirm, readDiscard, readModalCard, type CardModal } from '@/site/cards';
-import { ReportButton } from '@/ui/controls';
+import { textOf } from '@/core/text';
+import { marketNeedsPro, openMarketModal } from '@/services/market';
+import { siteReportButton } from '@/services/report-button';
+import { isWishlistChange, readDiscard } from '@/site/api';
+import { findCardModals, findDiscardConfirm, readModalCard, type CardModal } from '@/site/cards';
+import { onProStatusChange } from '@/site/pro';
 import { lockControl, unlockAll } from '@/ui/lock';
-import { mountUi, type MountedUi } from '@/ui/mount';
-import { ensureBaseStyle } from '@/ui/theme';
+import { createSlots } from '@/ui/mount';
 import { toast } from '@/ui/toast';
 import { CatalogActions, MarketButton } from './buttons';
-import { CSS, DISCARD_BUSY } from './style';
 
 const OWNER = 'card-modal-layout';
 /**
@@ -21,48 +20,45 @@ const OWNER = 'card-modal-layout';
  */
 const SETTLED_MS = 300;
 
-interface Slot {
-  readonly ui: MountedUi;
-  readonly controller: AbortController;
-}
-
-interface ModalSlots {
-  report?: Slot;
-  market?: Slot;
-}
-
-const text = (element: Element) => (element.textContent ?? '').replace(/\s+/g, ' ').trim();
-
-/** Remplace le texte d'un bouton du site (son nœud texte), sans toucher à son icône. Idempotent. */
-function renameButton(button: HTMLButtonElement, from: string, to: string): void {
-  for (const node of button.childNodes) {
-    if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim() === from) node.textContent = to;
-  }
+/** Requêtes en cours, par modale de carte ouverte à leur départ. */
+function pendingCounter() {
+  const counts = new Map<HTMLElement, number>();
+  return {
+    has: (root: HTMLElement) => counts.has(root),
+    add(roots: readonly HTMLElement[]) {
+      for (const root of roots) counts.set(root, (counts.get(root) ?? 0) + 1);
+    },
+    remove(roots: readonly HTMLElement[]) {
+      for (const root of roots) {
+        const left = (counts.get(root) ?? 1) - 1;
+        if (left > 0) counts.set(root, left);
+        else counts.delete(root);
+      }
+    },
+  };
 }
 
 export const cardModalLayout: Feature = {
   id: 'card-modal-layout',
   name: 'Modale de carte',
   description:
-    'Présentation de la modale de carte : signalement sur l’image, actions Vendre · Marché (historique des ventes) · Défausser (roue pendant la défausse) ; vue catalogue (Toutes les cartes) : liste de souhaits · Marché.',
+    "Présentation de la modale de carte : signalement sur l'image, actions Vendre · Marché (historique des ventes) · Défausser (roue pendant la défausse) ; vue catalogue (Toutes les cartes) : liste de souhaits · Marché.",
   category: 'Général',
   routes: 'all',
   required: true,
   hidden: true,
   async mount(ctx) {
     const { signal } = ctx;
-    await whenBody();
-    if (signal.aborted) return;
-    ensureBaseStyle();
-    injectStyle('card-modal', CSS);
+    if (!(await ctx.ready())) return;
 
-    const slots = new Map<HTMLElement, ModalSlots>();
-    /** Modales ouvertes au départ d'une défausse du site → défausses en cours. */
-    const discarding = new Map<HTMLElement, number>();
+    const reports = createSlots<HTMLElement>(signal);
+    const markets = createSlots<HTMLElement>(signal);
+    /** Défausses en cours (défaussage rapide ou confirmation du site). */
+    const discarding = pendingCounter();
+    /** Ajouts ou retraits de la liste de souhaits en cours. */
+    const wishing = pendingCounter();
     /** Modales dont l'historique des ventes se charge. */
     const opening = new Set<HTMLElement>();
-    /** Modales au départ d'un ajout ou retrait de la liste de souhaits → requêtes en cours. */
-    const wishing = new Map<HTMLElement, number>();
 
     function openMarket(modal: CardModal): void {
       const card = readModalCard(modal);
@@ -79,20 +75,16 @@ export const cardModalLayout: Feature = {
       });
     }
 
-    // Défausse partie de la modale (défaussage rapide ou confirmation du site), jusqu'à la réponse ou l'échec réseau.
+    // Défausse partie de la modale, jusqu'à la réponse ou l'échec réseau.
     net.track(
       (request) => readDiscard(request) !== undefined && !request.own,
       () => {
         const roots = findCardModals().map((modal) => modal.root);
-        for (const root of roots) discarding.set(root, (discarding.get(root) ?? 0) + 1);
+        discarding.add(roots);
         sync();
         return (status) => {
           const done = () => {
-            for (const root of roots) {
-              const left = (discarding.get(root) ?? 1) - 1;
-              if (left > 0) discarding.set(root, left);
-              else discarding.delete(root);
-            }
+            discarding.remove(roots);
             sync();
           };
           if (status !== undefined && status < 400) setTimeout(done, SETTLED_MS);
@@ -107,14 +99,10 @@ export const cardModalLayout: Feature = {
       (request) => isWishlistChange(request) && !request.own,
       () => {
         const roots = findCardModals().map((modal) => modal.root);
-        for (const root of roots) wishing.set(root, (wishing.get(root) ?? 0) + 1);
+        wishing.add(roots);
         sync();
         return () => {
-          for (const root of roots) {
-            const left = (wishing.get(root) ?? 1) - 1;
-            if (left > 0) wishing.set(root, left);
-            else wishing.delete(root);
-          }
+          wishing.remove(roots);
           sync();
         };
       },
@@ -127,91 +115,51 @@ export const cardModalLayout: Feature = {
       const confirm = findDiscardConfirm();
       const confirmButton = confirm && modal.root.contains(confirm.root) ? confirm.confirmButton : undefined;
       for (const button of [modal.discardButton, confirmButton]) {
-        if (!button) continue;
-        setClass(button, DISCARD_BUSY, busy);
-        lockControl(button, { owner: OWNER, locked: busy, reason: 'Défausse en cours…' });
+        if (button) lockControl(button, { owner: OWNER, locked: busy, reason: 'Défausse en cours…', busy });
       }
     }
 
-    /** Monte ou met à jour une interface à nous à l'endroit voulu ; remontée si React a bougé les choses. */
-    function place(current: Slot | undefined, vnode: ComponentChild, parent: Element, before: Element | null, inline: boolean): Slot {
-      const placed = current?.ui.element.parentElement === parent && (before === null || current.ui.element.nextElementSibling === before);
-      if (current && placed) {
-        current.ui.update(vnode);
-        return current;
-      }
-      current?.controller.abort();
-      const controller = childController(signal);
-      const ui = mountUi(vnode, { parent, before, inline, signal: controller.signal });
-      return { ui, controller };
-    }
-
-    function apply(modal: CardModal, own: ModalSlots): void {
+    function apply(modal: CardModal): void {
       // La rareté en toutes lettres et les onglets Détails / Marché : la rareté se voit sur la carte,
       // le marché passe dans les actions (notre historique des ventes, pas la vue du site).
-      if (modal.tabsRow) setClass(modal.tabsRow, 'wm-hidden', true);
+      if (modal.tabsRow) ctx.hide(modal.tabsRow);
 
       // « Signaler l'image » : sur l'image de la carte, en bas à droite.
       const reportHost = modal.imageArea ?? modal.face;
-      const report = modal.reportButton;
-      if (report && reportHost) {
-        if (modal.reportBlock) setClass(modal.reportBlock, 'wm-hidden', true);
-        own.report = place(
-          own.report,
-          h(ReportButton, {
-            label: text(report) || "Signaler l'image",
-            disabled: report.disabled,
-            pressed: report.getAttribute('aria-pressed') === 'true',
-            onClick: () => report.click(),
-          }),
-          reportHost,
-          null,
-          false,
-        );
+      if (modal.reportButton && reportHost) {
+        if (modal.reportBlock) ctx.hide(modal.reportBlock);
+        reports.render(modal.root, siteReportButton(modal.reportButton), { parent: reportHost });
       }
 
       // Vue catalogue (Toutes les cartes) : pas de rangée d'actions chez le site, la nôtre avec la liste de
       // souhaits (son bouton, caché, déclenché par le nôtre) et « Marché ».
       if (modal.catalog && modal.panel) {
         const wish = modal.wishlistButton;
-        if (modal.wishlistBlock) setClass(modal.wishlistBlock, 'wm-hidden', true);
-        own.market = place(
-          own.market,
+        if (modal.wishlistBlock) ctx.hide(modal.wishlistBlock);
+        markets.render(
+          modal.root,
           h(CatalogActions, {
             wishlist: wish && {
               active: modal.wishlisted,
-              label: text(wish),
+              label: textOf(wish),
               hint: modal.wishlistHint,
               busy: wishing.has(modal.root),
               onClick: () => wish.click(),
             },
-            market: {
-              busy: opening.has(modal.root),
-              needsPro: marketNeedsPro(),
-              onClick: () => openMarket(modal),
-            },
+            market: { busy: opening.has(modal.root), needsPro: marketNeedsPro(), onClick: () => openMarket(modal) },
           }),
-          modal.panel,
-          null,
-          false,
+          { parent: modal.panel },
         );
       }
 
       // Actions : Vendre · Marché · Défausser.
-      if (modal.auctionButton) renameButton(modal.auctionButton, 'Mettre aux enchères', 'Vendre');
+      if (modal.auctionButton) renameText(modal.auctionButton, 'Mettre aux enchères', 'Vendre');
       const discard = modal.discardButton;
-      const { actionsRow } = modal;
-      if (discard && actionsRow) {
-        own.market = place(
-          own.market,
-          h(MarketButton, {
-            busy: opening.has(modal.root),
-            needsPro: marketNeedsPro(),
-            onClick: () => openMarket(modal),
-          }),
-          actionsRow,
-          discard,
-          true,
+      if (discard && modal.actionsRow) {
+        markets.render(
+          modal.root,
+          h(MarketButton, { busy: opening.has(modal.root), needsPro: marketNeedsPro(), onClick: () => openMarket(modal) }),
+          { parent: modal.actionsRow, before: discard, inline: true },
         );
       }
       markDiscarding(modal);
@@ -220,24 +168,14 @@ export const cardModalLayout: Feature = {
     function sync(): void {
       if (signal.aborted) return;
       const modals = findCardModals();
-      for (const [root, own] of slots) {
-        if (modals.some((modal) => modal.root === root)) continue;
-        own.report?.controller.abort();
-        own.market?.controller.abort();
-        slots.delete(root);
-      }
-      for (const modal of modals) {
-        const own = slots.get(modal.root) ?? {};
-        slots.set(modal.root, own);
-        apply(modal, own);
-      }
+      const roots = new Set(modals.map((modal) => modal.root));
+      reports.prune((root) => roots.has(root));
+      markets.prune((root) => roots.has(root));
+      for (const modal of modals) apply(modal);
     }
 
     watchDom(sync, { signal });
-    onMarketAvailabilityChange(sync, { signal });
-    ctx.onDispose(() => {
-      document.querySelectorAll(`.${DISCARD_BUSY}`).forEach((el) => el.classList.remove(DISCARD_BUSY));
-      unlockAll(OWNER);
-    });
+    onProStatusChange(sync, { signal });
+    ctx.onDispose(() => unlockAll(OWNER));
   },
 };

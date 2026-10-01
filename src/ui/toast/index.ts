@@ -17,6 +17,7 @@ export {
 const store = createToastStore();
 let topOffset = () => 16;
 let mounted = false;
+let container: HTMLElement | undefined;
 
 /** Règle la distance du haut de la pile des erreurs (main.ts : sous le solde du site). */
 export function configureToasts(options: { topOffset: () => number }): void {
@@ -24,12 +25,14 @@ export function configureToasts(options: { topOffset: () => number }): void {
 }
 
 function ensureMounted(): void {
+  // Posé pendant le chargement, React peut le retirer de <body> en y affichant la page : remis à sa place.
+  if (container && !container.isConnected) document.body.append(container);
   if (mounted) return;
   mounted = true;
   void whenBody().then((body) => {
     ensureBaseStyle();
     injectStyle('ui-toast', TOASTER_CSS);
-    const container = document.createElement('div');
+    container = document.createElement('div');
     container.className = ROOT_CLASS;
     body.append(container);
     render(h(Toaster, { store, topOffset: () => topOffset() }), container);
@@ -44,8 +47,8 @@ const shortcut =
     toast.show({ ...options, message, variant });
 
 /**
- * Toasts du script, partout sur le site. Erreurs et avertissements en haut à droite (sous le solde),
- * 8 s ; succès et informations en bas à droite, 6 s ; `position`, `durationMs` ou `sticky`
+ * Toasts du script, partout sur le site. Erreurs et avertissements (`show` avec `variant: 'warning'`) en haut à
+ * droite (sous le solde), 8 s ; succès et informations en bas à droite, 6 s ; `position`, `durationMs` ou `sticky`
  * (jusqu'à fermeture) pour changer ; `action` pour un lien (« Voir l'enchère »).
  */
 export const toast = {
@@ -54,8 +57,6 @@ export const toast = {
     return store.show(options);
   },
   error: shortcut('error'),
-  warning: shortcut('warning'),
   success: shortcut('success'),
   info: shortcut('info'),
-  dismiss: (id: number) => store.dismiss(id),
 };

@@ -1,5 +1,5 @@
 import { isRecord } from '@/core/guards';
-import { SiteApiError } from './request';
+import { SiteApiError } from './errors';
 import { supabaseRequest } from './supabase';
 
 /**

@@ -22,7 +22,7 @@ export function MarketButton({ busy, needsPro, onClick }: MarketButtonProps) {
       title={needsPro ? 'Historique des ventes de la carte (PRO)' : 'Historique des ventes de la carte'}
       onClick={onClick}
     >
-      <Icon name={busy ? 'spinner' : 'market'} size={16} class={busy ? 'wm-spin' : undefined} />
+      <Icon name="market" busy={busy} size={16} />
       Marché
       {needsPro && <ProBadge />}
     </button>
@@ -44,7 +44,7 @@ export interface WishlistButtonProps {
 export function WishlistButton({ active, label, hint, busy, onClick }: WishlistButtonProps) {
   return (
     <button type="button" class={buttonClass('window', { tone: 'accent', fill: active ? 'solid' : 'outline' })} disabled={busy} aria-busy={busy} title={hint} onClick={onClick}>
-      <Icon name={busy ? 'spinner' : 'bell'} size={16} class={busy ? 'wm-spin' : undefined} />
+      <Icon name="bell" busy={busy} size={16} />
       {label}
     </button>
   );

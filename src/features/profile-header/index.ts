@@ -1,19 +1,16 @@
 import { h } from 'preact';
-import { childController } from '@/core/async';
-import { injectStyle, setClass, watchDom, whenBody } from '@/core/dom';
-import { isRecord } from '@/core/guards';
+import { watchDom } from '@/core/dom';
 import { net } from '@/core/net';
 import type { Feature } from '@/core/runtime';
-import { findOwnProfileHeader, findUniqueCardsStat, isProfileVisibilityRequest } from '@/site/profile';
-import { mountUi, type MountedUi } from '@/ui/mount';
+import { watchSiteRefusal } from '@/site/api';
+import { findOwnProfileHeader, findUniqueCardsStat, isProfileVisibilityChange } from '@/site/profile';
+import { MY_PROFILE_ROUTE, PROFILE_ROUTE } from '@/site/routes';
+import { createSlot } from '@/ui/mount';
+import { tokens } from '@/ui/theme';
 import { toast } from '@/ui/toast';
 import { ProfileHeader } from './ProfileHeader';
 
-const HIDDEN = 'wm-profile-header-hidden';
-const TOAST_TITLE = 'Visibilité du profil';
-
 const CSS = `
-.${HIDDEN} { display: none !important; }
 .wm-profile-header { --wm-avatar: 7rem; }
 .wm-profile-cover { position: relative; height: 8rem; background: linear-gradient(180deg, rgb(0 0 0 / 55%), rgb(0 0 0 / 35%)); }
 .wm-profile-visibility { position: absolute; top: .75rem; right: .75rem; }
@@ -29,11 +26,11 @@ const CSS = `
 /* Fond plein sous la photo (le sien est translucide) : le bord du fond de l'en-tête ne la traverse pas. */
 .wm-profile-avatar {
   position: relative; flex: none; width: var(--wm-avatar); height: var(--wm-avatar); border-radius: 9999px;
-  background: var(--color-surface, #161b22); box-shadow: 0 0 0 4px var(--color-surface, #161b22);
+  background: ${tokens.surface}; box-shadow: 0 0 0 4px ${tokens.surface};
 }
 .wm-profile-photo { width: 100%; height: 100%; font-size: calc(var(--wm-avatar) * .32); line-height: 1; }
 .wm-profile-avatar-edit { position: absolute; right: 0; bottom: 0; box-shadow: 0 1px 3px rgb(0 0 0 / 40%); }
-.wm-profile-name { max-width: min(30rem, 45vw); margin: .5rem 0 0; }
+.wm-profile-name { max-width: min(30rem, 45vw); margin: .5rem 0 0; font-family: ${tokens.heading}; }
 .wm-profile-identity > p { margin: .125rem 0 0; }
 .wm-profile-tags { list-style: none; margin: 0; padding: 0 1rem 1rem; }
 @media (max-width: 639px) {
@@ -48,52 +45,32 @@ export const profileHeader: Feature = {
   description:
     "En-tête de son profil sur un fond : photo au centre, pseudo et ancienneté dessous, cartes et cartes uniques de part et d'autre, étiquettes en bas, visibilité du profil en haut à droite.",
   category: 'Profil',
-  routes: ['/profile', '/profile/:name'],
+  routes: [MY_PROFILE_ROUTE, PROFILE_ROUTE],
   required: true,
   hidden: true,
   async mount(ctx) {
     const { signal } = ctx;
-    let placed: { readonly ui: MountedUi; readonly controller: AbortController } | undefined;
+    const slot = createSlot(signal);
     /** Changements de visibilité en cours : l'interrupteur tourne et ne répond plus. */
     let pending = 0;
 
-    // L'en-tête du site est caché : un refus qu'il y afficherait ne se verrait pas.
     net.track(
-      isProfileVisibilityRequest,
+      isProfileVisibilityChange,
       () => {
         pending += 1;
         sync();
-        return (status) => {
+        return () => {
           pending -= 1;
-          if (status === undefined) toast.error("Erreur réseau : la visibilité du profil n'a pas changé.", { title: TOAST_TITLE });
           sync();
         };
       },
       { signal },
     );
-    net.observe(
-      isProfileVisibilityRequest,
-      async (exchange) => {
-        if (exchange.ok) return;
-        const body = await exchange.json().catch(() => undefined);
-        const message = isRecord(body) && typeof body.error === 'string' ? body.error : `Erreur ${exchange.status} du site.`;
-        toast.error(message, { title: TOAST_TITLE });
-      },
-      { signal },
-    );
+    // L'en-tête du site est caché : un refus qu'il y afficherait ne se verrait pas.
+    watchSiteRefusal(isProfileVisibilityChange, (message) => toast.error(message, { title: 'Visibilité du profil' }), { signal });
 
-    await whenBody();
-    if (signal.aborted) return;
-    injectStyle('profile-header', CSS);
-
-    function remove(): void {
-      placed?.controller.abort();
-      placed = undefined;
-    }
-
-    function editAvatar(): void {
-      findOwnProfileHeader()?.avatarButton.click();
-    }
+    if (!(await ctx.ready())) return;
+    ctx.style(CSS);
 
     function toggleVisibility(): void {
       const visibility = findOwnProfileHeader()?.visibility;
@@ -105,12 +82,12 @@ export const profileHeader: Feature = {
       const header = findOwnProfileHeader();
       const parent = header?.root.parentElement;
       if (!header || !parent) {
-        remove();
+        slot.clear();
         return;
       }
-      setClass(header.root, HIDDEN, true);
+      ctx.hide(header.root);
       const unique = findUniqueCardsStat();
-      if (unique) setClass(unique.root, HIDDEN, true);
+      if (unique) ctx.hide(unique.root);
       const { visibility } = header;
       const vnode = h(ProfileHeader, {
         name: header.name,
@@ -124,22 +101,12 @@ export const profileHeader: Feature = {
           label: visibility.label,
           busy: pending > 0 || visibility.button.disabled,
         },
-        onEditAvatar: editAvatar,
+        onEditAvatar: () => findOwnProfileHeader()?.avatarButton.click(),
         onToggleVisibility: toggleVisibility,
       });
-      if (placed?.ui.element.parentElement === parent && placed.ui.element.nextElementSibling === header.root) {
-        placed.ui.update(vnode);
-        return;
-      }
-      remove();
-      const controller = childController(signal);
-      placed = { ui: mountUi(vnode, { parent, before: header.root, signal: controller.signal }), controller };
+      slot.render(vnode, { parent, before: header.root });
     }
 
     watchDom(sync, { signal });
-    ctx.onDispose(() => {
-      remove();
-      document.querySelectorAll(`.${HIDDEN}`).forEach((el) => el.classList.remove(HIDDEN));
-    });
   },
 };

@@ -13,7 +13,7 @@ describe('masquage des secrets', () => {
     expect(result).toContain('[e-mail masqué]');
   });
 
-  it("ne prend pas une image @2x pour une adresse e-mail", () => {
+  it('ne prend pas une image @2x pour une adresse e-mail', () => {
     expect(redactText('/img/carte@2x.png')).toBe('/img/carte@2x.png');
   });
 
@@ -90,7 +90,7 @@ describe('masquage des secrets', () => {
     );
   });
 
-  it("traite un corps non JSON comme du texte", () => {
+  it('traite un corps non JSON comme du texte', () => {
     expect(redactBody(`0:["$","div",null,"${JWT}"]`)).toBe('0:["$","div",null,"[jwt masqué]"]');
   });
 });

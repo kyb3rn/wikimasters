@@ -1,3 +1,6 @@
+import { textOf } from '@/core/text';
+import { isOwn } from '@/site/dom';
+import { SITE_OVERLAY } from '@/site/modals';
 import { RARITIES, type Rarity } from './rarity';
 
 /**
@@ -25,15 +28,15 @@ export interface RarityPills {
 export function findRarityPills(scope: ParentNode | null = document.querySelector('main')): RarityPills | undefined {
   const pills: RarityPill[] = [];
   for (const button of scope?.querySelectorAll<HTMLButtonElement>('button[style*="--color-rarity-"]') ?? []) {
-    const rarity = RARITIES.find((name) => name === button.textContent?.trim());
-    const overlay = button.closest('div.fixed.inset-0');
-    if (!rarity || button.closest('.wm-root') || (overlay && !(scope instanceof Node && overlay.contains(scope)))) continue;
+    const rarity = RARITIES.find((name) => name === textOf(button));
+    const overlay = button.closest(SITE_OVERLAY);
+    if (!rarity || isOwn(button) || (overlay && !(scope instanceof Node && overlay.contains(scope)))) continue;
     pills.push({ rarity, button, checked: button.classList.contains('ring-2') });
   }
   const row = pills[0]?.button.parentElement;
   if (!row || pills.some((pill) => pill.button.parentElement !== row)) return undefined;
   const reset = [...row.querySelectorAll<HTMLButtonElement>(':scope > button')].find((button) =>
-    button.textContent?.trim().startsWith('Réinitialiser'),
+    textOf(button).startsWith('Réinitialiser'),
   );
   return { row, pills, reset };
 }

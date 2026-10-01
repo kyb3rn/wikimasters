@@ -1,4 +1,5 @@
 import { expose } from '@/core/expose';
+import { logTable } from '@/core/log';
 import type { Runtime } from './runtime';
 import type { FeatureStatus } from './types';
 
@@ -20,7 +21,7 @@ export function exposeFeatures(runtime: Runtime): void {
   expose('features', {
     list() {
       const status = runtime.status();
-      console.table(status); // eslint-disable-line no-console -- sortie demandée à la console
+      logTable(status);
       return status;
     },
     enable: (id) => runtime.setEnabled(id, true),

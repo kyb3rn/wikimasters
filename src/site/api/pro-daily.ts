@@ -1,6 +1,9 @@
 import { isRecord } from '@/core/guards';
 import { siteRequest } from './request';
 
+/** Pack PRO du jour : lecture de sa disponibilité (`GET`) ou ouverture (`POST`). */
+export const PRO_DAILY_PATH = '/api/packs/pro-daily';
+
 /** Réponse de `GET /api/packs/pro-daily` : le pack PRO du jour est-il disponible ? */
 export interface ProDailyStatus {
   readonly eligible: boolean;
@@ -29,5 +32,5 @@ export function parseProDaily(raw: unknown): ProDailyStatus | undefined {
  */
 export function fetchProDaily(): Promise<ProDailyStatus> {
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  return siteRequest('/api/packs/pro-daily', { headers: { 'x-wiki-calendar-tz': timeZone } }, parseProDaily);
+  return siteRequest(PRO_DAILY_PATH, { headers: { 'x-wiki-calendar-tz': timeZone } }, parseProDaily);
 }

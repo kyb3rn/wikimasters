@@ -1,14 +1,13 @@
-import { injectStyle, setClass, watchDom, whenBody } from '@/core/dom';
+import { classMarks, watchDom } from '@/core/dom';
 import type { Feature } from '@/core/runtime';
-import { placeRarityFilter } from '@/services/list-search';
+import { applySearchPlaceholder, placeRarityFilter } from '@/services/list-search';
 import { findCardPicker } from '@/site/profile';
+import { MY_PROFILE_ROUTE, PROFILE_ROUTE } from '@/site/routes';
 
 const FRAME = 'wm-card-picker';
 const SEARCH = 'wm-card-picker-search';
 const FIELD = 'wm-card-picker-field';
 const LIST = 'wm-card-picker-list';
-// Même recherche que la Collection (`q` de `/api/my-collection`), même texte d'aide.
-const PLACEHOLDER = 'Rechercher par nom ou description';
 
 /*
  * Largeur : un peu plus du double du site (`max-w-md`, 448 px) pour que 5 cartes tiennent par ligne (5 × 160 px et
@@ -30,38 +29,32 @@ const CSS = `
 
 /**
  * « Choisir une carte » de la vitrine : fenêtre élargie, raretés en cases collées à côté de la recherche, comme
- * à la Collection. Chaque case clique la pastille du site (cachée) : le filtre reste le sien.
+ * à la Collection (même recherche, `q` de `/api/my-collection` : même texte d'aide). Chaque case clique la
+ * pastille du site (cachée) : le filtre reste le sien.
  */
 export const profileCardPicker: Feature = {
   id: 'profile-card-picker',
   name: "Choix d'une carte de vitrine",
   description: "La fenêtre de choix d'une carte de vitrine est plus grande ; les raretés se cochent dans des cases à côté de la recherche.",
   category: 'Profil',
-  routes: ['/profile', '/profile/:name'],
+  routes: [MY_PROFILE_ROUTE, PROFILE_ROUTE],
   required: true,
   hidden: true,
   async mount(ctx) {
     const { signal } = ctx;
-    await whenBody();
-    if (signal.aborted) return;
-    injectStyle('profile-card-picker', CSS);
+    if (!(await ctx.ready())) return;
+    ctx.style(CSS);
 
-    watchDom(
-      () => {
-        const picker = findCardPicker();
-        if (!picker) return;
-        setClass(picker.frame, FRAME, true);
-        setClass(picker.search, SEARCH, true);
-        setClass(picker.field, FIELD, true);
-        if (picker.list) setClass(picker.list, LIST, true);
-        // React ne réécrit le texte d'aide que s'il change de son côté.
-        if (picker.field.placeholder !== PLACEHOLDER) {
-          picker.field.dataset.wmPlaceholder = picker.field.placeholder;
-          picker.field.placeholder = PLACEHOLDER;
-        }
-      },
-      { signal },
-    );
+    const marks = classMarks(signal);
+    watchDom(() => {
+      const picker = findCardPicker();
+      if (!picker) return;
+      marks.only(FRAME, [picker.frame]);
+      marks.only(SEARCH, [picker.search]);
+      marks.only(FIELD, [picker.field]);
+      marks.only(LIST, picker.list ? [picker.list] : []);
+      applySearchPlaceholder(picker.field, signal);
+    }, { signal });
 
     placeRarityFilter({
       signal,
@@ -69,16 +62,6 @@ export const profileCardPicker: Feature = {
         const picker = findCardPicker();
         return picker && { parent: picker.search, before: null, pills: picker.pills };
       },
-    });
-
-    ctx.onDispose(() => {
-      for (const field of document.querySelectorAll<HTMLInputElement>(`input.${FIELD}`)) {
-        if (field.dataset.wmPlaceholder !== undefined) field.placeholder = field.dataset.wmPlaceholder;
-        delete field.dataset.wmPlaceholder;
-      }
-      for (const name of [FRAME, SEARCH, FIELD, LIST]) {
-        document.querySelectorAll(`.${name}`).forEach((element) => element.classList.remove(name));
-      }
     });
   },
 };

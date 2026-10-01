@@ -1,14 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { NetRequest } from '@/core/net';
 import { parseCardSales, readSalesRequest } from '@/site/api';
-
-const request = (url: string, method = 'GET'): NetRequest => ({
-  url: new URL(url, 'https://www.wiki-masters.com'),
-  method,
-  headers: new Headers(),
-  body: undefined,
-  own: false,
-});
+import { netRequest } from '../../support';
 
 describe('ventes d’une carte', () => {
   it('lit les ventes du site (prix, date, rareté) et écarte les illisibles', () => {
@@ -37,9 +29,9 @@ describe('ventes d’une carte', () => {
   });
 
   it('reconnaît la demande des ventes, pas celle du résumé ni une autre route', () => {
-    expect(readSalesRequest(request('/api/marketplace/cards/c1/sales'))).toBe('c1');
-    expect(readSalesRequest(request('/api/marketplace/cards/c1/sales?scope=summary'))).toBeUndefined();
-    expect(readSalesRequest(request('/api/marketplace/cards/c1/sales', 'POST'))).toBeUndefined();
-    expect(readSalesRequest(request('/api/marketplace/c1'))).toBeUndefined();
+    expect(readSalesRequest(netRequest('/api/marketplace/cards/c1/sales'))).toBe('c1');
+    expect(readSalesRequest(netRequest('/api/marketplace/cards/c1/sales?scope=summary'))).toBeUndefined();
+    expect(readSalesRequest(netRequest('/api/marketplace/cards/c1/sales', { method: 'POST' }))).toBeUndefined();
+    expect(readSalesRequest(netRequest('/api/marketplace/c1'))).toBeUndefined();
   });
 });

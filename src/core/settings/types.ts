@@ -40,12 +40,8 @@ export type SettingsSchema = Readonly<Record<string, SettingDefinition>>;
 export type SettingValue<D extends SettingDefinition> = D extends BooleanSetting ? boolean : number;
 
 export interface Settings<S extends SettingsSchema = SettingsSchema> {
-  /** Espace de noms dans le stockage : l'identifiant de la fonctionnalité. */
-  readonly namespace: string;
   readonly schema: S;
   /** Valeur enregistrée si elle est valide, sinon la valeur par défaut (bornée pour un nombre). */
   get<K extends keyof S & string>(key: K): SettingValue<S[K]>;
   set<K extends keyof S & string>(key: K, value: SettingValue<S[K]>): void;
-  /** Revient à la valeur par défaut. */
-  reset(key: keyof S & string): void;
 }

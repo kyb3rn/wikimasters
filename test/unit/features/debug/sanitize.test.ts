@@ -1,24 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { sanitizeCapture, type RecordedExchange, type StoredCapture } from '@/features/debug';
+import { sanitizeCapture, type StoredCapture } from '@/features/debug';
 import { toBase64 } from '@/features/debug/content';
-import { realtimeFrame } from '../../support';
-
-function exchange(init: Partial<RecordedExchange>): RecordedExchange {
-  return {
-    at: '2026-09-29T03:40:48.000Z',
-    method: 'GET',
-    url: 'https://www.wiki-masters.com/api/x',
-    own: false,
-    synthetic: false,
-    status: 200,
-    duration: 10,
-    requestHeaders: {},
-    responseHeaders: { 'content-type': 'application/json' },
-    body: '{}',
-    truncated: false,
-    ...init,
-  };
-}
+import { realtimeFrame, recordedExchange } from '../../support';
 
 function capture(init: Partial<StoredCapture> = {}): StoredCapture {
   return {
@@ -42,8 +25,8 @@ describe('sanitizeCapture', () => {
     const result = sanitizeCapture(
       capture({
         exchanges: [
-          exchange({ body: '{"stripe_customer_id":"cus_1","packs_remaining":0}' }),
-          exchange({
+          recordedExchange({ body: '{"stripe_customer_id":"cus_1","packs_remaining":0}' }),
+          recordedExchange({
             responseHeaders: { 'content-type': 'application/octet-stream' },
             body: toBase64(new TextEncoder().encode('joueur@exemple.fr')),
             bodyEncoding: 'base64',
@@ -79,11 +62,26 @@ describe('sanitizeCapture', () => {
     });
   });
 
+  it('masque les en-têtes sensibles par leur nom, même sans jeton reconnaissable', () => {
+    const result = sanitizeCapture(
+      capture({
+        exchanges: [
+          recordedExchange({
+            requestHeaders: { apikey: 'cle-publique', Cookie: 'session=abc', accept: '*/*' },
+            responseHeaders: { 'set-cookie': 'sb=1; Path=/', 'content-type': 'application/json' },
+          }),
+        ],
+      }),
+    );
+    expect(result.exchanges[0]?.requestHeaders).toEqual({ apikey: '[masqué]', Cookie: '[masqué]', accept: '*/*' });
+    expect(result.exchanges[0]?.responseHeaders).toEqual({ 'set-cookie': '[masqué]', 'content-type': 'application/json' });
+  });
+
   it('garde un binaire propre intact, et une capture propre identique', () => {
     const clean = capture({
       html: '<main>ok</main>',
       exchanges: [
-        exchange({
+        recordedExchange({
           responseHeaders: { 'content-type': 'audio/mpeg' },
           body: toBase64(new Uint8Array([73, 68, 51, 4, 0])),
           bodyEncoding: 'base64',
@@ -94,7 +92,7 @@ describe('sanitizeCapture', () => {
   });
 
   it('est idempotente, et ne crée pas de temps réel dans une capture du format 1', () => {
-    const { sockets: _sockets, ...v1 } = capture({ version: 1, exchanges: [exchange({ body: '{"a":"joueur@exemple.fr"}' })] });
+    const { sockets: _sockets, ...v1 } = capture({ version: 1, exchanges: [recordedExchange({ body: '{"a":"joueur@exemple.fr"}' })] });
     const once = sanitizeCapture(v1);
     expect(once).not.toHaveProperty('sockets');
     expect(sanitizeCapture(once)).toEqual(once);

@@ -1,4 +1,5 @@
 import type { JSX } from 'preact';
+import { cx } from './cx';
 
 /** Icônes lucide (même jeu que le site), dessinées en `currentColor`. */
 const PATHS = {
@@ -126,7 +127,7 @@ const PATHS = {
       <path d="m19 9-5 5-4-4-3 3" />
     </>
   ),
-  /** Liste de souhaits (lucide `bell`, celle du site). */
+  /** Liste de souhaits (lucide `bell`, celle du site), cloche des notifications. */
   bell: (
     <>
       <path d="M10.268 21a2 2 0 0 0 3.464 0" />
@@ -158,6 +159,17 @@ const PATHS = {
     <>
       <circle cx="12" cy="12" r="9" />
       <path d="M7.5 8.5 9.5 15.5 12 10 14.5 15.5 16.5 8.5" />
+    </>
+  ),
+  /** Carte (lucide `rectangle-vertical`). */
+  card: <rect width="12" height="20" x="6" y="2" rx="2" />,
+  /** Échange (lucide `arrow-left-right`, celle du résumé de la fenêtre d'échange du site). */
+  exchange: (
+    <>
+      <path d="M8 3 4 7l4 4" />
+      <path d="M4 7h16" />
+      <path d="m16 21 4-4-4-4" />
+      <path d="M20 17H4" />
     </>
   ),
   /** Collection (lucide `book-open`, celle du lien « Collection » de la navigation du site). */
@@ -197,6 +209,101 @@ const PATHS = {
     </>
   ),
   check: <path d="M20 6 9 17l-5-5" />,
+  // Types de notifications du site (lucide, les icônes de sa liste).
+  undo: (
+    <>
+      <path d="M9 14 4 9l5-5" />
+      <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11" />
+    </>
+  ),
+  swords: (
+    <>
+      <polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5" />
+      <line x1="13" x2="19" y1="19" y2="13" />
+      <line x1="16" x2="20" y1="16" y2="20" />
+      <line x1="19" x2="21" y1="21" y2="19" />
+      <polyline points="14.5 6.5 18 3 21 3 21 6 17.5 9.5" />
+      <line x1="5" x2="9" y1="14" y2="18" />
+      <line x1="7" x2="4" y1="17" y2="20" />
+      <line x1="3" x2="5" y1="19" y2="21" />
+    </>
+  ),
+  gamepad: (
+    <>
+      <line x1="6" x2="10" y1="11" y2="11" />
+      <line x1="8" x2="8" y1="9" y2="13" />
+      <line x1="15" x2="15.01" y1="12" y2="12" />
+      <line x1="18" x2="18.01" y1="10" y2="10" />
+      <path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z" />
+    </>
+  ),
+  eye: (
+    <>
+      <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" />
+      <circle cx="12" cy="12" r="3" />
+    </>
+  ),
+  /** DEF des faces de carte (lucide `shield`). */
+  shield: (
+    <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
+  ),
+  'shield-alert': (
+    <>
+      <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
+      <path d="M12 8v4" />
+      <path d="M12 16h.01" />
+    </>
+  ),
+  /** Conversation épinglée en tête de /dms (lucide `pin`). */
+  pin: (
+    <>
+      <path d="M12 17v5" />
+      <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />
+    </>
+  ),
+  /** Envoyer un message (lucide `send-horizontal`). */
+  send: (
+    <>
+      <path d="M3.714 3.048a.498.498 0 0 0-.683.627l2.843 7.627a2 2 0 0 1 0 1.396l-2.842 7.627a.498.498 0 0 0 .682.627l18-8.5a.5.5 0 0 0 0-.904z" />
+      <path d="M6 12h16" />
+    </>
+  ),
+  castle: (
+    <>
+      <path d="M10 5V3" />
+      <path d="M14 5V3" />
+      <path d="M15 21v-3a3 3 0 0 0-6 0v3" />
+      <path d="M18 3v8" />
+      <path d="M18 5H6" />
+      <path d="M22 11H2" />
+      <path d="M22 9v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9" />
+      <path d="M6 3v8" />
+    </>
+  ),
+  trophy: (
+    <>
+      <path d="M10 14.66v1.626a2 2 0 0 1-.976 1.696A5 5 0 0 0 7 21.978" />
+      <path d="M14 14.66v1.626a2 2 0 0 0 .976 1.696A5 5 0 0 1 17 21.978" />
+      <path d="M18 9h1.5a1 1 0 0 0 0-5H18" />
+      <path d="M4 22h16" />
+      <path d="M6 9a6 6 0 0 0 12 0V3a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1z" />
+      <path d="M6 9H4.5a1 1 0 0 1 0-5H6" />
+    </>
+  ),
+  coins: (
+    <>
+      <path d="M13.744 17.736a6 6 0 1 1-7.48-7.48" />
+      <path d="M15 6h1v4" />
+      <path d="m6.134 14.768.866-.5 2 3.464" />
+      <circle cx="16" cy="8" r="6" />
+    </>
+  ),
+  'check-check': (
+    <>
+      <path d="M18 6 7 17l-5-5" />
+      <path d="m22 10-7.5 7.5L13 16" />
+    </>
+  ),
   'user-minus': (
     <>
       <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
@@ -225,6 +332,25 @@ const PATHS = {
       <path d="M21 3v5h-5" />
     </>
   ),
+  users: (
+    <>
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </>
+  ),
+  'wifi-off': (
+    <>
+      <path d="M12 20h.01" />
+      <path d="M8.5 16.429a5 5 0 0 1 7 0" />
+      <path d="M5 12.859a10 10 0 0 1 5.17-2.69" />
+      <path d="M19 12.859a10 10 0 0 0-2.007-1.523" />
+      <path d="M2 8.82a15 15 0 0 1 4.177-2.643" />
+      <path d="M22 8.82a15 15 0 0 0-11.288-3.764" />
+      <path d="m2 2 20 20" />
+    </>
+  ),
   minus: <path d="M5 12h14" />,
   // Pagination : première page, précédente, suivante, dernière.
   chevronFirst: (
@@ -234,6 +360,7 @@ const PATHS = {
     </>
   ),
   chevronLeft: <path d="m15 18-6-6 6-6" />,
+  chevronDown: <path d="m6 9 6 6 6-6" />,
   chevronRight: <path d="m9 18 6-6-6-6" />,
   chevronLast: (
     <>
@@ -286,8 +413,19 @@ export type IconName = keyof typeof PATHS;
 
 export const ICON_NAMES = /* @__PURE__ */ Object.keys(PATHS) as readonly IconName[];
 
-export function Icon(props: { name: IconName; size?: number; class?: string; strokeWidth?: number }): JSX.Element {
+export interface IconProps {
+  readonly name: IconName;
+  readonly size?: number;
+  readonly class?: string;
+  readonly strokeWidth?: number;
+  /** Action en cours : la roue (qui tourne) à la place de l'icône. */
+  readonly busy?: boolean;
+}
+
+/** Icône lucide ; la roue (`spinner`) tourne d'office. */
+export function Icon(props: IconProps): JSX.Element {
   const size = props.size ?? 20;
+  const name = props.busy ? 'spinner' : props.name;
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -299,10 +437,10 @@ export function Icon(props: { name: IconName; size?: number; class?: string; str
       stroke-width={props.strokeWidth ?? 2}
       stroke-linecap="round"
       stroke-linejoin="round"
-      class={props.class}
+      class={cx(props.class, name === 'spinner' && 'wm-spin') || undefined}
       aria-hidden="true"
     >
-      {PATHS[props.name]}
+      {PATHS[name]}
     </svg>
   );
 }

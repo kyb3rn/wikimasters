@@ -4,7 +4,7 @@
  * ordinateur (`hidden md:block fixed top-0 right-0 … pointer-events-none`, bouton en
  * `pointer-events-auto`). Relevé le 29/09/2026.
  */
-export const BALANCE_BUTTON = 'button[aria-label="Ouvrir la boutique WikiBidous"]';
+const BALANCE_BUTTON = 'button[aria-label="Ouvrir la boutique WikiBidous"]';
 
 export function findBalanceButtons(root: ParentNode = document): HTMLButtonElement[] {
   return [...root.querySelectorAll<HTMLButtonElement>(BALANCE_BUTTON)];
@@ -19,3 +19,27 @@ export function balanceBottom(doc: Document = document): number | undefined {
   }
   return bottom;
 }
+
+/**
+ * Nos boutons devant le solde (engrenage, cloche), rangés par rang croissant : chacun porte son rang, et se pose
+ * après ceux de rang plus petit, quel que soit l'ordre dans lequel ils arrivent.
+ */
+const HEADER_RANK = 'data-wm-header-rank';
+
+/** Élément avant lequel poser notre bouton de rang `rank` (le solde, ou l'un des nôtres de rang plus grand). */
+export function headerSlot(balance: Element, rank: number): Element {
+  let before = balance;
+  for (let item = balance.previousElementSibling; item?.hasAttribute(HEADER_RANK); item = item.previousElementSibling) {
+    if (Number(item.getAttribute(HEADER_RANK)) <= rank) break;
+    before = item;
+  }
+  return before;
+}
+
+/** Note le rang de notre bouton (n'écrit que s'il change). */
+export function markHeaderItem(element: Element, rank: number): void {
+  if (element.getAttribute(HEADER_RANK) !== String(rank)) element.setAttribute(HEADER_RANK, String(rank));
+}
+
+/** Rangs de nos boutons devant le solde. */
+export const HEADER_RANKS = { gear: 0, notifications: 1 } as const;

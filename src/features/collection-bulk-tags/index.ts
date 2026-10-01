@@ -1,21 +1,23 @@
 import { h } from 'preact';
 import { childController } from '@/core/async';
-import { injectStyle, setClass, watchDom, whenBody } from '@/core/dom';
+import { watchDom } from '@/core/dom';
 import { setReactInputValue } from '@/core/react';
 import type { Feature } from '@/core/runtime';
-import { addTagsToCards, createTags, removeTagsFromCards, SiteApiError, supabaseUserId } from '@/site/api';
+import { notify } from '@/services/notifications';
+import { addTagsToCards, createTags, removeTagsFromCards, SiteApiError, siteErrorText, supabaseUserId } from '@/site/api';
 import {
   applyTagChange,
-  COLLECTION_ROUTE,
   findBulkTagModal,
   findCollectionRefresh,
   randomTagColor,
   TAG_NAME_MAX,
   tagChipStyle,
   type BulkTagModal,
+  type BulkTagOption,
 } from '@/site/collection';
+import { COLLECTION_ROUTE } from '@/site/routes';
 import { lockControl, unlockAll } from '@/ui/lock';
-import { mountUi, type MountedUi } from '@/ui/mount';
+import { createSlot, type UiSlot } from '@/ui/mount';
 import { toast } from '@/ui/toast';
 import {
   addPending,
@@ -30,8 +32,6 @@ import {
 import { PendingChips, SubmitButton } from './views';
 
 const OWNER = 'collection-bulk-tags';
-const HIDDEN = 'wm-bulk-tags-hidden';
-const CSS = `.${HIDDEN} { display: none !important; }`;
 
 type Form = NonNullable<BulkTagModal['form']>;
 
@@ -41,8 +41,19 @@ interface OpenModal {
   readonly controller: AbortController;
   pending: readonly PendingTag[];
   busy: boolean;
-  chips?: MountedUi;
-  submit?: MountedUi;
+  /** Étiquettes choisies, au-dessus du champ. */
+  readonly chips: UiSlot;
+  /** Bouton d'envoi, en bas. */
+  readonly submit: UiSlot;
+}
+
+/** Étiquettes existantes déjà choisies : retirées de la liste du site. */
+const chosenIds = (state: OpenModal) => new Set(state.pending.flatMap((tag) => (tag.id ? [tag.id] : [])));
+
+/** Première étiquette encore proposée par la liste. */
+function firstOption(state: OpenModal, form: Form): BulkTagOption | undefined {
+  const chosen = chosenIds(state);
+  return form.options.find((option) => !chosen.has(option.id));
 }
 
 /**
@@ -65,9 +76,7 @@ export const collectionBulkTags: Feature = {
     const { signal, log } = ctx;
     let open: OpenModal | undefined;
 
-    await whenBody();
-    if (signal.aborted) return;
-    injectStyle('collection-bulk-tags', CSS);
+    if (!(await ctx.ready())) return;
 
     function choose(state: OpenModal, form: Form, tag: PendingTag): void {
       state.pending = addPending(state.pending, tag);
@@ -99,13 +108,13 @@ export const collectionBulkTags: Feature = {
       const fresh = state.pending.filter((tag) => tag.id === undefined);
       if (fresh.length > 0) {
         const userId = supabaseUserId();
-        if (!userId) throw new SiteApiError('session du site introuvable : recharger la page', 0);
+        if (!userId) throw new SiteApiError('Session du site introuvable : rechargez la page.', 0);
         const created = await createTags(userId, fresh.map(({ name, color }) => ({ name, color: color ?? randomTagColor() })));
         // Gardées même si la suite échoue : un nouvel essai ne les recrée pas.
         state.pending = withCreatedIds(state.pending, created);
       }
       const ids = state.pending.flatMap((tag) => (tag.id ? [tag.id] : []));
-      if (ids.length !== state.pending.length) throw new SiteApiError("l'étiquette créée est introuvable", 0);
+      if (ids.length !== state.pending.length) throw new SiteApiError("L'étiquette créée est introuvable.", 0);
       await addTagsToCards(cardIds, ids);
     }
 
@@ -126,8 +135,7 @@ export const collectionBulkTags: Feature = {
         await send(state, cardIds);
       } catch (error) {
         log.warn('envoi refusé', error);
-        const message = error instanceof SiteApiError ? error.message : 'erreur inattendue';
-        toast.error(`${message.charAt(0).toUpperCase()}${message.slice(1)}.`, { title });
+        toast.error(siteErrorText(error), { title });
         state.busy = false;
         sync();
         return;
@@ -143,33 +151,21 @@ export const collectionBulkTags: Feature = {
         log.warn('état de la page illisible : liste rechargée');
         findCollectionRefresh()?.();
       }
-      toast.success(doneMessage(state.mode, state.pending.length, cardIds.length));
+      notify({ message: doneMessage(state.mode, state.pending.length, cardIds.length), variant: 'success' });
     }
 
     /** Pastilles juste au-dessus du champ, bouton d'envoi en dernier (après l'erreur du site). */
     function place(state: OpenModal, form: Form): void {
-      const chips = h(PendingChips, { tags: state.pending, busy: state.busy, onRemove: unchoose });
-      if (!state.chips?.element.isConnected) {
-        state.chips = mountUi(chips, { parent: form.body, before: form.input, signal: state.controller.signal });
-      } else {
-        if (state.chips.element.nextElementSibling !== form.input) form.body.insertBefore(state.chips.element, form.input);
-        state.chips.update(chips);
-      }
       const empty = state.pending.length === 0;
-      if (state.chips.element.hidden !== empty) state.chips.element.hidden = empty;
-
-      const button = h(SubmitButton, {
-        label: submitLabel(state.mode, state.pending.length),
-        busy: state.busy,
-        disabled: empty,
-        onClick: () => void submit(),
+      const chips = state.chips.render(h(PendingChips, { tags: state.pending, busy: state.busy, onRemove: unchoose }), {
+        parent: form.body,
+        before: form.input,
       });
-      if (!state.submit?.element.isConnected) {
-        state.submit = mountUi(button, { parent: form.body, signal: state.controller.signal });
-      } else {
-        if (form.body.lastElementChild !== state.submit.element) form.body.append(state.submit.element);
-        state.submit.update(button);
-      }
+      if (chips.element.hidden !== empty) chips.element.hidden = empty;
+      state.submit.render(
+        h(SubmitButton, { label: submitLabel(state.mode, state.pending.length), busy: state.busy, disabled: empty, onClick: () => void submit() }),
+        { parent: form.body, before: null },
+      );
     }
 
     function sync(): void {
@@ -179,18 +175,29 @@ export const collectionBulkTags: Feature = {
         open = undefined;
       }
       if (!modal) return;
-      open ??= { overlay: modal.overlay, mode: modal.mode, controller: childController(signal), pending: [], busy: false };
+      if (!open) {
+        const controller = childController(signal);
+        open = {
+          overlay: modal.overlay,
+          mode: modal.mode,
+          controller,
+          pending: [],
+          busy: false,
+          chips: createSlot(controller.signal),
+          submit: createSlot(controller.signal),
+        };
+      }
       const form = modal.form;
       if (!form) return;
       const { busy, pending } = open;
       const lock = { owner: OWNER, locked: busy, reason: 'Envoi en cours' };
-      const chosen = new Set(pending.flatMap((tag) => (tag.id ? [tag.id] : [])));
+      const chosen = chosenIds(open);
       for (const option of form.options) {
-        setClass(option.button, HIDDEN, chosen.has(option.id));
+        ctx.hide(option.button, chosen.has(option.id));
         lockControl(option.button, lock);
       }
       if (form.create) {
-        setClass(form.create.row, HIDDEN, isPendingName(pending, form.input.value));
+        ctx.hide(form.create.row, isPendingName(pending, form.input.value));
         lockControl(form.create.button, lock);
         lockControl(form.create.color, lock);
       }
@@ -229,18 +236,14 @@ export const collectionBulkTags: Feature = {
         if (event.key !== 'Enter' || event.isComposing || !state || !form || event.target !== form.input) return;
         event.preventDefault();
         if (state.busy || !form.input.value.trim()) return;
-        const option = form.options.find((candidate) => !candidate.button.classList.contains(HIDDEN));
+        const option = firstOption(state, form);
         if (option) choose(state, form, { id: option.id, name: option.name, chipStyle: option.chipStyle });
-        else if (form.create && !form.create.row.classList.contains(HIDDEN)) chooseTyped(state, form);
+        else if (form.create && !isPendingName(state.pending, form.input.value)) chooseTyped(state, form);
       },
       { capture: true, signal },
     );
 
     watchDom(sync, { signal });
-    ctx.onDispose(() => {
-      open?.controller.abort();
-      unlockAll(OWNER);
-      document.querySelectorAll(`.${HIDDEN}`).forEach((element) => element.classList.remove(HIDDEN));
-    });
+    ctx.onDispose(() => unlockAll(OWNER));
   },
 };

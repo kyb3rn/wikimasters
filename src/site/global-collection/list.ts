@@ -1,22 +1,17 @@
+import { later } from '@/core/async';
 import type { NetRequest } from '@/core/net';
+import { appendRarities, readBaseListQuery, type BaseListQuery } from '@/site/list-query';
 
-/**
+/*
  * Catalogue « Toutes les cartes » (code du site, 30/09/2026) : une requête par chargement,
  * `GET /api/cards?page=&q=&rarity=…&sort=[&wishlist=1]` (50 cartes par page, `page` à partir de 0), total et
  * compteurs compris. Chaque réponse est gardée en `sessionStorage` sous `gc_v11_<adresse>` (sauf « Liste de
  * souhaits ») : une page déjà vue dans l'onglet ne redemande rien, elle s'affiche aussitôt.
  */
-export const GLOBAL_COLLECTION_ROUTE = '/global-collection';
 
-export interface GlobalCollectionQuery {
-  readonly sort: string;
-  readonly search: string;
-  /** Raretés cochées, triées. */
-  readonly rarities: string;
+export interface GlobalCollectionQuery extends BaseListQuery {
   /** « Liste de souhaits » : seulement les cartes de la sienne. */
   readonly wishlist: boolean;
-  /** À partir de 0. */
-  readonly page: number | undefined;
 }
 
 export function isGlobalCollectionList(request: NetRequest): boolean {
@@ -24,15 +19,7 @@ export function isGlobalCollectionList(request: NetRequest): boolean {
 }
 
 export function readGlobalCollectionQuery(url: URL): GlobalCollectionQuery {
-  const params = url.searchParams;
-  const page = Number(params.get('page'));
-  return {
-    sort: params.get('sort') ?? '',
-    search: params.get('q') ?? '',
-    rarities: params.getAll('rarity').sort().join(','),
-    wishlist: params.get('wishlist') === '1',
-    page: params.has('page') && Number.isInteger(page) ? page : undefined,
-  };
+  return { ...readBaseListQuery(url.searchParams), wishlist: url.searchParams.get('wishlist') === '1' };
 }
 
 /** Mêmes choix : tri, raretés, liste de souhaits. */
@@ -44,7 +31,7 @@ export function sameGlobalCollectionChoice(a: GlobalCollectionQuery, b: GlobalCo
 export function withGlobalCollectionFilters(url: URL, query: GlobalCollectionQuery): URL {
   const params = new URLSearchParams({ page: url.searchParams.get('page') ?? '0' });
   if (query.search) params.set('q', query.search);
-  for (const rarity of query.rarities ? query.rarities.split(',') : []) params.append('rarity', rarity);
+  appendRarities(params, query.rarities);
   params.set('sort', query.sort);
   if (query.wishlist) params.set('wishlist', '1');
   const next = new URL(url.href);
@@ -72,9 +59,11 @@ export function forgetGlobalCollectionPages(): void {
   }
 }
 
-/** Requêtes de la liste et ce qu'elles disent (pour la recherche retenue, le délai, la mémoire des filtres). */
-export const globalCollectionList = {
-  isList: isGlobalCollectionList,
-  readQuery: readGlobalCollectionQuery,
-  sameChoice: sameGlobalCollectionChoice,
-};
+/** Le site garde une réponse après l'avoir lue : laisser le temps à celle qu'il vient de recevoir. */
+const KEEP_DELAY = 500;
+
+/** `forgetGlobalCollectionPages` tout de suite, puis une fois que le site a gardé la réponse qu'il reçoit. */
+export function forgetGlobalCollectionPagesSoon(signal: AbortSignal): void {
+  forgetGlobalCollectionPages();
+  for (const delay of [0, KEEP_DELAY]) later(forgetGlobalCollectionPages, delay, signal);
+}

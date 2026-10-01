@@ -21,7 +21,7 @@ declare module '@/core/expose' {
 export const market: Feature = {
   id: 'market',
   name: 'Historique des ventes',
-  description: 'Ventes d’une carte : chiffres et graphique. Gardées sur cet appareil, redemandées au site quand elles datent.',
+  description: "Ventes d'une carte : chiffres et graphique. Gardées sur cet appareil, redemandées au site quand elles datent.",
   category: 'Marché',
   routes: 'all',
   required: true,

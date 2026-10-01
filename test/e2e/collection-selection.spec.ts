@@ -1,7 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openSelectionPage } from './support/collection';
+import { faces } from './support/collection';
+import { openSelectionPage } from './support/collection-selection';
+import { letTimePass, rect } from './support/site';
 
-const faces = (page: Page) => page.locator('#stage [class*="glow-"]');
 const toggle = (page: Page) => page.locator('.wm-selection-toggle');
 const actions = (page: Page) => page.locator('.wm-selection-actions');
 const action = (page: Page, name: string | RegExp) => actions(page).getByRole('button', { name, exact: true });
@@ -51,14 +52,14 @@ test('barre du bas : seulement les boutons, à l’allure des actions de la moda
   await expect(buttons).toHaveText([/^Sélectionner toute la page/, 'Étiqueter', 'Désétiqueter', /^Défausser tout/]);
   await expect(action(page, 'Sélectionner toute la page')).toBeVisible();
   // Largeur selon le texte, hauteur des champs.
-  const boxes = await Promise.all((await buttons.all()).map(async (button) => (await button.boundingBox()) ?? { width: 0, height: 0 }));
+  const boxes = await Promise.all((await buttons.all()).map(rect));
   expect(new Set(boxes.map((box) => Math.round(box.width))).size).toBe(4);
   // Boutons standard moyens : hauteur des champs.
   for (const box of boxes) expect(Math.round(box.height)).toBe(45);
   // Barre resserrée sur ses boutons, autant de marge des deux côtés, centrée là où le site la place
   // (le faux site : 900 px de large depuis le bord gauche, centre à 450 px).
-  const bar = (await page.locator('body > div.fixed.bottom-4').boundingBox()) ?? { x: 0, y: 0, width: 0, height: 0 };
-  const row = (await actions(page).boundingBox()) ?? { x: 0, y: 0, width: 0, height: 0 };
+  const bar = await rect(page.locator('body > div.fixed.bottom-4'));
+  const row = await rect(actions(page));
   expect(bar.width).toBeLessThan(900);
   expect(Math.round(bar.x + bar.width / 2)).toBe(450);
   expect(Math.round(row.x - bar.x)).toBe(Math.round(bar.x + bar.width - (row.x + row.width)));
@@ -91,6 +92,19 @@ test('en sélection, toute carte non cochée est grisée (face entière), même 
   await expect(page.locator('.wm-selection-dim')).toHaveCount(0);
 });
 
+test('au survol, la case à cocher suit le coin de la carte agrandie (6 px agrandis du coin)', async ({ page }) => {
+  await openSelectionPage(page);
+  await toggle(page).click();
+  const cell = faces(page).nth(0).locator('..');
+  const box = cell.locator(':scope > span.pointer-events-none');
+  await expect(box).toHaveCount(1);
+  await faces(page).nth(0).hover();
+  const expected = await cell.evaluate((element) => ({ top: 6 * 1.05 - 0.025 * element.clientHeight, right: 6 * 1.05 - 0.025 * element.clientWidth }));
+  await expect
+    .poll(async () => box.evaluate((element) => [parseFloat(getComputedStyle(element).top), parseFloat(getComputedStyle(element).right)]))
+    .toEqual([expect.closeTo(expected.top, 0), expect.closeTo(expected.right, 0)]);
+});
+
 test('pendant un chargement, le voile du site déborde de la grille : l’anneau des cartes cochées reste dessous', async ({ page }) => {
   await openSelectionPage(page);
   await select(page, 0);
@@ -98,12 +112,9 @@ test('pendant un chargement, le voile du site déborde de la grille : l’anneau
   await veil.evaluate((element) => {
     (element as HTMLElement).hidden = false;
   });
-  const [grid, cover] = await Promise.all([
-    veil.locator('..').boundingBox(),
-    veil.boundingBox(),
-  ]);
-  expect(grid && cover && Math.round(grid.x - cover.x)).toBe(12);
-  expect(grid && cover && Math.round(cover.y + cover.height - (grid.y + grid.height))).toBe(12);
+  const [grid, cover] = await Promise.all([rect(veil.locator('..')), rect(veil)]);
+  expect(Math.round(grid.x - cover.x)).toBe(12);
+  expect(Math.round(cover.y + cover.height - (grid.y + grid.height))).toBe(12);
 });
 
 test('le bouton du mode est là dès la liste, sans attendre les compteurs (le site, lui, les attend)', async ({ page }) => {
@@ -138,7 +149,7 @@ test('ligne des filtres en deux côtés : recherche de 550 px au plus, 300 au mo
   const search = page.locator('#stage input[type="text"]').first();
   await expect(search).toHaveAttribute('placeholder', 'Rechercher par nom ou description');
   await expect(toggle(page)).toBeVisible();
-  const box = async (selector: string) => (await page.locator(selector).first().boundingBox()) ?? { x: 0, y: 0, width: 0, height: 0 };
+  const box = (selector: string) => rect(page.locator(selector).first());
   const line = async () => box('#stage div.flex.flex-col.gap-3');
   const lists = async () => box('#stage div.flex.w-full.min-w-0.flex-row');
 
@@ -212,7 +223,7 @@ test('après « Défausser tout », les cartes restent tamponnées « Défaussé
   await expect(marks.nth(0)).not.toHaveClass(/ring-4/);
   await expect(marks.nth(1)).not.toHaveClass(/ring-4/);
   await expect(marks.nth(2)).toHaveClass(/ring-4/);
-  await page.waitForTimeout(700);
+  await letTimePass(page, 700);
   await expect(page.locator('.wm-selection-count')).toHaveText('1sélectionnée');
 });
 

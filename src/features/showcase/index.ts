@@ -1,7 +1,7 @@
 import { h } from 'preact';
-import { injectStyle, whenBody } from '@/core/dom';
+import { watchDom } from '@/core/dom';
 import type { Feature } from '@/core/runtime';
-import { mountUi } from '@/ui/mount';
+import { createSlot } from '@/ui/mount';
 import { Showcase } from './Showcase';
 import { css } from './style';
 
@@ -19,10 +19,16 @@ export const showcase: Feature = {
   routes: [SHOWCASE_PATH],
   required: true,
   hidden: true,
-  async mount({ signal }) {
-    await whenBody();
-    if (signal.aborted) return;
-    injectStyle('showcase', css());
-    mountUi(h(Showcase, { signal }), { signal, className: 'wm-showcase' });
+  async mount(ctx) {
+    const { signal } = ctx;
+    if (!(await ctx.ready())) return;
+    ctx.style(css());
+    // Posée dès <body> : React la retire quand il y affiche la page (hydratation), elle est alors reposée.
+    const slot = createSlot(signal);
+    watchDom(() => {
+      if (slot.ui?.element.parentElement !== document.body) {
+        slot.render(h(Showcase, { signal }), { parent: document.body, className: 'wm-showcase' });
+      }
+    }, { signal });
   },
 };

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { collectLogs, openSite, sitePage } from './support/site';
+import { collectLogs, letTimePass, openSite, rect, sitePage } from './support/site';
 
 /**
  * Page 404 de Next.js telle que le site la rend à une adresse inconnue (capture du 30/09/2026) : ni en-tête ni solde,
@@ -37,6 +37,13 @@ test('la vitrine recouvre la page 404 de /wm-ui, sans retirer ce que le site a r
   expect(logs.filter((log) => log.type === 'error')).toEqual([]);
 });
 
+test('retirée de la page (React à l’hydratation), la vitrine est reposée', async ({ page }) => {
+  await openShowcase(page);
+  await page.evaluate(() => document.querySelector('.wm-showcase')?.remove());
+  await expect(page.locator('.wm-showcase')).toHaveCount(1);
+  await expect(page.getByRole('heading', { name: 'Vitrine', level: 1 })).toBeVisible();
+});
+
 test('les boutons de démonstration tournent le temps d’une requête simulée', async ({ page }) => {
   await openShowcase(page);
   const refresh = group(page, 'Standard').getByRole('button', { name: 'Actualiser' }).first();
@@ -71,8 +78,8 @@ test('chaque forme de bouton dans les six couleurs, pleine, en contour et ghost,
   // Une taille = une hauteur, quelle que soit la forme : grand 48 px, moyen = champs (45 px), petit 30 px.
   for (const [size, height] of [['lg', 48], ['md', 45], ['sm', 30]] as const) {
     for (const shape of ['Standard', 'Carré', 'Rond']) {
-      const box = await group(page, shape).locator(`button.wm-button-${size}`).first().boundingBox();
-      expect(Math.round(box?.height ?? 0), `${shape} ${size}`).toBe(height);
+      const box = await rect(group(page, shape).locator(`button.wm-button-${size}`).first());
+      expect(Math.round(box.height), `${shape} ${size}`).toBe(height);
     }
   }
   const info = group(page, 'Standard').locator('button.wm-tone-info');
@@ -139,7 +146,7 @@ test('la barre de progression d’un toast minuté s’arrête sous le curseur e
   await expect(info).toHaveAttribute('data-paused', 'true');
   await expect(bar).toHaveCSS('animation-play-state', 'paused');
   const paused = await elapsed();
-  await page.waitForTimeout(400);
+  await letTimePass(page, 400);
   expect(await elapsed()).toBe(paused);
 
   await page.mouse.move(0, 0);

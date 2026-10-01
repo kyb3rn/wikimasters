@@ -1,11 +1,20 @@
 export {
   findFriendsPage,
-  FRIENDS_ROUTE,
   type FriendRow,
   type FriendsHeader,
   type FriendsList,
   type FriendsPage,
+  type ReceivedRequest,
+  type ReceivedRequests,
   type RowButton,
   type SentRequest,
 } from './page';
-export { dropFriendship, readFriendRow, type FriendEntry } from './state';
+export {
+  applyFriendsChange,
+  dropFriendship,
+  friendsOwner,
+  readFriendRow,
+  readFriendsData,
+  type FriendEntry,
+  type FriendsChange,
+} from './state';

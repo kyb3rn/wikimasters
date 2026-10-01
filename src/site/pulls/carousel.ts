@@ -1,6 +1,8 @@
 import { ROOT_CLASS } from '@/core/dom';
-import { isRecord } from '@/core/guards';
-import { fiberAncestors, fiberOf } from '@/core/react';
+import { findPropsAbove } from '@/core/react';
+import { textOf } from '@/core/text';
+import { FACE } from '@/site/cards';
+import { isOwn } from '@/site/dom';
 import { parseCards, type PackCard } from './pack';
 
 /**
@@ -9,7 +11,7 @@ import { parseCards, type PackCard } from './pack';
  *   div.flex.flex-col (racine)
  *     div.flex.items-center.gap-2        « Carte n / N »
  *     div.relative.inline-flex           zone de la carte : enveloppe animée (`animate-card-flip…`, recréée à
- *                                        chaque carte) > face `[class*="glow-"]` avec son `h3` ; tant que les
+ *                                        chaque carte) > face (`FACE`) avec son `h3` ; tant que les
  *                                        images du paquet chargent, un cadre `animate-pulse` à la place
  *     div.flex.items-center.gap-4        ‹ rangée de navigation ›
  *       button.w-12.h-12.rounded-full    précédente (désactivée sur la première)
@@ -64,9 +66,7 @@ export function findCarousel(doc: Document = document): Carousel | undefined {
     if (dots.length === 0 || !root) continue;
 
     // Les copies de cartes posées par le script (`.wm-root`) ne sont pas la carte du carrousel.
-    const face = [...root.querySelectorAll<HTMLElement>('[class*="glow-"]')].find(
-      (el) => el.querySelector('h3') && !el.closest(`.${ROOT_CLASS}`),
-    );
+    const face = [...root.querySelectorAll<HTMLElement>(FACE)].find((el) => el.querySelector('h3') && !isOwn(el));
     const holder = siteSibling(nav, 'previous');
     const counter = holder && siteSibling(holder, 'previous');
     const after = siteSibling(nav, 'next');
@@ -82,7 +82,7 @@ export function findCarousel(doc: Document = document): Carousel | undefined {
       proceed: after instanceof HTMLButtonElement ? after : undefined,
       index: dots.findIndex((dot) => dot.classList.contains('scale-125')),
       face,
-      title: face?.querySelector('h3')?.textContent?.trim(),
+      title: face && textOf(face.querySelector('h3')),
     };
   }
   return undefined;
@@ -93,9 +93,6 @@ export function findCarousel(doc: Document = document): Carousel | undefined {
  * `is_shiny` y est vrai dès l'ouverture, avant que la face ne montre le shiny.
  */
 export function carouselCards(carousel: Carousel): PackCard[] | undefined {
-  for (const fiber of fiberAncestors(fiberOf(carousel.root), 20)) {
-    const props = fiber.memoizedProps;
-    if (isRecord(props) && Array.isArray(props.cards) && typeof props.onDone === 'function') return parseCards(props.cards);
-  }
-  return undefined;
+  const found = findPropsAbove(carousel.root, (props) => Array.isArray(props.cards) && typeof props.onDone === 'function');
+  return found && parseCards(found.props.cards);
 }

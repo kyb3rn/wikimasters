@@ -1,42 +1,29 @@
 import { expect, test, type Page } from '@playwright/test';
-import { COLLECTION_HTML, entry } from './support/collection';
-import { openSite } from './support/site';
+import { entry, faces, openCollection as openFakeCollection, titles, type Entry } from './support/collection';
 
-type Entry = ReturnType<typeof entry>;
-
-const faces = (page: Page) => page.locator('#stage [class*="glow-"]');
 const modal = (page: Page) => page.locator('#card-modal');
 const loads = (page: Page) => page.evaluate(() => (window as unknown as { __collection: { loads: number } }).__collection.loads);
 
 /** Serveur imité : la page 0 perd les exemplaires défaussés ou mis en vente ; `requests` : listes et compteurs demandés. */
 async function openCollection(page: Page, first: Entry[] = [entry('u1', 'Tour Eiffel'), entry('u2', 'Musée du Louvre', 'R'), entry('u3', 'Mont Blanc', 'SR')]) {
-  const server = { first: [...first], requests: [] as string[] };
+  let shown = [...first];
   const second = [entry('u9', 'Lyon')];
-  await openSite(page, '/collection', {
-    html: COLLECTION_HTML,
+  const server = await openFakeCollection(page, {
+    list: (params) => (params.get('page') === '0' ? shown : second),
+    // Deux pages : la pagination s'affiche.
+    total: 50 + second.length,
+    noteList: (params) => `liste ${params.get('page')}`,
+    noteStats: () => 'compteurs',
     handle: async (route, url) => {
-      if (url.pathname === '/api/my-collection') {
-        const index = url.searchParams.get('page');
-        server.requests.push(`liste ${index}`);
-        const collection = index === '0' ? server.first : second;
-        await route.fulfill({ json: { collection, total: null, rarityCounts: {}, tagOptions: [], pendingTradeCardIds: [] } });
-        return true;
-      }
-      if (url.pathname === '/api/my-collection/stats') {
-        server.requests.push('compteurs');
-        // Deux pages : la pagination s'affiche.
-        await route.fulfill({ json: { total: 50 + second.length, rarityCounts: {}, tagOptions: [] } });
-        return true;
-      }
       const discard = /^\/api\/user-cards\/([^/]+)\/discard$/.exec(url.pathname);
       if (discard) {
-        server.first = server.first.filter((e) => e.id !== discard[1]);
+        shown = shown.filter((e) => e.id !== discard[1]);
         await route.fulfill({ json: { balance: 12661 } });
         return true;
       }
       if (url.pathname === '/api/marketplace' && route.request().method() === 'POST') {
         const { card_id } = JSON.parse(route.request().postData() ?? '{}') as { card_id: string };
-        server.first = server.first.filter((e) => e.id !== card_id);
+        shown = shown.filter((e) => e.id !== card_id);
         await route.fulfill({ status: 201, json: { auction_id: 'a1b2c3d4-0000-4000-8000-000000000001' } });
         return true;
       }
@@ -88,7 +75,7 @@ test('le chargement suivant de la liste vient du site : la carte défaussée n�
   await expect(page.locator('#stage .wm-stamp')).toHaveCount(0);
   await page.getByRole('button', { name: 'Page précédente' }).first().click();
   await expect(faces(page)).toHaveCount(2);
-  await expect(faces(page).locator('h3')).toHaveText(['Tour Eiffel', 'Mont Blanc']);
+  await expect(titles(page)).toHaveText(['Tour Eiffel', 'Mont Blanc']);
   await expect(page.locator('#stage .wm-stamp')).toHaveCount(0);
   expect(server.requests.filter((request) => request.startsWith('liste'))).toEqual(['liste 0', 'liste 1', 'liste 0']);
 });

@@ -1,5 +1,5 @@
 import { injectStyle, setClass } from '@/core/dom';
-import { tokens } from './theme';
+import { alpha, DISABLED_OPACITY, palette, tokens } from './theme';
 
 /**
  * Boutons du script et du site, tous faits ici : forme, couleur, remplissage et taille. Les mesures sont celles des
@@ -21,26 +21,12 @@ export interface ButtonStyle {
   readonly size?: ButtonSize;
 }
 
-export const BUTTON_SHAPES: readonly ButtonShape[] = ['standard', 'window', 'wide', 'square', 'round'];
 export const BUTTON_TONES: readonly ButtonTone[] = ['neutral', 'danger', 'info', 'accent', 'warning', 'pro'];
 export const BUTTON_FILLS: readonly ButtonFill[] = ['solid', 'outline', 'ghost'];
 export const BUTTON_SIZES: readonly ButtonSize[] = ['lg', 'md', 'sm'];
 
-// Palette Tailwind v4 : 300 ou 400 pour le texte, 500 pour les traits et les fonds, 600 au survol d'un fond.
-const RED_500 = 'oklch(63.7% 0.237 25.331)';
-const RED_600 = 'oklch(57.7% 0.245 27.325)';
-const BLUE_400 = 'oklch(70.7% 0.165 254.624)';
-const BLUE_500 = 'oklch(62.3% 0.214 259.815)';
-const BLUE_600 = 'oklch(54.6% 0.245 262.881)';
-const AMBER_400 = 'oklch(82.8% 0.189 84.429)';
-const AMBER_500 = 'oklch(76.9% 0.188 70.08)';
-const AMBER_600 = 'oklch(66.6% 0.179 58.318)';
-const AMBER_950 = 'oklch(27.9% 0.077 45.635)';
-const VIOLET_300 = 'oklch(81.1% 0.111 293.571)';
-const VIOLET_500 = 'oklch(60.6% 0.25 292.717)';
-const PRO_GRADIENT = 'linear-gradient(to right, oklch(54.1% 0.281 293.009), oklch(59.1% 0.293 322.896))';
-
-const mix = (color: string, percent: number) => `color-mix(in oklab, ${color} ${percent}%, transparent)`;
+const { red, blue, amber, violet, fuchsia } = palette;
+const PRO_GRADIENT = `linear-gradient(to right, ${violet[600]}, ${fuchsia[600]})`;
 
 interface Tone {
   /** Contour et ghost : texte, texte au survol, trait, fond au survol. */
@@ -58,8 +44,8 @@ interface Tone {
 const hue = (text: string, base: string, fill: string, fillHover: string, on: string): Tone => ({
   text,
   hot: text,
-  line: mix(base, 45),
-  wash: mix(base, 12),
+  line: alpha(base, 45),
+  wash: alpha(base, 12),
   fill,
   fillHover,
   on,
@@ -68,7 +54,7 @@ const hue = (text: string, base: string, fill: string, fillHover: string, on: st
 const tones = (): Readonly<Record<ButtonTone, Tone>> => ({
   // Contour : son bouton gris (« Défausser » de la modale de carte) ; ghost : ses ronds (croix, son coupé).
   neutral: {
-    text: mix(tokens.foreground, 70),
+    text: alpha(tokens.foreground, 70),
     hot: tokens.foreground,
     line: tokens.border,
     wash: tokens.surfaceLight,
@@ -77,13 +63,13 @@ const tones = (): Readonly<Record<ButtonTone, Tone>> => ({
     on: tokens.foreground,
   },
   // Plein : le « Défausser » de ses confirmations.
-  danger: hue(tokens.danger, tokens.danger, RED_500, RED_600, '#fff'),
-  info: hue(BLUE_400, BLUE_500, BLUE_500, BLUE_600, '#fff'),
+  danger: hue(tokens.danger, tokens.danger, red[500], red[600], '#fff'),
+  info: hue(blue[400], blue[500], blue[500], blue[600], '#fff'),
   // Plein : ses boutons verts (« Lancer l'enchère ») ; ghost : son bouton du son allumé.
   accent: hue(tokens.accent, tokens.accent, tokens.accent, tokens.accentLight, tokens.accentForeground),
-  warning: hue(AMBER_400, AMBER_500, AMBER_500, AMBER_600, AMBER_950),
+  warning: hue(amber[400], amber[500], amber[500], amber[600], amber[950]),
   // Plein : son bouton du pack PRO (dégradé violet → fuchsia, plus clair au survol).
-  pro: hue(VIOLET_300, VIOLET_500, PRO_GRADIENT, PRO_GRADIENT, '#fff'),
+  pro: hue(violet[300], violet[500], PRO_GRADIENT, PRO_GRADIENT, '#fff'),
 });
 
 /*
@@ -103,8 +89,8 @@ const buildCss = () => `
   text-decoration: none; cursor: pointer; color: var(--wm-text); border-color: var(--wm-line); background: transparent;
   transition: color 0.15s, background-color 0.15s, border-color 0.15s, filter 0.15s, opacity 0.15s; }
 .wm-button:hover:not(:disabled) { color: var(--wm-hot); background: var(--wm-wash); }
-.wm-button:focus-visible { outline: 2px solid ${mix(tokens.accent, 60)}; outline-offset: 2px; }
-.wm-button:disabled { opacity: 0.5; cursor: not-allowed; }
+.wm-button:focus-visible { outline: 2px solid ${alpha(tokens.accent, 60)}; outline-offset: 2px; }
+.wm-button:disabled { opacity: ${DISABLED_OPACITY}; cursor: not-allowed; }
 .wm-button.wm-solid { color: var(--wm-on); border-color: transparent; background: var(--wm-fill); font-weight: 600; }
 .wm-button.wm-solid:hover:not(:disabled) { color: var(--wm-on); background: var(--wm-fill-hover); }
 .wm-button.wm-tone-pro.wm-solid:hover:not(:disabled) { filter: brightness(1.1); }

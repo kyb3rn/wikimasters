@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openSite, sitePage } from './support/site';
+import { openSite, rect, sitePage } from './support/site';
 
 // « Choisir une carte » de la vitrine, balisage du code du site (30/09/2026). Pas de Tailwind dans le faux site :
 // seules la largeur du cadre, les marges des zones (en couche comme chez lui) et les classes lues par le script
@@ -73,18 +73,14 @@ test("fenêtre élargie (5 cartes par ligne), 900 px de haut au plus", async ({ 
   const frame = page.locator('#picker');
   await expect(frame).toHaveCSS('max-width', '928px');
   await expect(frame).toHaveCSS('max-height', '900px');
-  expect(Math.round((await frame.boundingBox())?.width ?? 0)).toBe(928);
+  expect(Math.round((await rect(frame)).width)).toBe(928);
 });
 
 test('halo des cartes de la première ligne entier : 32 px au-dessus d’elles dans la zone qui défile', async ({ page }) => {
   await openPicker(page);
-  const [list, card, field] = await Promise.all([
-    page.locator('#picker-list').boundingBox(),
-    page.locator('#picker-list .card').boundingBox(),
-    FIELD(page).boundingBox(),
-  ]);
-  expect(card && list && Math.round(card.y - list.y)).toBe(32);
-  expect(card && field && Math.round(card.y - (field.y + field.height))).toBe(36);
+  const [list, card, field] = await Promise.all([rect(page.locator('#picker-list')), rect(page.locator('#picker-list .card')), rect(FIELD(page))]);
+  expect(Math.round(card.y - list.y)).toBe(32);
+  expect(Math.round(card.y - (field.y + field.height))).toBe(36);
 });
 
 test('raretés en cases collées au bout de la ligne du champ, à sa hauteur ; pastilles du site cachées', async ({ page }) => {
@@ -94,10 +90,10 @@ test('raretés en cases collées au bout de la ligne du champ, à sa hauteur ; p
   await expect(page.locator('#site-pills')).toBeHidden();
   await expect(FIELD(page)).toHaveAttribute('placeholder', 'Rechercher par nom ou description');
 
-  const [field, box] = await Promise.all([FIELD(page).boundingBox(), filter.boundingBox()]);
-  expect(box && field && Math.round(box.x - (field.x + field.width))).toBe(12);
-  expect(Math.round(box?.y ?? 0)).toBe(Math.round(field?.y ?? 0));
-  expect(Math.round(box?.height ?? 0)).toBe(Math.round(field?.height ?? 0));
+  const [field, box] = await Promise.all([rect(FIELD(page)), rect(filter)]);
+  expect(Math.round(box.x - (field.x + field.width))).toBe(12);
+  expect(Math.round(box.y)).toBe(Math.round(field.y));
+  expect(Math.round(box.height)).toBe(Math.round(field.height));
 });
 
 test('chaque case clique la pastille du site ; la croix décoche tout (« Réinitialiser » du site)', async ({ page }) => {
@@ -128,6 +124,6 @@ test('fenêtre rouverte : les cases reviennent', async ({ page }) => {
 
 test('fenêtre étroite : les cases passent sous le champ', async ({ page }) => {
   await openPicker(page, { width: 400, height: 800 });
-  const [field, box] = await Promise.all([FIELD(page).boundingBox(), FILTER(page).boundingBox()]);
-  expect(box && field && box.y >= field.y + field.height).toBe(true);
+  const [field, box] = await Promise.all([rect(FIELD(page)), rect(FILTER(page))]);
+  expect(box.y).toBeGreaterThanOrEqual(field.y + field.height);
 });

@@ -1,3 +1,4 @@
+import { createListeners } from '@/core/listeners';
 import type { Logger } from '@/core/log';
 
 /** Ce dont le routeur a besoin de `window` (remplaçable dans les tests). */
@@ -21,19 +22,13 @@ export interface Router {
  */
 export function createRouter(host: RouterHost, log: Logger): Router {
   let path = host.location.pathname;
-  const listeners = new Set<(path: string) => void>();
+  const listeners = createListeners<[path: string]>(log, 'écouteur de navigation');
 
   function check(): void {
     const next = host.location.pathname;
     if (next === path) return;
     path = next;
-    for (const listener of [...listeners]) {
-      try {
-        listener(next);
-      } catch (error) {
-        log.error('écouteur de navigation en échec', error);
-      }
-    }
+    listeners.emit(next);
   }
 
   const history = host.history;
@@ -50,11 +45,6 @@ export function createRouter(host: RouterHost, log: Logger): Router {
     get path() {
       return path;
     },
-    onChange(listener, options) {
-      const signal = options?.signal;
-      if (signal?.aborted) return;
-      listeners.add(listener);
-      signal?.addEventListener('abort', () => listeners.delete(listener), { once: true });
-    },
+    onChange: (listener, options) => listeners.on(listener, options),
   };
 }

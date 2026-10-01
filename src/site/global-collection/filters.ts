@@ -1,6 +1,13 @@
+import { textOf } from '@/core/text';
 import { findListbox } from '@/site/listbox';
+import { checkedRarities, type ListSource } from '@/site/list-query';
 import { findRarityPills, type RarityPills } from '@/site/rarity-pills';
-import type { GlobalCollectionQuery } from './list';
+import {
+  isGlobalCollectionList,
+  readGlobalCollectionQuery,
+  sameGlobalCollectionChoice,
+  type GlobalCollectionQuery,
+} from './list';
 
 /**
  * Filtres de « Toutes les cartes » (code et capture du 30/09/2026), dans `div.space-y-3` :
@@ -60,8 +67,7 @@ export function findGlobalCollectionFilters(doc: Document = document): GlobalCol
 export function findGlobalCollectionSearchNotice(filters: GlobalCollectionFilters): HTMLElement | undefined {
   const frame = filters.area.previousElementSibling;
   if (!(frame instanceof HTMLElement) || !frame.classList.contains('card-frame')) return undefined;
-  const text = frame.querySelector(':scope > p')?.textContent ?? '';
-  return text.startsWith('Recherche active') ? frame : undefined;
+  return textOf(frame.querySelector(':scope > p')).startsWith('Recherche active') ? frame : undefined;
 }
 
 /** Roue qui remplace la grille pendant un chargement (sœur du cadre des filtres). */
@@ -73,15 +79,14 @@ export function isGlobalCollectionLoading(filters: GlobalCollectionFilters): boo
 export function readGlobalCollectionChoice(filters: GlobalCollectionFilters): GlobalCollectionQuery | undefined {
   const sort = findListbox(filters.sort);
   if (!sort) return undefined;
-  return {
-    sort: sort.value,
-    search: '',
-    rarities: filters.pills.pills
-      .filter((pill) => pill.checked)
-      .map((pill) => pill.rarity)
-      .sort()
-      .join(','),
-    wishlist: filters.wishlist?.active ?? false,
-    page: undefined,
-  };
+  return { sort: sort.value, search: '', rarities: checkedRarities(filters.pills), wishlist: filters.wishlist?.active ?? false, page: undefined };
 }
+
+/** Liste de la page (recherche retenue, délai, mémoire des filtres, pagination). */
+export const globalCollectionList: ListSource<GlobalCollectionQuery> = {
+  id: 'global-collection',
+  isList: isGlobalCollectionList,
+  readQuery: readGlobalCollectionQuery,
+  sameChoice: sameGlobalCollectionChoice,
+  field: () => findGlobalCollectionFilters()?.field,
+};

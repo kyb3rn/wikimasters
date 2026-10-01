@@ -1,26 +1,18 @@
 import { h } from 'preact';
-import { childController } from '@/core/async';
-import { injectStyle, setClass, watchDom, whenBody } from '@/core/dom';
+import { childController, later } from '@/core/async';
+import { watchDom } from '@/core/dom';
 import { net } from '@/core/net';
 import type { Feature } from '@/core/runtime';
+import { textOf } from '@/core/text';
 import { claimDateOf, fetchProDaily } from '@/site/api';
-import {
-  findProDailyStates,
-  findProPack,
-  isProDailyRoute,
-  isProDailyStatus,
-  proClaimDate,
-  PULLS_ROUTE,
-  type ProPack as SiteProPack,
-} from '@/site/pulls';
-import { mountUi, type MountedUi } from '@/ui/mount';
+import { onServerSecond, serverNow } from '@/site/clock';
+import { findProDailyStates, findProPack, isProDaily, isProDailyStatus, proClaimDate, type ProPack as SiteProPack } from '@/site/pulls';
+import { PULLS_ROUTE } from '@/site/routes';
+import { createSlot } from '@/ui/mount';
 import { ProPack, type ProPackState } from './ProPack';
-import { midnightAfter, nextMidnight, serverOffset } from './time';
-
-const HIDDEN = 'wm-pro-pack-hidden';
+import { midnightAfter, nextMidnight } from './time';
 
 const CSS = `
-.${HIDDEN} { display: none !important; }
 .wm-pro-pack-root { max-width: 100%; }
 .wm-pro-pack { width: 400px; max-width: 100%; }
 `;
@@ -30,9 +22,6 @@ const CSS = `
  * (horloges à la seconde près) ; ensuite, « Réessayer ».
  */
 const RETRY_DELAYS = [2000, 5000, 15_000, 30_000];
-
-/** Réponses fraîches du site ou de Supabase, dont l'en-tête `Date` donne l'heure du serveur. */
-const isDynamic = (path: string) => path.startsWith('/api/') || path.startsWith('/rest/v1/');
 
 export const pullsPro: Feature = {
   id: 'pulls-pro',
@@ -45,11 +34,8 @@ export const pullsPro: Feature = {
   hidden: true,
   async mount(ctx) {
     const { signal, log } = ctx;
-    let placed: { readonly ui: MountedUi; readonly controller: AbortController } | undefined;
-    /** Avance de l'horloge du serveur sur celle du PC. */
-    let offset = 0;
-    /** Dernière demande de disponibilité (du site ou nôtre) : sans réponse valable, le cadre du site reste vide. */
-    let status: 'pending' | 'ok' | 'failed' = 'pending';
+    /** Dernière demande de disponibilité (du site ou nôtre) en échec : sans réponse valable, le cadre du site reste vide. */
+    let failed = false;
     /** Jour dont parle la dernière réponse de la route ; à défaut, celui que le site retient. */
     let claimDate: string | undefined;
     /** Fin du décompte sans jour d'ouverture connu : fixe, sans quoi passé minuit il repartirait pour un jour. */
@@ -57,59 +43,41 @@ export const pullsPro: Feature = {
     /** Notre demande en cours, relance prévue, relances épuisées, état de la page introuvable. */
     let refreshing = false;
     let attempts = 0;
-    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let cancelRetry: (() => void) | undefined;
     let exhausted = false;
     let unreachable = false;
-    let tickTimer: ReturnType<typeof setTimeout> | undefined;
-    signal.addEventListener(
-      'abort',
-      () => {
-        clearTimeout(tickTimer);
-        clearTimeout(retryTimer);
-      },
-      { once: true },
-    );
-    const now = () => Date.now() + offset;
+    /** Décompte affiché : la page est redessinée à chaque seconde du serveur. */
+    let ticking: AbortController | undefined;
+    const slot = createSlot(signal);
 
     net.observe(
-      (request) => !request.own && isDynamic(request.url.pathname),
-      (exchange) => {
-        if (exchange.synthetic) return;
-        const measured = serverOffset(exchange.headers, exchange.startedAt + exchange.duration);
-        if (measured !== undefined) offset = measured;
+      isProDaily,
+      async (exchange) => {
+        const date = claimDateOf(await exchange.json().catch(() => undefined));
+        if (date) claimDate = date;
       },
       { signal },
     );
-    net.observe(isProDailyRoute, async (exchange) => {
-      const date = claimDateOf(await exchange.json().catch(() => undefined));
-      if (date) claimDate = date;
-    }, { signal });
     net.track(
       isProDailyStatus,
       () => {
-        status = 'pending';
+        failed = false;
         sync();
         return (code) => {
-          status = code !== undefined && code >= 200 && code < 300 ? 'ok' : 'failed';
+          failed = code === undefined || code < 200 || code >= 300;
           sync();
         };
       },
       { signal },
     );
 
-    await whenBody();
-    if (signal.aborted) return;
-    injectStyle('pulls-pro', CSS);
-
-    function remove(): void {
-      placed?.controller.abort();
-      placed = undefined;
-    }
+    if (!(await ctx.ready())) return;
+    ctx.style(CSS);
 
     function deadlineOf(): number {
       const date = claimDate ?? proClaimDate();
       if (date) return midnightAfter(date);
-      fallbackDeadline ??= nextMidnight(now());
+      fallbackDeadline ??= nextMidnight(serverNow());
       return fallbackDeadline;
     }
 
@@ -120,10 +88,14 @@ export const pullsPro: Feature = {
         return;
       }
       attempts += 1;
-      retryTimer = setTimeout(() => {
-        retryTimer = undefined;
-        void refresh();
-      }, delay);
+      cancelRetry = later(
+        () => {
+          cancelRetry = undefined;
+          void refresh();
+        },
+        delay,
+        signal,
+      );
     }
 
     /**
@@ -134,8 +106,8 @@ export const pullsPro: Feature = {
       if (refreshing || signal.aborted) return;
       refreshing = true;
       exhausted = false;
-      clearTimeout(retryTimer);
-      retryTimer = undefined;
+      cancelRetry?.();
+      cancelRetry = undefined;
       sync();
       try {
         const result = await fetchProDaily();
@@ -150,7 +122,7 @@ export const pullsPro: Feature = {
         }
         states.eligible.set(result.eligible);
         states.claimed.set(result.claimedToday);
-        if (result.eligible || (result.claimedToday && deadlineOf() > now())) attempts = 0;
+        if (result.eligible || (result.claimedToday && deadlineOf() > serverNow())) attempts = 0;
         else scheduleRetry();
       } catch (error) {
         log.warn('disponibilité du pack du jour non reçue', error);
@@ -163,7 +135,7 @@ export const pullsPro: Feature = {
 
     /** L'état affiché ; `refresh` : le demander nous-mêmes (minuit passé, demande du site en échec). */
     function stateOf(pack: SiteProPack): { state: ProPackState; refresh: boolean } {
-      const waiting = refreshing || retryTimer !== undefined;
+      const waiting = refreshing || cancelRetry !== undefined;
       const stalled = (): { state: ProPackState; refresh: boolean } => {
         if (unreachable) return { state: { kind: 'reload' }, refresh: false };
         if (exhausted) return { state: { kind: 'error' }, refresh: false };
@@ -173,27 +145,26 @@ export const pullsPro: Feature = {
       if (pack.button) {
         attempts = 0;
         exhausted = false;
-        const opening = (pack.button.textContent ?? '').trim().startsWith('Ouverture');
+        const opening = textOf(pack.button).startsWith('Ouverture');
         return { state: { kind: 'available', disabled: pack.button.disabled, opening }, refresh: false };
       }
       if (pack.claimed) {
-        const remaining = deadlineOf() - now();
+        const remaining = deadlineOf() - serverNow();
         return remaining > 0 ? { state: { kind: 'claimed', remaining }, refresh: false } : stalled();
       }
-      if (status === 'failed' || waiting || exhausted || unreachable) return stalled();
+      if (failed || waiting || exhausted || unreachable) return stalled();
       return { state: { kind: 'loading' }, refresh: false };
     }
 
-    /** Le décompte avance au changement de seconde de l'horloge du serveur. */
-    function tick(): void {
-      if (tickTimer !== undefined || signal.aborted) return;
-      tickTimer = setTimeout(
-        () => {
-          tickTimer = undefined;
-          sync();
-        },
-        1000 - (now() % 1000) + 5,
-      );
+    /** Le décompte avance au changement de seconde de l'horloge du serveur, tant qu'il est affiché. */
+    function tick(on: boolean): void {
+      if (on && !ticking) {
+        ticking = childController(signal);
+        onServerSecond(sync, { signal: ticking.signal });
+      } else if (!on && ticking) {
+        ticking.abort();
+        ticking = undefined;
+      }
     }
 
     function open(): void {
@@ -206,31 +177,19 @@ export const pullsPro: Feature = {
       const pack = findProPack();
       const parent = pack?.root.parentElement;
       if (!pack || !parent) {
-        remove();
+        tick(false);
+        slot.clear();
         return;
       }
-      setClass(pack.root, HIDDEN, true);
-      if (!placed) log.debug(`états de la page ${findProDailyStates(pack) ? 'lus' : 'introuvables'}`);
+      ctx.hide(pack.root);
+      if (!slot.ui) log.debug(`états de la page ${findProDailyStates(pack) ? 'lus' : 'introuvables'}`);
       const { state, refresh: needed } = stateOf(pack);
-      if (state.kind === 'claimed') tick();
+      tick(state.kind === 'claimed');
       if (needed) queueMicrotask(() => void refresh());
       const vnode = h(ProPack, { state, onOpen: open, onRetry: () => void refresh(), onReload: () => location.reload() });
-      if (placed?.ui.element.parentElement === parent && placed.ui.element.nextElementSibling === pack.root) {
-        placed.ui.update(vnode);
-        return;
-      }
-      remove();
-      const controller = childController(signal);
-      placed = {
-        ui: mountUi(vnode, { parent, before: pack.root, className: 'wm-pro-pack-root', signal: controller.signal }),
-        controller,
-      };
+      slot.render(vnode, { parent, before: pack.root, className: 'wm-pro-pack-root' });
     }
 
     watchDom(sync, { signal });
-    ctx.onDispose(() => {
-      remove();
-      document.querySelectorAll(`.${HIDDEN}`).forEach((el) => el.classList.remove(HIDDEN));
-    });
   },
 };

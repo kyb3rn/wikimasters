@@ -1,24 +1,32 @@
 import { describe, expect, it } from 'vitest';
-import type { NetRequest } from '@/core/net';
-import { parseAuctionCard, readAuctionRequest } from '@/site/api';
+import { parseAuctionCard, readAuctionCancel, readAuctionCreation, readAuctionRequest } from '@/site/api';
+import { netRequest } from '../../support';
 
 const ID = '198816ca-4758-42ca-a1d3-800a37b0d850';
 
-const request = (url: string, method = 'GET'): NetRequest => ({
-  url: new URL(url, 'https://www.wiki-masters.com'),
-  method,
-  headers: new Headers(),
-  body: undefined,
-  own: false,
+describe('mise aux enchères et retrait', () => {
+  it('lit une mise aux enchères (le champ card_id porte l’exemplaire)', () => {
+    const create = netRequest('/api/marketplace', { method: 'POST', body: { card_id: 'u1', base_amount: 90, duration_minutes: 10 } });
+    expect(readAuctionCreation(create)).toEqual({ userCardId: 'u1' });
+    expect(readAuctionCreation(netRequest('/api/marketplace/a1/bid', { method: 'POST', body: { amount: 5 } }))).toBeUndefined();
+    expect(readAuctionCreation(netRequest('/api/marketplace?page=1'))).toBeUndefined();
+    expect(readAuctionCreation(netRequest('/api/marketplace', { method: 'POST', body: 'pas du json' }))).toBeUndefined();
+  });
+
+  it('lit une annonce retirée', () => {
+    expect(readAuctionCancel(netRequest('/api/marketplace/a1', { method: 'DELETE' }))).toEqual({ auctionId: 'a1' });
+    expect(readAuctionCancel(netRequest('/api/marketplace/a1'))).toBeUndefined();
+    expect(readAuctionCancel(netRequest('/api/marketplace/a1/bid', { method: 'DELETE' }))).toBeUndefined();
+  });
 });
 
 describe('enchère affichée', () => {
   it('reconnaît la requête de la page d’une enchère, pas les autres routes du marché', () => {
-    expect(readAuctionRequest(request(`/api/marketplace/${ID}`))).toBe(ID);
-    expect(readAuctionRequest(request(`/api/marketplace/${ID}`, 'DELETE'))).toBeUndefined();
-    expect(readAuctionRequest(request(`/api/marketplace/${ID}/bid`, 'GET'))).toBeUndefined();
-    expect(readAuctionRequest(request('/api/marketplace/mine'))).toBeUndefined();
-    expect(readAuctionRequest(request('/api/marketplace?page=1'))).toBeUndefined();
+    expect(readAuctionRequest(netRequest(`/api/marketplace/${ID}`))).toBe(ID);
+    expect(readAuctionRequest(netRequest(`/api/marketplace/${ID}`, { method: 'DELETE' }))).toBeUndefined();
+    expect(readAuctionRequest(netRequest(`/api/marketplace/${ID}/bid`))).toBeUndefined();
+    expect(readAuctionRequest(netRequest('/api/marketplace/mine'))).toBeUndefined();
+    expect(readAuctionRequest(netRequest('/api/marketplace?page=1'))).toBeUndefined();
   });
 
   it('lit la carte et la rareté de l’exemplaire mis en vente', () => {

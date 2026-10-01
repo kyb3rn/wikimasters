@@ -1,24 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import type { NetRequest } from '@/core/net';
 import { copiesByCard, isCopiesQuery, isPackOpening, parsePack, type OwnedCopy, type PackCard } from '@/site/pulls';
-
-function request(method: string, url: string): NetRequest {
-  return { url: new URL(url), method, headers: new Headers(), body: undefined, own: false };
-}
+import { netRequest } from '../../support';
 
 const card = (id: string, isShiny = false): PackCard => ({ id, title: `Carte ${id}`, rarity: 'C', isShiny });
 const copy = (id: string, cardId: string, isShiny = false): OwnedCopy => ({ id, cardId, starred: false, isShiny, tags: 0 });
 
 describe('paquet ouvert', () => {
   it('reconnaît les ouvertures (classique et PRO du jour) et la requête des exemplaires', () => {
-    expect(isPackOpening(request('POST', 'https://www.wiki-masters.com/api/packs/open'))).toBe(true);
-    expect(isPackOpening(request('POST', 'https://www.wiki-masters.com/api/packs/pro-daily'))).toBe(true);
-    expect(isPackOpening(request('POST', 'https://www.wiki-masters.com/api/packs/verify-human'))).toBe(false);
-    expect(isPackOpening(request('GET', 'https://www.wiki-masters.com/api/packs/open'))).toBe(false);
+    expect(isPackOpening(netRequest('/api/packs/open', { method: 'POST' }))).toBe(true);
+    expect(isPackOpening(netRequest('/api/packs/pro-daily', { method: 'POST' }))).toBe(true);
+    expect(isPackOpening(netRequest('/api/packs/verify-human', { method: 'POST' }))).toBe(false);
+    expect(isPackOpening(netRequest('/api/packs/open'))).toBe(false);
     expect(
-      isCopiesQuery(request('GET', 'https://x.supabase.co/rest/v1/user_cards?select=id,card_id&user_id=eq.u1&card_id=in.(c1,c2)')),
+      isCopiesQuery(netRequest('https://x.supabase.co/rest/v1/user_cards?select=id,card_id&user_id=eq.u1&card_id=in.(c1,c2)')),
     ).toBe(true);
-    expect(isCopiesQuery(request('GET', 'https://x.supabase.co/rest/v1/user_cards?select=id&user_id=eq.u1'))).toBe(false);
+    expect(isCopiesQuery(netRequest('https://x.supabase.co/rest/v1/user_cards?select=id&user_id=eq.u1'))).toBe(false);
   });
 
   it('lit les cartes et les exemplaires de la réponse d’ouverture', () => {

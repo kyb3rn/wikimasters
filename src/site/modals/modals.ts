@@ -1,7 +1,9 @@
-import { GHOST_CLASS } from '@/core/dom';
+import { EMBEDDED_CLASS, GHOST_CLASS } from '@/core/dom';
+import { textOf } from '@/core/text';
+import { isOwn, siteButtons } from '@/site/dom';
 
 /**
- * Modales du site (relevé du 29/09/2026, `docs/site.md` § Modales). Pas de composant commun : chacune est un
+ * Modales du site (relevé du 29/09/2026, `docs/site/README.md` § Modales). Pas de composant commun : chacune est un
  * `div.fixed.inset-0.z-…` (portail dans `body` ou enfant d'une autre modale) qui ferme au clic sur le fond,
  * avec un cadre qui arrête le clic. Leur fermeture varie : croix ronde dans le coin (modale de carte), petite
  * croix dans une barre de titre, SVG maison sans nom (vitrine du profil), texte « Fermer » à côté du titre
@@ -13,7 +15,6 @@ import { GHOST_CLASS } from '@/core/dom';
 
 /** Fond d'une modale du site, hors copies qui s'effacent après une fermeture. */
 export const SITE_OVERLAY = `div.fixed.inset-0:not(.${GHOST_CLASS} *)`;
-const OVERLAY = SITE_OVERLAY;
 
 export interface SiteModal {
   readonly overlay: HTMLElement;
@@ -30,13 +31,9 @@ export interface SiteModal {
 // Tracés des croix du site : lucide `x`, heroicons (conversation, Inviter des amis), vitrine du profil.
 const CROSS_PATHS = new Set(['M18 6 6 18', 'm6 6 12 12', 'M6 18L18 6M6 6l12 12', 'M2 2l14 14M16 2L2 16']);
 
-const text = (element: Element) => (element.textContent ?? '').replace(/\s+/g, ' ').trim();
-
-/** Nos interfaces (`.wm-root`) ne font pas partie de la modale. */
-const isOwn = (element: Element) => element.closest('.wm-root') !== null;
-
-function ownButtons(overlay: HTMLElement): HTMLButtonElement[] {
-  return [...overlay.querySelectorAll('button')].filter((button) => button.closest(OVERLAY) === overlay && !isOwn(button));
+/** Boutons du site de cette modale, sans ceux d'une modale imbriquée. */
+function modalButtons(overlay: HTMLElement): HTMLButtonElement[] {
+  return siteButtons(overlay).filter((button) => button.closest(SITE_OVERLAY) === overlay);
 }
 
 /** Bouton posé à côté du titre (même parent qu'un `h1`-`h3`, ou que le bloc qui le contient). */
@@ -52,17 +49,21 @@ function drawsCross(button: Element): boolean {
 function findClose(buttons: readonly HTMLButtonElement[]): HTMLButtonElement | undefined {
   return (
     buttons.find((button) => button.getAttribute('aria-label')?.startsWith('Fermer')) ??
-    buttons.find((button) => text(button) === 'Fermer' && besideTitle(button)) ??
-    buttons.find((button) => !button.hasAttribute('aria-label') && text(button) === '' && drawsCross(button) && besideTitle(button))
+    buttons.find((button) => textOf(button) === 'Fermer' && besideTitle(button)) ??
+    buttons.find((button) => !button.hasAttribute('aria-label') && textOf(button) === '' && drawsCross(button) && besideTitle(button))
   );
 }
 
-/** Fond d'une modale du site (même retiré de la page) : ni les feux d'artifice de /pulls, ni nos propres éléments. */
+/**
+ * Fond d'une modale du site (même retiré de la page) : ni les feux d'artifice de /pulls, ni nos propres éléments, ni
+ * une modale intégrée à la page (`EMBEDDED_CLASS`).
+ */
 export function isSiteOverlay(element: Node): element is HTMLElement {
   return (
     element instanceof HTMLElement &&
-    element.matches(OVERLAY) &&
+    element.matches(SITE_OVERLAY) &&
     !element.classList.contains('pointer-events-none') &&
+    !element.classList.contains(EMBEDDED_CLASS) &&
     !isOwn(element)
   );
 }
@@ -72,13 +73,22 @@ export function readSiteModal(overlay: HTMLElement): SiteModal {
   const children = [...overlay.children].filter((child): child is HTMLElement => child instanceof HTMLElement && !isOwn(child));
   const layer = children.find((child) => child.matches('div.absolute.inset-0'));
   const frame = children.find((child) => child !== layer);
-  const buttons = frame ? ownButtons(overlay) : [];
-  const dismiss = buttons.find((button) => /^Compris\b/.test(text(button)));
+  const buttons = frame ? modalButtons(overlay) : [];
+  const dismiss = buttons.find((button) => /^Compris\b/.test(textOf(button)));
   return { overlay, shade: layer ?? overlay, frame, close: findClose(buttons) ?? dismiss, dismiss };
 }
 
 export function findSiteModals(doc: Document = document): SiteModal[] {
-  return [...doc.querySelectorAll(OVERLAY)].filter(isSiteOverlay).map(readSiteModal);
+  return [...doc.querySelectorAll(SITE_OVERLAY)].filter(isSiteOverlay).map(readSiteModal);
+}
+
+/**
+ * Une modale du site est-elle ouverte (carte, mise aux enchères, confirmation…) ? Comme `findSiteModals` : ni les
+ * feux d'artifice des légendaires de /pulls, ni nos copies qui s'effacent, ni une modale intégrée à la page. Une
+ * modale cachée par une fonctionnalité (son moteur) compte.
+ */
+export function isSiteModalOpen(doc: Document = document): boolean {
+  return [...doc.querySelectorAll(SITE_OVERLAY)].some(isSiteOverlay);
 }
 
 /** Croix ronde dans le coin (modale de carte, mise aux enchères…) : le modèle, rien à changer. */
@@ -91,7 +101,7 @@ export function isCornerCross(button: HTMLButtonElement): boolean {
  * Rien d'autre (surtout pas le fond : voir plus haut).
  */
 export function escapeTarget(modal: SiteModal): HTMLButtonElement | undefined {
-  return modal.close ?? ownButtons(modal.overlay).find((button) => text(button) === 'Annuler');
+  return modal.close ?? modalButtons(modal.overlay).find((button) => textOf(button) === 'Annuler');
 }
 
 /** Modale du dessus parmi celles affichées (les modales du site cachées par nos fonctionnalités ne comptent pas). */

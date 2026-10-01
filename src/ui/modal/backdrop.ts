@@ -6,7 +6,7 @@ import { guardBackdropClicks } from '@/core/dom';
 export function useBackdropGuard(backdrop: RefObject<HTMLElement>): void {
   useLayoutEffect(() => {
     const controller = new AbortController();
-    guardBackdropClicks((element) => element === backdrop.current, controller.signal);
+    guardBackdropClicks((element) => element === backdrop.current, { signal: controller.signal });
     return () => controller.abort();
   }, [backdrop]);
 }

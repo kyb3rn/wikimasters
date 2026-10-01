@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openSite, sitePage } from './support/site';
+import { openSite, rect, sitePage } from './support/site';
 
 /** Bouton « Ouvrir » du choix du paquet (balisage du 29/09/2026) : image carrée puis texte, en colonne `gap-4`. */
 const PAGE = sitePage(`<style>
@@ -15,10 +15,7 @@ const PAGE = sitePage(`<style>
 </div>`);
 
 async function layout(page: Page) {
-  const [image, label, button] = await Promise.all(
-    ['#open img', '#open span', '#open'].map((selector) => page.locator(selector).boundingBox()),
-  );
-  if (!image || !label || !button) throw new Error('bouton « Ouvrir » incomplet');
+  const [image, label, button] = await Promise.all([rect(page.locator('#open img')), rect(page.locator('#open span')), rect(page.locator('#open'))]);
   return { gap: label.y - (image.y + image.height), button };
 }
 

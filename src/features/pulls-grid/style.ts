@@ -2,24 +2,23 @@ import { ROOT_CLASS } from '@/core/dom';
 import { PULLS_GRID_CLASSES as C } from '@/services/pulls-grid';
 import { ACTIONS_GAP, CARD_HEIGHT, CARD_WIDTH, GAP_X, GAP_Y } from './layout';
 
-/** Parties du carrousel masquées : compteur, navigation, bouton d'origine « Encore n cartes » / « Continuer ». */
-export const HIDDEN = 'wm-grid-hidden';
 /**
  * Zone de la carte du carrousel : invisible mais toujours affichée. Ses animations doivent tourner (le
  * site révèle les shiny à leur fin) et ses images se charger (images `loading="lazy"`, jamais chargées
  * hors de l'écran ou sous `display: none`).
  */
 export const OFFSTAGE = 'wm-grid-offstage';
-/** Sur `<html>` tant que la grille est affichée. */
-export const ACTIVE = 'wm-pulls-grid-on';
 /** Durée de l'arrivée d'une carte. */
 export const ARRIVAL_MS = 450;
 
+/**
+ * Tant que la grille est affichée : le feu d'artifice des L, parti de la carte invisible du carrousel, n'a plus de
+ * sens ici.
+ */
+export const GRID_ON_CSS = `[class*="animate-card-reveal-firework"] { display: none !important; }`;
+
 export const CSS = `
-.${HIDDEN} { display: none !important; }
 .${OFFSTAGE} { position: absolute !important; opacity: 0 !important; pointer-events: none !important; }
-/* Feu d'artifice des L : parti de la carte invisible du carrousel, il n'a plus de sens ici. */
-html.${ACTIVE} [class*="animate-card-reveal-firework"] { display: none !important; }
 
 main .${ROOT_CLASS}.${C.grid} { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start;
   gap: ${GAP_Y}px ${GAP_X}px; line-height: inherit; color: inherit; }

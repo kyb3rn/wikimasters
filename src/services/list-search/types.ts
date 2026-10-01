@@ -1,22 +1,16 @@
 import type { NetRequest } from '@/core/net';
+import type { ListQuery, ListSource } from '@/site/list-query';
 
-/** Filtres d'une requête de liste du site : une recherche, une page, et des choix (tri, raretés…). */
-export interface ListQuery {
-  readonly search: string;
-  readonly page: number | undefined;
-}
-
-/** Liste filtrée d'une page du site : ses requêtes et ce qu'elles disent. */
-export interface ListSource<Q extends ListQuery> {
-  isList(request: NetRequest): boolean;
-  readQuery(url: URL): Q;
-  /** Mêmes choix : tout sauf la recherche et la page. */
-  sameChoice(a: Q, b: Q): boolean;
-}
+export type { ListQuery, ListSource } from '@/site/list-query';
 
 /** Mêmes filtres, la page mise à part. */
 export function sameFilters<Q extends ListQuery>(source: ListSource<Q>, a: Q, b: Q): boolean {
   return source.sameChoice(a, b) && a.search === b.search;
+}
+
+/** Requête de la liste ou de sa compagne (`ListSource.isCompanion`), venue de la page. */
+export function isSourceRequest<Q extends ListQuery>(source: ListSource<Q>): (request: NetRequest) => boolean {
+  return (request) => !request.own && (source.isList(request) || source.isCompanion?.(request) === true);
 }
 
 /**

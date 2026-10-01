@@ -1,6 +1,8 @@
+import { createListeners } from '@/core/listeners';
 import { errorMessage, type Logger } from '@/core/log';
-import { matchRoute, type RouteParams } from '@/core/router';
-import type { Feature, FeatureCatalog, FeatureContext, FeatureEntry, FeatureStatus } from './types';
+import { matchRoute } from '@/core/router';
+import { createContext } from './context';
+import type { Feature, FeatureCatalog, FeatureEntry, FeatureStatus } from './types';
 
 export interface RuntimeOptions {
   readonly features: readonly Feature[];
@@ -18,12 +20,6 @@ export interface Runtime {
   setEnabled(id: string, enabled: boolean): void;
   status(): FeatureStatus[];
   readonly catalog: FeatureCatalog;
-}
-
-interface Match {
-  /** Identifie la page pour la fonctionnalité : même clé = pas de remontage. */
-  readonly key: string;
-  readonly params: RouteParams;
 }
 
 interface Mounted {
@@ -45,26 +41,17 @@ export function createRuntime(options: RuntimeOptions): Runtime {
 
   const mounted = new Map<string, Mounted>();
   const failures = new Map<string, { key: string; message: string }>();
-  const listeners = new Set<() => void>();
+  const listeners = createListeners(options.createLogger('fonctionnalités'), 'écouteur du catalogue');
   let currentPath: string | undefined;
 
   const isEnabled = (feature: Feature) => feature.required === true || options.isEnabled(feature);
 
-  function notify(): void {
-    for (const listener of [...listeners]) {
-      try {
-        listener();
-      } catch {
-        // Un écouteur défaillant n'empêche pas les autres d'être prévenus.
-      }
-    }
-  }
-
-  function resolve(feature: Feature, path: string): Match | undefined {
-    if (feature.routes === 'all') return { key: '*', params: {} };
+  /** Clé de la page pour la fonctionnalité (motif reconnu et ses paramètres) : même clé = pas de remontage. */
+  function routeKey(feature: Feature, path: string): string | undefined {
+    if (feature.routes === 'all') return '*';
     for (const pattern of feature.routes) {
       const params = matchRoute(pattern, path);
-      if (params) return { key: `${pattern} ${JSON.stringify(params)}`, params };
+      if (params) return `${pattern} ${JSON.stringify(params)}`;
     }
     return undefined;
   }
@@ -76,38 +63,18 @@ export function createRuntime(options: RuntimeOptions): Runtime {
     entry.controller.abort();
   }
 
-  function mount(feature: Feature, path: string, match: Match): void {
+  function mount(feature: Feature, key: string): void {
     const controller = new AbortController();
-    const { signal } = controller;
     const log = options.createLogger(feature.id);
-    mounted.set(feature.id, { key: match.key, controller });
+    mounted.set(feature.id, { key, controller });
     failures.delete(feature.id);
-
-    const ctx: FeatureContext = {
-      id: feature.id,
-      log,
-      signal,
-      path,
-      params: match.params,
-      catalog,
-      onDispose(action) {
-        const run = () => {
-          try {
-            action();
-          } catch (error) {
-            log.error('nettoyage en échec', error);
-          }
-        };
-        if (signal.aborted) run();
-        else signal.addEventListener('abort', run, { once: true });
-      },
-    };
+    const ctx = createContext(feature.id, controller.signal, log, catalog);
 
     const fail = (error: unknown) => {
       log.error('échec du démarrage', error);
-      failures.set(feature.id, { key: match.key, message: errorMessage(error) });
+      failures.set(feature.id, { key, message: errorMessage(error) });
       if (mounted.get(feature.id)?.controller === controller) unmount(feature.id);
-      notify();
+      listeners.emit();
     };
 
     try {
@@ -120,19 +87,19 @@ export function createRuntime(options: RuntimeOptions): Runtime {
   function update(path: string): void {
     currentPath = path;
     for (const feature of features) {
-      const match = isEnabled(feature) ? resolve(feature, path) : undefined;
+      const key = isEnabled(feature) ? routeKey(feature, path) : undefined;
       const current = mounted.get(feature.id);
-      if (current && current.key === match?.key) continue;
+      if (current && current.key === key) continue;
       if (current) unmount(feature.id);
-      if (!match) {
+      if (key === undefined) {
         failures.delete(feature.id);
         continue;
       }
       // Échec sur cette même page : pas de nouvel essai avant d'en changer.
-      if (failures.get(feature.id)?.key === match.key) continue;
-      mount(feature, path, match);
+      if (failures.get(feature.id)?.key === key) continue;
+      mount(feature, key);
     }
-    notify();
+    listeners.emit();
   }
 
   function refresh(): void {
@@ -160,12 +127,7 @@ export function createRuntime(options: RuntimeOptions): Runtime {
   const catalog: FeatureCatalog = {
     list: () => features.map(entry),
     setEnabled,
-    onChange(listener, listenOptions) {
-      const signal = listenOptions?.signal;
-      if (signal?.aborted) return;
-      listeners.add(listener);
-      signal?.addEventListener('abort', () => listeners.delete(listener), { once: true });
-    },
+    onChange: (listener, listenOptions) => listeners.on(listener, listenOptions),
   };
 
   return {

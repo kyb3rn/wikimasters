@@ -1,5 +1,5 @@
 import type { Feature } from '@/core/runtime';
-import { migrateLegacyProtections, quickDiscardSettings } from '@/services/quick-discard';
+import { quickDiscardSettings } from '@/services/quick-discard';
 
 /** Réglages communs du défaussage rapide ; chaque endroit où il s'utilise a sa propre fonctionnalité. */
 export const quickDiscard: Feature = {
@@ -10,7 +10,5 @@ export const quickDiscard: Feature = {
   routes: 'all',
   required: true,
   settings: quickDiscardSettings,
-  mount() {
-    migrateLegacyProtections();
-  },
+  mount() {},
 };

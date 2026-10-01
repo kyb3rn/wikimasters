@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test';
+import { filtersTitle, listServer, type ListServer } from './lists';
 import { openSite, sitePage } from './site';
 
 /**
@@ -13,11 +14,8 @@ import { openSite, sitePage } from './site';
  */
 const SCRIPT = `
 (() => {
-  const el = (tag, cls) => { const node = document.createElement(tag); node.className = cls; return node; };
-  const button = (cls, html, onclick) => { const b = el('button', cls); b.type = 'button'; b.innerHTML = html; b.onclick = onclick; return b; };
-  const base = document.createElement('style');
-  base.textContent = '*, ::before, ::after { box-sizing: border-box; } input, select, textarea { font-size: 16px !important; }';
-  document.head.append(base);
+  const { el, button, tailwindBase, hooks, listbox, rarityPills } = kit;
+  tailwindBase();
 
   const main = document.querySelector('main');
   const tabs = el('div', 'flex border-b');
@@ -45,9 +43,8 @@ const SCRIPT = `
       () => sort, () => rarities, () => tag, () => page, () => null, () => error,
     ];
     const setters = { 8: (value) => { rarities = value; }, 10: (value) => { page = value; } };
-    const hooks = values.map((get, i) => ({ get memoizedState() { return get(); }, queue: { dispatch: (value) => { setters[i]?.(value); update(); } }, next: null }));
-    hooks.forEach((hook, i) => { hook.next = hooks[i + 1] ?? null; });
-    const pageFiber = { memoizedProps: {}, return: null, memoizedState: hooks[0] };
+    const states = hooks(values.map((get, i) => [get, (value) => { setters[i]?.(value); update(); }]));
+    const pageFiber = { memoizedProps: {}, return: null, memoizedState: states[0] };
 
     let scheduled = false;
     function update() {
@@ -106,61 +103,36 @@ const SCRIPT = `
     const lists = el('div', 'flex w-full min-w-0 flex-row gap-2 md:w-auto md:shrink-0 md:max-w-full');
     lists.style.gap = '8px';
 
-    function listbox(label, boxClass, getValue, getOptions, choose) {
-      const box = el('div', 'relative ' + boxClass);
-      const props = { ariaLabel: label, value: getValue(), options: getOptions(), onChange: (value) => choose(value) };
-      const toggle = button('flex w-full min-h-[42px] items-center rounded-lg border', '', () => (menu.isConnected ? menu.remove() : open()));
-      toggle.setAttribute('aria-haspopup', 'listbox');
-      toggle.setAttribute('aria-label', label);
-      toggle['__reactFiber$test'] = { memoizedProps: {}, stateNode: toggle, return: { memoizedProps: props, return: pageFiber } };
-      const menu = el('ul', 'rounded-xl border py-1');
-      menu.setAttribute('role', 'listbox');
-      const open = () => {
-        const rect = toggle.getBoundingClientRect();
-        menu.style.cssText = 'position:fixed;z-index:45;background:#161b22;top:' + (rect.bottom + 6) + 'px;left:' + rect.left + 'px;width:' + rect.width + 'px';
-        menu.replaceChildren(...props.options.map(({ value, label: text }) => {
-          const item = el('li', '');
-          const option = button('flex w-full px-3 py-2 text-left text-sm', text, () => { menu.remove(); props.onChange(value); });
-          option.setAttribute('role', 'option');
-          item.append(option);
-          return item;
-        }));
-        document.body.append(menu);
-      };
-      box.append(toggle);
-      return {
-        box,
-        render() {
-          props.value = getValue();
-          props.options = getOptions();
-          toggle.textContent = props.options.find((option) => option.value === props.value)?.label ?? '';
-        },
-      };
-    }
-    const tagList = listbox('Filtrer par étiquette', 'min-w-0 flex-1 md:min-w-[9.5rem] md:max-w-[12rem]', () => tag ?? '',
-      () => [{ value: '', label: 'Toutes les étiquettes' }, ...tagOptions.map((option) => ({ value: option.id, label: '#' + option.name }))],
-      (value) => { tag = value === '' ? null : value; page = 0; update(); });
+    const tagList = listbox({
+      label: 'Filtrer par étiquette',
+      className: 'min-w-0 flex-1 md:min-w-[9.5rem] md:max-w-[12rem]',
+      value: () => tag ?? '',
+      options: () => [{ value: '', label: 'Toutes les étiquettes' }, ...tagOptions.map((option) => ({ value: option.id, label: '#' + option.name }))],
+      onChange(value) { tag = value === '' ? null : value; page = 0; update(); },
+      parent: pageFiber,
+    });
     const sortOptions = [{ value: 'rarity', label: 'Rareté' }, { value: 'name', label: 'Nom' }, { value: 'added', label: "Date d'ajout" }];
-    const sortList = listbox('Trier la collection', 'min-w-0 flex-1 md:min-w-[8.5rem] md:max-w-[10rem]', () => sort, () => sortOptions,
-      (value) => { sort = value; page = 0; update(); });
+    const sortList = listbox({
+      label: 'Trier la collection',
+      className: 'min-w-0 flex-1 md:min-w-[8.5rem] md:max-w-[10rem]',
+      value: () => sort,
+      options: () => sortOptions,
+      onChange(value) { sort = value; page = 0; update(); },
+      parent: pageFiber,
+    });
     line.append(field, lists);
 
-    const pills = el('div', 'flex flex-wrap gap-2');
-    const rarityButtons = ['L', 'UR', 'SR', 'R', 'PC', 'C'].map((rarity) => {
-      const pill = button('px-3 py-1 rounded-full text-xs font-semibold', rarity, () => {
+    const pills = rarityPills({
+      checked: () => rarities,
+      toggle(rarity) {
         const next = new Set(rarities);
         if (next.has(rarity)) next.delete(rarity); else next.add(rarity);
         rarities = next; page = 0; update();
-      });
-      pill.setAttribute('style', 'background-color: var(--color-rarity-' + rarity.toLowerCase() + ')30; color: var(--color-rarity-' + rarity.toLowerCase() + ');');
-      return pill;
+      },
+      reset() { rarities = new Set(); page = 0; update(); },
     });
-    const reset = button('px-3 py-1 rounded-full text-xs', '<span class="inline-flex items-center gap-1"><svg class="lucide lucide-x size-3.5" width="14" height="14"></svg>Réinitialiser rareté</span>', () => {
-      rarities = new Set(); page = 0; update();
-    });
-    pills.append(...rarityButtons);
     const errorText = el('p', 'text-xs text-red-400/90 px-1');
-    area.append(line, pills);
+    area.append(line, pills.row);
 
     const count = el('p', 'text-xs');
     const spinner = el('div', 'flex justify-center py-4');
@@ -180,10 +152,7 @@ const SCRIPT = `
       sortList.render();
       if (tagOptions.length > 0) { if (!tagList.box.isConnected) lists.prepend(tagList.box); } else tagList.box.remove();
       if (!sortList.box.isConnected) lists.append(sortList.box);
-      rarityButtons.forEach((pill) => {
-        pill.className = 'px-3 py-1 rounded-full text-xs font-semibold ' + (rarities.has(pill.textContent) ? 'ring-2 ring-white/30' : 'opacity-50');
-      });
-      if (rarities.size > 0) pills.append(reset); else reset.remove();
+      pills.render();
       errorText.textContent = error ?? '';
       if (error) area.append(errorText); else errorText.remove();
       count.textContent = total + ' cartes dans la collection de aelonka';
@@ -214,49 +183,24 @@ const SCRIPT = `
 })();
 `;
 
-export const PROFILE_COLLECTION_HTML = sitePage('', SCRIPT);
-
-/** Titre de la carte renvoyée : il dit les filtres de la requête. */
-export function friendCardTitle(params: URLSearchParams): string {
-  const rarities = params.getAll('rarity').sort().join('+') || 'toutes';
-  const tag = params.get('tag_id') ? ` #${params.get('tag_id')}` : '';
-  const search = params.get('q') ? ` «${params.get('q')}»` : '';
-  return `${params.get('sort')} ${rarities}${tag}${search} p${params.get('page')}`;
-}
-
-export interface FriendCollectionServer {
-  /** Paramètres des listes demandées. */
-  readonly requests: string[];
-  /** Retient les réponses tant qu'il n'est pas résolu. */
-  gate: Promise<void> | undefined;
-}
+const PROFILE_COLLECTION_HTML = sitePage('', SCRIPT);
 
 /**
  * Ouvre le profil imité, sur l'onglet Collection. Serveur : une carte par page, dont le titre dit les filtres ;
  * 120 cartes (3 pages), aucune pour la recherche « zzz » ; une étiquette « rouge » (`t1`) si `tags`.
  */
-export async function openFriendCollection(page: Page, { tags = true } = {}): Promise<FriendCollectionServer> {
-  const server: FriendCollectionServer = { requests: [], gate: undefined };
-  await openSite(page, '/profile/aelonka', {
-    html: PROFILE_COLLECTION_HTML,
-    handle: async (route, url) => {
-      if (url.pathname !== '/api/profile/aelonka/collection') return false;
-      const params = url.searchParams;
-      server.requests.push(params.toString());
-      await server.gate;
-      const none = params.get('q') === 'zzz';
-      await route.fulfill({
-        json: {
-          collection: none ? [] : [{ id: `u-${server.requests.length}`, card: { id: 'c1', wikipedia_title: friendCardTitle(params), rarity: 'L' }, tags: [] }],
-          total: params.get('stats') === '1' ? (none ? 0 : 120) : undefined,
-          rarityCounts: {},
-          tagOptions: tags ? [{ id: 't1', name: 'rouge', color: '#ef4444' }] : [],
-          pendingTradeCardIds: [],
-          profileId: 'p-aelonka',
-        },
-      });
-      return true;
-    },
+export async function openFriendCollection(page: Page, { tags = true } = {}): Promise<ListServer> {
+  const { server, handle } = listServer('/api/profile/aelonka/collection', (params, count) => {
+    const none = params.get('q') === 'zzz';
+    return {
+      collection: none ? [] : [{ id: `u-${count}`, card: { id: 'c1', wikipedia_title: filtersTitle(params), rarity: 'L' }, tags: [] }],
+      total: params.get('stats') === '1' ? (none ? 0 : 120) : undefined,
+      rarityCounts: {},
+      tagOptions: tags ? [{ id: 't1', name: 'rouge', color: '#ef4444' }] : [],
+      pendingTradeCardIds: [],
+      profileId: 'p-aelonka',
+    };
   });
+  await openSite(page, '/profile/aelonka', { html: PROFILE_COLLECTION_HTML, handle });
   return server;
 }

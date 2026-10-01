@@ -40,7 +40,7 @@ export interface SubmitButtonProps {
 export function SubmitButton({ label, busy, disabled, onClick }: SubmitButtonProps) {
   return (
     <button type="button" class={buttonClass('wide', { tone: 'accent', fill: 'solid' })} disabled={busy || disabled} aria-busy={busy} onClick={onClick}>
-      {busy && <Icon name="spinner" size={16} class="wm-spin" />}
+      {busy && <Icon name="spinner" size={16} />}
       {label}
     </button>
   );

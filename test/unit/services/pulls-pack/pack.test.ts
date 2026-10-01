@@ -1,9 +1,8 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { net } from '@/core/net';
-import { currentPack, markDiscarded, onPackChange, trackPack } from '@/services/pulls-pack';
-import { flush } from '../../support';
+import { currentPack, markBusy, markDiscarded, onPackChange, trackPack } from '@/services/pulls-pack';
+import { connectFakeSite, flush } from '../../support';
 
-const SITE = 'https://www.wiki-masters.com';
 const SB = 'https://x.supabase.co/rest/v1';
 
 const CARDS = [
@@ -26,13 +25,7 @@ async function call(url: string, init: RequestInit = {}): Promise<void> {
 }
 
 beforeAll(() => {
-  net.connect(
-    (input) => {
-      const url = new URL(input instanceof Request ? input.url : String(input), SITE);
-      return Promise.resolve(Response.json(responses.get(url.pathname) ?? {}));
-    },
-    () => `${SITE}/pulls`,
-  );
+  connectFakeSite('https://www.wiki-masters.com/pulls', (url) => Response.json(responses.get(url.pathname) ?? {}));
   trackPack();
 });
 
@@ -84,5 +77,37 @@ describe('paquet ouvert sur /pulls', () => {
     markDiscarded('u1');
     await call('/api/packs/open', { method: 'POST' });
     expect(currentPack()?.discarded.size).toBe(0);
+  });
+
+  it('action en cours sur une carte : finie seulement par celui qui l’a lancée', async () => {
+    responses.set('/api/packs/open', { cards: CARDS, owned_copies: COPIES });
+    await call('/api/packs/open', { method: 'POST' });
+    const pack = currentPack();
+    if (!pack) throw new Error('paquet attendu');
+    let changes = 0;
+    const controller = new AbortController();
+    onPackChange(() => changes++, { signal: controller.signal });
+
+    markBusy(pack, 1, 'pulls-discard', 'Défausse en cours…');
+    expect(pack.busy.get(1)).toEqual({ owner: 'pulls-discard', label: 'Défausse en cours…' });
+    markBusy(pack, 1, 'pulls-auction', undefined);
+    expect(pack.busy.has(1)).toBe(true);
+    markBusy(pack, 1, 'pulls-discard', undefined);
+    expect(pack.busy.has(1)).toBe(false);
+    markBusy(pack, 1, 'pulls-discard', undefined);
+    // La fin de l'action d'un autre, ou une fin rejouée, ne prévient personne.
+    expect(changes).toBe(2);
+    controller.abort();
+  });
+
+  it('action sur un paquet remplacé depuis : sans effet', async () => {
+    responses.set('/api/packs/open', { cards: CARDS, owned_copies: COPIES });
+    await call('/api/packs/open', { method: 'POST' });
+    const old = currentPack();
+    await call('/api/packs/open', { method: 'POST' });
+    if (!old) throw new Error('paquet attendu');
+    markBusy(old, 0, 'pulls-discard', 'Défausse en cours…');
+    expect(old.busy.size).toBe(0);
+    expect(currentPack()?.busy.size).toBe(0);
   });
 });

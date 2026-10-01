@@ -1,35 +1,22 @@
-import { waitUntil } from '@/core/async';
-import { isRecord } from '@/core/guards';
-import { setReactInputValue } from '@/core/react';
 import type { Feature } from '@/core/runtime';
-import { jsonStore } from '@/core/storage';
-import { trackListMemory, type ApplyResult, type Saved } from '@/services/list-search';
+import { applyRarities, applySearch, savedFiltersStore, trackListMemory, type ApplyResult } from '@/services/list-search';
 import {
   findGlobalCollectionFilters,
-  forgetGlobalCollectionPages,
-  GLOBAL_COLLECTION_ROUTE,
+  forgetGlobalCollectionPagesSoon,
   globalCollectionList,
   isGlobalCollectionLoading,
   withGlobalCollectionFilters,
   type GlobalCollectionQuery,
 } from '@/site/global-collection';
 import { findListbox } from '@/site/listbox';
+import { GLOBAL_COLLECTION_ROUTE } from '@/site/routes';
 
-type SavedFilters = Saved<GlobalCollectionQuery>;
-
-export function parseSavedFilters(raw: unknown): SavedFilters | undefined {
-  if (!isRecord(raw)) return undefined;
-  const { sort, search, rarities, wishlist } = raw;
-  if (typeof sort !== 'string' || !sort || typeof search !== 'string' || typeof rarities !== 'string' || typeof wishlist !== 'boolean') {
-    return undefined;
-  }
-  return { sort, search, rarities, wishlist };
-}
-
-const savedFilters = jsonStore<SavedFilters | undefined>('wm-global-collection-filters-v1', undefined, parseSavedFilters);
-
-/** Délai pour que « Rechercher » du site prenne le texte remis dans le champ. */
-const SUBMIT_TIMEOUT = 2000;
+const savedFilters = savedFiltersStore<GlobalCollectionQuery>('wm-global-collection-filters-v1', {
+  sort: 'text',
+  search: 'string',
+  rarities: 'string',
+  wishlist: 'boolean',
+});
 
 /** Remet les contrôles du site aux filtres retenus (tri, raretés, liste de souhaits, puis la recherche). */
 function applyFilters(target: GlobalCollectionQuery, signal: AbortSignal): ApplyResult {
@@ -41,25 +28,12 @@ function applyFilters(target: GlobalCollectionQuery, signal: AbortSignal): Apply
     sort.onChange(target.sort);
     changed = true;
   }
-  const rarities = new Set(target.rarities ? target.rarities.split(',') : []);
-  for (const pill of filters.pills.pills) {
-    if (pill.checked === rarities.has(pill.rarity)) continue;
-    pill.button.click();
-    changed = true;
-  }
+  if (applyRarities(filters.pills, target.rarities)) changed = true;
   if (filters.wishlist && filters.wishlist.active !== target.wishlist) {
     filters.wishlist.button.click();
     changed = true;
   }
-  if (filters.field.value.trim() !== target.search) {
-    setReactInputValue(filters.field, target.search);
-    changed = true;
-    // « Rechercher » ne s'active qu'une fois le texte pris par la page.
-    const submit = () => findGlobalCollectionFilters()?.submit;
-    void waitUntil(() => submit()?.disabled === false, { signal, timeoutMs: SUBMIT_TIMEOUT }).then((ready) => {
-      if (ready) submit()?.click();
-    });
-  }
+  if (applySearch(filters.field, target.search, () => findGlobalCollectionFilters()?.submit, signal)) changed = true;
   return changed ? 'applied' : 'unchanged';
 }
 
@@ -75,8 +49,7 @@ export const globalCollectionMemory: Feature = {
   routes: [GLOBAL_COLLECTION_ROUTE],
   required: true,
   hidden: true,
-  mount(ctx) {
-    const { signal, log } = ctx;
+  mount({ signal, log }) {
     trackListMemory({
       source: globalCollectionList,
       signal,
@@ -89,13 +62,7 @@ export const globalCollectionMemory: Feature = {
       },
       apply: applyFilters,
       // Le site garderait la réponse servie sous l'adresse de sa requête (d'autres filtres).
-      onMismatch: () => {
-        for (const delay of [0, 500]) {
-          window.setTimeout(() => {
-            if (!signal.aborted) forgetGlobalCollectionPages();
-          }, delay);
-        }
-      },
+      onMismatch: () => forgetGlobalCollectionPagesSoon(signal),
     });
   },
 };

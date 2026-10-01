@@ -1,7 +1,7 @@
 import { SUPABASE, sitePage } from './site';
 
 /** Carte du catalogue (modèle, sans exemplaire), comme dans `/api/cards`. */
-export const CATALOG_CARD = { id: 'c-5g', wikipedia_title: '5G', rarity: 'L', atk: 10000, def: 8765 };
+const CATALOG_CARD = { id: 'c-5g', wikipedia_title: '5G', rarity: 'L', atk: 10000, def: 8765 };
 
 /**
  * Page « Toutes les cartes » (`/global-collection`) : une carte ; un clic ouvre la modale de carte en vue

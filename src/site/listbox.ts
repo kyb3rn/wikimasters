@@ -1,5 +1,5 @@
 import { isRecord } from '@/core/guards';
-import { currentFiberAncestors } from '@/core/react';
+import { findPropsAbove } from '@/core/react';
 
 /**
  * Liste déroulante à lui du site (Collection, Toutes les cartes ; code du 29/09/2026) : bouton
@@ -18,18 +18,18 @@ export interface SiteListbox {
 export function findListbox(button: HTMLButtonElement): SiteListbox | undefined {
   const ariaLabel = button.getAttribute('aria-label');
   if (!ariaLabel) return undefined;
-  for (const fiber of currentFiberAncestors(button)) {
-    const props = fiber.memoizedProps;
-    if (!isRecord(props) || props.ariaLabel !== ariaLabel || typeof props.onChange !== 'function') continue;
-    const onChange = props.onChange as (value: string) => void;
-    const options = (Array.isArray(props.options) ? props.options : []).flatMap((option: unknown) =>
-      isRecord(option) && typeof option.value === 'string'
-        ? [{ value: option.value, label: typeof option.label === 'string' ? option.label : '' }]
-        : [],
-    );
-    return { ariaLabel, value: typeof props.value === 'string' ? props.value : '', options, onChange: (value) => onChange(value) };
-  }
-  return undefined;
+  const props = findPropsAbove(
+    button,
+    (candidate) => candidate.ariaLabel === ariaLabel && typeof candidate.onChange === 'function',
+  )?.props;
+  if (!props) return undefined;
+  const onChange = props.onChange as (value: string) => void;
+  const options = (Array.isArray(props.options) ? props.options : []).flatMap((option: unknown) =>
+    isRecord(option) && typeof option.value === 'string'
+      ? [{ value: option.value, label: typeof option.label === 'string' ? option.label : '' }]
+      : [],
+  );
+  return { ariaLabel, value: typeof props.value === 'string' ? props.value : '', options, onChange: (value) => onChange(value) };
 }
 
 /**

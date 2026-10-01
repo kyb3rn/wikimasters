@@ -1,7 +1,7 @@
 import { createLogger } from '@/core/log';
 import { createNet } from './net';
 
-export { instantResponse } from './instant';
+export { cacheResponse, type CachedResponse, instantResponse, replayResponse } from './instant';
 export { createNet, type NetController } from './net';
 export type {
   InterceptOptions,

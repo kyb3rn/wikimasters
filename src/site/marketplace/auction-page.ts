@@ -1,3 +1,7 @@
+import { textOf } from '@/core/text';
+import { FACE, findFaceImage } from '@/site/cards';
+import { hasIcon } from '@/site/dom';
+
 /**
  * Page d'une enchère, `/marketplace/<auctionId>` (captures du 29 et du 30/09/2026) :
  *
@@ -21,7 +25,8 @@ export interface AuctionPlayer {
   readonly username: string;
 }
 
-const text = (element: Element) => (element.textContent ?? '').trim();
+/** Pseudo tel quel, espaces compris. */
+const usernameOf = (name: Element) => (name.textContent ?? '').trim();
 
 /** Joueur d'une ligne de l'historique dont le site n'a pas le pseudo. */
 const NO_USERNAME = 'Joueur';
@@ -30,24 +35,24 @@ const NO_USERNAME = 'Joueur';
 export function findAuctionPlayers(doc: Document = document): AuctionPlayer[] {
   const names: HTMLElement[] = [];
   for (const line of doc.querySelectorAll<HTMLElement>('main p')) {
-    if (!/^(Mis en vente par|Meneur :)/.test(text(line))) continue;
+    if (!/^(Mis en vente par|Meneur :)/.test(textOf(line))) continue;
     const name = line.querySelector<HTMLElement>(':scope > span');
     if (name) names.push(name);
   }
   for (const line of doc.querySelectorAll<HTMLElement>('main div.card-frame')) {
-    if (!text(line).startsWith('Remportée par')) continue;
+    if (!textOf(line).startsWith('Remportée par')) continue;
     const name = line.querySelector<HTMLElement>(':scope > span');
     if (name) names.push(name);
   }
   for (const heading of doc.querySelectorAll('main h2')) {
-    if (!text(heading).startsWith('Historique des mises')) continue;
+    if (!textOf(heading).startsWith('Historique des mises')) continue;
     const list = heading.nextElementSibling;
     if (list?.tagName !== 'UL') continue;
     for (const name of list.querySelectorAll<HTMLElement>(':scope > li > span:first-child')) {
-      if (text(name) !== NO_USERNAME) names.push(name);
+      if (textOf(name) !== NO_USERNAME) names.push(name);
     }
   }
-  return names.map((name) => ({ name, username: text(name) })).filter((player) => player.username !== '');
+  return names.map((name) => ({ name, username: usernameOf(name) })).filter((player) => player.username !== '');
 }
 
 export interface AuctionReport {
@@ -61,12 +66,10 @@ export interface AuctionReport {
 /** « Signaler l'image » sous la carte de l'enchère. */
 export function findAuctionReport(doc: Document = document): AuctionReport | undefined {
   for (const button of doc.querySelectorAll<HTMLButtonElement>('main button')) {
-    if (!button.querySelector('svg.lucide-flag') && !/Signaler l.image|Image signalée/i.test(text(button))) continue;
+    if (!hasIcon(button, 'flag') && !/Signaler l.image|Image signalée/i.test(textOf(button))) continue;
     const block = button.parentElement;
-    const face = [...(block?.parentElement?.children ?? [])].find(
-      (child) => (child.getAttribute('class') ?? '').includes('glow-') && child.querySelector('h3'),
-    );
-    const imageArea = face?.querySelector<HTMLElement>(':scope > div[class*="h-[45%]"]');
+    const face = [...(block?.parentElement?.children ?? [])].find((child) => child.matches(FACE) && child.querySelector('h3'));
+    const imageArea = face && findFaceImage(face);
     if (block && imageArea) return { button, block, imageArea };
   }
   return undefined;

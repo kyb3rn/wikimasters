@@ -1,10 +1,11 @@
 import { h, type ComponentChild } from 'preact';
 import { injectStyle } from '@/core/dom';
-import { errorMessage } from '@/core/log';
+import { siteErrorText } from '@/site/api';
 import { mountUi } from '@/ui/mount';
 import { toast } from '@/ui/toast';
 import type { MarketEntry } from './cache';
-import { cachedMarket, fetchMarket, isStale, marketNeedsPro, type MarketCard } from './market';
+import type { CardRef } from '@/site/cards';
+import { cachedMarket, fetchMarket, isStale, marketNeedsPro } from './market';
 import { MarketModal } from './MarketModal';
 import { ProOffer } from './ProOffer';
 import { CSS } from './style';
@@ -30,7 +31,7 @@ function show(render: (close: () => void) => ComponentChild): void {
  * anciennes (avec l'erreur en toast), et sans cache, l'erreur seule. Compte sans PRO : l'offre PRO du site à
  * la place, comme lui. Résolue une fois la modale ouverte (ou l'échec montré) : l'appelant garde sa roue jusque-là.
  */
-export async function openMarketModal(card: MarketCard): Promise<void> {
+export async function openMarketModal(card: CardRef): Promise<void> {
   if (marketNeedsPro()) {
     showProOffer(card);
     return;
@@ -40,7 +41,7 @@ export async function openMarketModal(card: MarketCard): Promise<void> {
     try {
       entry = await fetchMarket(card);
     } catch (error) {
-      toast.error(errorMessage(error), { title: entry ? 'Ventes non actualisées' : 'Marché indisponible' });
+      toast.error(siteErrorText(error), { title: entry ? 'Ventes non actualisées' : 'Marché indisponible' });
       if (!entry) return;
     }
   }
@@ -49,12 +50,12 @@ export async function openMarketModal(card: MarketCard): Promise<void> {
 }
 
 /** L'historique de ces ventes-là, sans rien demander au site (« Actualiser » les redemande). */
-export function showMarketModal(card: MarketCard, entry: MarketEntry): void {
+export function showMarketModal(card: CardRef, entry: MarketEntry): void {
   show((close) => h(MarketModal, { card, entry, onClose: close }));
 }
 
 /** L'offre PRO du site à la place de l'historique, quel que soit le compte. */
-export function showProOffer(card: MarketCard): void {
+export function showProOffer(card: CardRef): void {
   show((close) => h(ProOffer, { card, onClose: close }));
 }
 

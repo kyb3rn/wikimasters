@@ -1,3 +1,5 @@
+import { textOf } from '@/core/text';
+
 /**
  * Cadre des paquets disponibles, sous « Ouvrir » (choix du paquet sur `/pulls`, relevé le 29/09/2026) :
  *
@@ -16,20 +18,19 @@ export interface PackCounter {
   readonly next: string | undefined;
 }
 
-const text = (element: Element | null | undefined) => (element?.textContent ?? '').replace(/\s+/g, ' ').trim();
 
 export function findPackCounter(doc: Document = document): PackCounter | undefined {
   const main = doc.querySelector('main');
   if (!main) return undefined;
   for (const label of main.querySelectorAll('div.card-frame > div')) {
-    if (text(label) !== 'paquets disponibles') continue;
+    if (textOf(label) !== 'paquets disponibles') continue;
     const root = label.parentElement;
     const count = root?.firstElementChild;
     if (!(root instanceof HTMLElement) || !count) continue;
-    const [available, max] = [...count.querySelectorAll('span')].map((span) => Number(text(span).replace(/[^\d]/g, '')));
+    const [available, max] = [...count.querySelectorAll('span')].map((span) => Number(textOf(span).replace(/[^\d]/g, '')));
     if (available === undefined || max === undefined || !Number.isFinite(available) || !max) continue;
-    const next = [...root.children].find((line) => text(line).startsWith('Prochain dans'));
-    return { root, available, max, next: next ? text(next.querySelector('span')) || undefined : undefined };
+    const next = [...root.children].find((line) => textOf(line).startsWith('Prochain dans'));
+    return { root, available, max, next: next ? textOf(next.querySelector('span')) || undefined : undefined };
   }
   return undefined;
 }

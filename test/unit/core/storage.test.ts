@@ -1,14 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { jsonStore } from '@/core/storage';
-
-function fakeStorage(initial: Record<string, string> = {}) {
-  const data = new Map(Object.entries(initial));
-  return {
-    data,
-    getItem: (key: string) => data.get(key) ?? null,
-    setItem: (key: string, value: string) => void data.set(key, value),
-  };
-}
+import { fakeStorage } from '../support';
 
 const parseCount = (raw: unknown) => (typeof raw === 'number' ? raw : undefined);
 

@@ -1,7 +1,9 @@
 import { isRecord } from '@/core/guards';
+import { createListeners } from '@/core/listeners';
+import { createLogger } from '@/core/log';
 import { net, type NetRequest } from '@/core/net';
 import { jsonStore } from '@/core/storage';
-import { supabaseUserId } from '@/site/api';
+import { isMyProfileRpc, supabaseUserId } from '@/site/api';
 
 /**
  * Compte PRO ou non (code du site du 30/09/2026). Le site lit `profiles.is_pro` de l'utilisateur
@@ -16,15 +18,13 @@ import { supabaseUserId } from '@/site/api';
 const CHANGE_EVENT = 'wikimasters:is-pro-changed';
 
 const store = jsonStore<boolean | undefined>('wm-pro-v1', undefined, (raw) => (typeof raw === 'boolean' ? raw : undefined));
-const listeners = new Set<() => void>();
+const changes = createListeners(createLogger('pro'));
 let tracking = false;
 
-const isProfileRpc = (path: string) => path.endsWith('/rest/v1/rpc/get_my_profile') || path.endsWith('/rest/v1/rpc/sync_profile_packs');
-
 /** Réponse où le site reçoit le statut de l'utilisateur `userId` (`undefined` : inconnu). */
-export function isProStatusRequest(request: NetRequest, userId: string | undefined): boolean {
+export function isProStatusRead(request: NetRequest, userId: string | undefined): boolean {
+  if (isMyProfileRpc(request)) return true;
   const path = request.url.pathname;
-  if (request.method === 'POST' && isProfileRpc(path)) return true;
   if (request.method === 'GET' && path.endsWith('/rest/v1/profiles')) {
     return userId !== undefined && request.url.searchParams.get('id') === `eq.${userId}`;
   }
@@ -42,13 +42,7 @@ export function parseProStatus(body: unknown): boolean | undefined {
 function update(pro: boolean): void {
   if (store.get() === pro) return;
   store.set(pro);
-  for (const listener of [...listeners]) {
-    try {
-      listener();
-    } catch {
-      // Un abonné défaillant n'empêche pas les autres d'être prévenus.
-    }
-  }
+  changes.emit();
 }
 
 /** Suit le statut dans les réponses du site, pour toute la vie du script (appelé une fois, au démarrage). */
@@ -56,7 +50,7 @@ export function trackProStatus(): void {
   if (tracking) return;
   tracking = true;
   net.observe(
-    (request) => !request.own && isProStatusRequest(request, supabaseUserId()),
+    (request) => !request.own && isProStatusRead(request, supabaseUserId()),
     async (exchange) => {
       if (!exchange.ok) return;
       const pro = parseProStatus(await exchange.json().catch(() => undefined));
@@ -75,9 +69,7 @@ export function proStatus(): boolean | undefined {
 }
 
 export function onProStatusChange(listener: () => void, options: { signal: AbortSignal }): void {
-  if (options.signal.aborted) return;
-  listeners.add(listener);
-  options.signal.addEventListener('abort', () => listeners.delete(listener), { once: true });
+  changes.on(listener, options);
 }
 
 /**

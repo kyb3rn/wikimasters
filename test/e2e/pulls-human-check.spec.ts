@@ -1,5 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
-import { openSite, sitePage } from './support/site';
+import { openSite, rect, sitePage } from './support/site';
 
 /**
  * Choix du paquet sur `/pulls` avec l'encart « Vérification rapide » (balisage du 29/09/2026). Le titre
@@ -86,25 +86,22 @@ const hitAt = (page: Page, x: number, y: number) =>
 
 test('/pulls : la vérification s’ouvre au centre de l’écran, par-dessus toute la page', async ({ page }) => {
   await open(page, (route) => route.fulfill({ json: VERIFIED }));
-  const check = await page.locator('#check').boundingBox();
-  if (!check) throw new Error('encart introuvable');
+  const check = await rect(page.locator('#check'));
   expect(Math.abs(check.x + check.width / 2 - 640)).toBeLessThan(1);
   expect(Math.abs(check.y + check.height / 2 - 360)).toBeLessThan(1);
   expect(check.width).toBeCloseTo(512, 0);
   // Fond assombri : ni « Ouvrir » ni le solde ne sont cliquables à travers.
-  const openBox = await page.locator('#open').boundingBox();
-  if (!openBox) throw new Error('bouton « Ouvrir » introuvable');
+  const openBox = await rect(page.locator('#open'));
   expect(await hitAt(page, openBox.x + 4, openBox.y + openBox.height - 4)).toContain('wm-human-check-host');
   const balance = page.getByRole('button', { name: 'Ouvrir la boutique WikiBidous' }).filter({ visible: true });
-  const balanceBox = await balance.boundingBox();
-  if (!balanceBox) throw new Error('solde introuvable');
+  const balanceBox = await rect(balance);
   expect(await hitAt(page, balanceBox.x + balanceBox.width / 2, balanceBox.y + balanceBox.height / 2)).toContain('wm-human-check-host');
 });
 
 test('/pulls : cocher puis « Continuer » (clics de l’utilisateur) vérifie, la modale disparaît, le contenu ne bouge pas', async ({ page }) => {
   const bodies = await open(page, (route) => route.fulfill({ json: VERIFIED }));
   const title = page.getByRole('heading', { name: 'Ouvrir un paquet' });
-  const before = await title.boundingBox();
+  const before = await rect(title);
   await page.getByRole('checkbox', { name: 'Je ne suis pas un robot' }).check();
   await page.getByRole('button', { name: 'Continuer' }).click();
   await expect(page.locator('#check')).toHaveCount(0);
@@ -113,7 +110,7 @@ test('/pulls : cocher puis « Continuer » (clics de l’utilisateur) vérifie, 
   // Plus de fond : « Ouvrir » reçoit de nouveau les clics.
   await page.locator('#open').click({ trial: true, timeout: 2000 });
   // Ni déplacé ni réanimé (l'animation du titre ne se rejoue pas).
-  expect(await title.boundingBox()).toEqual(before);
+  expect(await rect(title)).toEqual(before);
 });
 
 test('/pulls : pendant l’envoi, une roue à la place d’« Enregistrement... », bouton désactivé', async ({ page }) => {

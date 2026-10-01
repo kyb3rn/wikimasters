@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { buttonClass } from '@/ui/button';
 import { Icon } from '@/ui/icons';
 import { Modal } from '@/ui/modal';
@@ -28,12 +28,6 @@ export function CreateGuildModal(props: CreateGuildProps) {
   const [description, setDescription] = useState(props.initialDescription);
   const nameInput = useRef<HTMLInputElement>(null);
   const canSubmit = !sending && name.trim().length >= NAME_MIN;
-  const latest = useRef(props);
-  latest.current = props;
-  // Même fonction à chaque rendu : la modale ne réinstalle pas son Échap à chaque mise à jour du site.
-  const close = useCallback(() => {
-    if (!latest.current.sending) latest.current.onClose();
-  }, []);
 
   // À l'ouverture, et après un envoi refusé (le champ, désactivé pendant la requête, a perdu le focus).
   useEffect(() => {
@@ -41,17 +35,16 @@ export function CreateGuildModal(props: CreateGuildProps) {
   }, [sending]);
 
   return (
-    <Modal title="Créer une guilde" width={480} onClose={close}>
+    <Modal title="Créer une guilde" width={480} padded locked={sending} onClose={props.onClose}>
       <form
         class={siteClass.formStack}
-        style={{ flex: 1, padding: '20px' }}
         onSubmit={(event) => {
           event.preventDefault();
           if (canSubmit) props.onSubmit();
         }}
       >
         <div class={siteClass.formFields}>
-          <label style={{ display: 'block' }}>
+          <label class={siteClass.formField}>
             <span class={siteClass.formLabel}>Nom de la guilde</span>
             <input
               ref={nameInput}
@@ -70,7 +63,7 @@ export function CreateGuildModal(props: CreateGuildProps) {
               {name.length}/{nameMax}
             </p>
           </label>
-          <label style={{ display: 'block' }}>
+          <label class={siteClass.formField}>
             <span class={siteClass.formLabel}>Description (optionnel)</span>
             <textarea
               class={`${siteClass.formInput} ${siteClass.formTextarea}`}
@@ -96,7 +89,7 @@ export function CreateGuildModal(props: CreateGuildProps) {
           disabled={!canSubmit}
           aria-busy={sending}
         >
-          {sending && <Icon name="spinner" size={16} class="wm-spin" />}
+          {sending && <Icon name="spinner" size={16} />}
           Créer la guilde
         </button>
       </form>

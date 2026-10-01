@@ -1,7 +1,8 @@
 import type { JSX } from 'preact';
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { injectStyle } from '@/core/dom';
 import { buttonClass } from '@/ui/button';
+import { useLatest } from '@/ui/hooks';
 import { Icon, type IconName } from '@/ui/icons';
 import { siteClass } from '@/ui/site';
 import { tokens } from '@/ui/theme';
@@ -52,8 +53,7 @@ export function Pagination({ page, total, hasNext, busy, lockedReason, delay = D
   const [draft, setDraft] = useState(String(shown));
   useEffect(() => setDraft(String(shown)), [shown]);
 
-  const latest = useRef(onChange);
-  latest.current = onChange;
+  const latest = useLatest(onChange);
   useEffect(() => {
     if (!queued) return undefined;
     const timer = setTimeout(() => {
@@ -61,7 +61,7 @@ export function Pagination({ page, total, hasNext, busy, lockedReason, delay = D
       latest.current(queued.page, queued.control);
     }, delay);
     return () => clearTimeout(timer);
-  }, [queued, delay]);
+  }, [queued, delay, latest]);
   // Page changée d'ailleurs, ou pagination devenue indisponible : ce qui attendait est abandonné.
   useEffect(() => setQueued(undefined), [page, inactive]);
 
@@ -91,7 +91,7 @@ export function Pagination({ page, total, hasNext, busy, lockedReason, delay = D
           if (target !== undefined) queue(target, control);
         }}
       >
-        <Icon name={spinning ? 'spinner' : icon} size={18} class={spinning ? 'wm-spin' : undefined} />
+        <Icon name={icon} busy={spinning} size={18} />
       </button>
     );
   };

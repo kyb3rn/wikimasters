@@ -1,5 +1,5 @@
 import { buttonClass } from '@/ui/button';
-import { Icon } from '@/ui/icons';
+import { Icon, type IconName } from '@/ui/icons';
 import { siteClass } from '@/ui/site';
 
 export interface SearchActionsProps {
@@ -67,12 +67,50 @@ export function FriendActions({ message, trade, onRemove }: FriendActionsProps) 
   );
 }
 
-/** « Annuler » d'une demande envoyée, bouton standard rouge en contour ; roue pendant l'annulation. */
-export function CancelButton({ busy, onClick }: { readonly busy: boolean; readonly onClick: () => void }) {
+interface BusyButtonProps {
+  readonly busy: boolean;
+  readonly disabled?: boolean;
+  readonly onClick: () => void;
+}
+
+/** Bouton standard en contour d'une demande en attente : roue à la place de son icône pendant sa requête. */
+function RequestButton({ tone, icon, size = 'md', label, busy, disabled = false, onClick }: BusyButtonProps & {
+  readonly tone: 'accent' | 'danger';
+  readonly icon: IconName;
+  readonly size?: 'md' | 'sm';
+  readonly label: string;
+}) {
   return (
-    <button type="button" class={buttonClass('standard', { tone: 'danger' })} disabled={busy} aria-busy={busy} onClick={onClick}>
-      <Icon name={busy ? 'spinner' : 'close'} size={16} class={busy ? 'wm-spin' : undefined} />
-      Annuler
+    <button type="button" class={buttonClass('standard', { tone, size })} disabled={busy || disabled} aria-busy={busy} onClick={onClick}>
+      <Icon name={icon} busy={busy} size={size === 'sm' ? 14 : 16} />
+      {label}
     </button>
   );
+}
+
+/** « Annuler » d'une demande envoyée, rouge ; roue pendant l'annulation. */
+export function CancelButton(props: BusyButtonProps) {
+  return <RequestButton tone="danger" icon="close" label="Annuler" {...props} />;
+}
+
+export interface AnswerActionsProps {
+  /** Réponse en cours pour cette demande : sa roue ; l'autre bouton est désactivé. */
+  readonly busy: 'accept' | 'decline' | undefined;
+  readonly onAccept: () => void;
+  readonly onDecline: () => void;
+}
+
+/** Demande reçue : Accepter en vert, Refuser en rouge, comme « Annuler » des demandes envoyées. */
+export function AnswerActions({ busy, onAccept, onDecline }: AnswerActionsProps) {
+  return (
+    <>
+      <RequestButton tone="accent" icon="check" label="Accepter" busy={busy === 'accept'} disabled={busy !== undefined} onClick={onAccept} />
+      <RequestButton tone="danger" icon="close" label="Refuser" busy={busy === 'decline'} disabled={busy !== undefined} onClick={onDecline} />
+    </>
+  );
+}
+
+/** « Tout accepter », petit (dans la ligne du titre) ; roue tant que le bouton du site est désactivé. */
+export function AcceptAllButton(props: BusyButtonProps) {
+  return <RequestButton tone="accent" icon="check-check" size="sm" label="Tout accepter" {...props} />;
 }

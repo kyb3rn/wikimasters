@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
-import { CAROUSEL, PACK, playedSounds, PULLS_HTML, recordSounds } from './support/pulls';
-import { openSite, presetSettings } from './support/site';
+import { CAROUSEL, openPulls as openFakePulls, PACK, playedSounds, recordSounds } from './support/pulls';
+import { letTimePass, presetSettings } from './support/site';
 
 const NEXT = 'main div.flex.items-center.gap-4 > button.w-12:last-child';
 const PREVIOUS = 'main div.flex.items-center.gap-4 > button.w-12:first-child';
@@ -14,7 +14,7 @@ const WITH_LEGENDARY = {
 
 async function openPulls(page: Page, pack: unknown = PACK) {
   await recordSounds(page);
-  await openSite(page, '/pulls', { html: PULLS_HTML, api: { '/api/packs/open': pack } });
+  await openFakePulls(page, { pack });
 }
 
 test('carrousel : le paquet déchiré, puis un son à chaque carte tournée, dans les deux sens', async ({ page }) => {
@@ -51,7 +51,7 @@ test('grille : seul le paquet déchiré s’entend, pas l’arrivée des cartes 
   // Ouvrir une carte fait tourner le carrousel caché : toujours sans son.
   await page.locator('.wm-pulls-slot').nth(0).locator('.wm-pulls-card > *').click();
   await expect(page.locator('#card-modal')).toBeVisible();
-  await page.waitForTimeout(300);
+  await letTimePass(page, 300);
   expect(await playedSounds(page)).toEqual(['pack-rip']);
 });
 
@@ -61,6 +61,6 @@ test('son coupé : ni l’ouverture ni les cartes tournées', async ({ page }) =
   await page.click('#open');
   await page.locator(NEXT).click();
   await page.locator(PREVIOUS).click();
-  await page.waitForTimeout(300);
+  await letTimePass(page, 300);
   expect(await playedSounds(page)).toEqual([]);
 });

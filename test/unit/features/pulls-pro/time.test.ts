@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatCountdown, midnightAfter, nextMidnight, serverOffset } from '@/features/pulls-pro/time';
+import { formatCountdown, midnightAfter, nextMidnight } from '@/features/pulls-pro/time';
 
 describe('nextMidnight', () => {
   it('minuit suivant, heure française (été : UTC+2)', () => {
@@ -41,24 +41,5 @@ describe('formatCountdown', () => {
     expect(formatCountdown(400)).toBe('00:00:01');
     expect(formatCountdown(0)).toBe('00:00:00');
     expect(formatCountdown(-5000)).toBe('00:00:00');
-  });
-});
-
-describe('serverOffset', () => {
-  const at = Date.parse('2026-09-29T22:09:36.670Z');
-  const headers = (init: Record<string, string>) => new Headers(init);
-
-  it("avance du serveur d'après l'en-tête Date", () => {
-    expect(serverOffset(headers({ date: 'Tue, 29 Sep 2026 23:09:37 GMT' }), at)).toBe(3600_000 + 830);
-    expect(serverOffset(headers({ date: 'Tue, 29 Sep 2026 22:04:36 GMT' }), at)).toBe(-300_000 - 170);
-  });
-
-  it('écart de moins de 2 s : horloges d’accord (en-tête à la seconde près)', () => {
-    expect(serverOffset(headers({ date: 'Tue, 29 Sep 2026 22:09:37 GMT' }), at)).toBe(0);
-  });
-
-  it('sans date, ou réponse sortie d’un cache : rien', () => {
-    expect(serverOffset(headers({}), at)).toBeUndefined();
-    expect(serverOffset(headers({ date: 'Tue, 29 Sep 2026 22:08:42 GMT', age: '419040' }), at)).toBeUndefined();
   });
 });

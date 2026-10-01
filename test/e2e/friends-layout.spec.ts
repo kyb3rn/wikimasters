@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { openFriendsPage } from './support/friends';
+import { expectDomIdle, rect } from './support/site';
 
 const friendRows = (page: Page) => page.locator('#friends-section > [data-friend]');
 const row = (page: Page, name: string) => page.locator(`[data-friend="${name}"]`);
@@ -25,12 +26,11 @@ test('liste des amis : trois colonnes tant que chaque ami a 510 px, puis deux, p
 
   await page.setViewportSize({ width: 900, height: 900 });
   await expect.poll(async () => (await columns(friendRows(page))).count).toBe(1);
-  const section = await page.locator('#friends-section').boundingBox();
-  expect((await columns(friendRows(page))).width).toBeCloseTo(section?.width ?? 0, 0);
+  const section = await rect(page.locator('#friends-section'));
+  expect((await columns(friendRows(page))).width).toBeCloseTo(section.width, 0);
 
   // Titre et recherche sur toute la largeur.
-  const search = await page.locator('#friends-section > .relative').boundingBox();
-  expect(search?.width).toBeCloseTo(section?.width ?? 0, 0);
+  expect((await rect(page.locator('#friends-section > .relative'))).width).toBeCloseTo(section.width, 0);
 });
 
 test('demandes en attente en colonnes, comme les amis ; titres et « Tout accepter » sur toute la largeur', async ({ page }) => {
@@ -43,9 +43,8 @@ test('demandes en attente en colonnes, comme les amis ; titres et « Tout accept
   await expect.poll(async () => (await columns(sent)).count).toBe(3);
   await expect.poll(async () => (await columns(received)).count).toBe(2);
   expect((await columns(received)).width).toBeCloseTo((await columns(friendRows(page))).width, 0);
-  const section = await page.locator('#incoming-section').boundingBox();
-  const header = await page.locator('#incoming-section > div').first().boundingBox();
-  expect(header?.width).toBeCloseTo(section?.width ?? 0, 0);
+  const section = await rect(page.locator('#incoming-section'));
+  expect((await rect(page.locator('#incoming-section > div').first())).width).toBeCloseTo(section.width, 0);
 
   await page.setViewportSize({ width: 1200, height: 900 });
   await expect.poll(async () => (await columns(sent)).count).toBe(2);
@@ -96,9 +95,9 @@ test('Inviter et « Ajouter un ami » à droite, la recherche réduite à gauche
   expect(inviteBox.x).toBeGreaterThan(field.x + field.width + 100);
   expect(inviteBox.y).toBeCloseTo(field.y, 0);
   // Croix d'effacement du site : dans le champ, à sa droite.
-  const clear = await page.locator('#site-clear').boundingBox();
-  expect(clear && clear.x + clear.width).toBeLessThanOrEqual(field.x + field.width);
-  expect(clear && clear.x).toBeGreaterThan(field.x + field.width - 40);
+  const clear = await rect(page.locator('#site-clear'));
+  expect(clear.x + clear.width).toBeLessThanOrEqual(field.x + field.width);
+  expect(clear.x).toBeGreaterThan(field.x + field.width - 40);
 
   await add.click();
   await invite.click();
@@ -114,20 +113,15 @@ test('au repos, le script ne resynchronise plus la page', async ({ page }) => {
   await openFriendsPage(page);
   await expect(page.getByRole('button', { name: '+ Ajouter un ami' })).toBeVisible();
   await expect(row(page, 'AlakazM').getByRole('button', { name: 'Retirer des amis' })).toBeVisible();
-  const domSyncs = () => page.evaluate(() => window.wm?.debug?.domSyncs() ?? -1);
-  await page.waitForTimeout(300);
-  const before = await domSyncs();
-  await page.waitForTimeout(600);
-  expect(await domSyncs()).toBe(before);
+  await expectDomIdle(page);
 });
 
 test('mobile : les boutons passent sous la recherche, à droite', async ({ page }) => {
   await page.setViewportSize({ width: 420, height: 800 });
   await openFriendsPage(page);
-  const field = await page.locator('#friend-list-search').boundingBox();
-  const add = await page.getByRole('button', { name: '+ Ajouter un ami' }).boundingBox();
-  const frame = await page.locator('#friends-section > .relative').boundingBox();
-  if (!field || !add || !frame) throw new Error('recherche introuvable');
+  const field = await rect(page.locator('#friend-list-search'));
+  const add = await rect(page.getByRole('button', { name: '+ Ajouter un ami' }));
+  const frame = await rect(page.locator('#friends-section > .relative'));
   expect(field.width).toBeCloseTo(frame.width, 0);
   expect(add.y).toBeGreaterThan(field.y + field.height);
   expect(add.x + add.width).toBeCloseTo(frame.x + frame.width, 0);
@@ -200,7 +194,7 @@ test('retirer un ami : roue pendant la requête ; refus du site en toast, ami ga
   await expect(row(page, 'aelonka')).toHaveCount(1);
 });
 
-test('« Annuler » d’une demande envoyée : bouton rouge, roue jusqu’à la relecture de la liste', async ({ page }) => {
+test('« Annuler » d’une demande envoyée : bouton rouge, roue pendant la requête, demande retirée sans relecture', async ({ page }) => {
   let release: () => void = () => {};
   const answered = new Promise<void>((resolve) => (release = resolve));
   const server = await openFriendsPage(page, {
@@ -220,5 +214,145 @@ test('« Annuler » d’une demande envoyée : bouton rouge, roue jusqu’à la 
   await expect(cancel).toHaveAttribute('aria-busy', 'true');
   release();
   await expect(request).toHaveCount(0);
+  await expect(page.locator('#sent-section > h2')).toHaveText('Demandes envoyées (2)');
   expect(server.deleted).toEqual(['s1']);
+  // La relecture du site est servie par le script (la page de test a ses amitiés dès le départ).
+  expect(server.listed).toBe(0);
+});
+
+test('demandes reçues : fond des autres lignes, Accepter (vert) et Refuser (rouge) en boutons standard comme « Annuler »', async ({ page }) => {
+  await openFriendsPage(page);
+  const request = page.locator('[data-incoming="Mastonin"]');
+  await expect(request).toHaveClass(/wm-friends-incoming/);
+  await expect(request.locator('.site-accept')).toBeHidden();
+  await expect(request.locator('.site-decline')).toBeHidden();
+  const accept = request.getByRole('button', { name: 'Accepter' });
+  const decline = request.getByRole('button', { name: 'Refuser' });
+  await expect(accept).toHaveClass(/wm-button-standard/);
+  await expect(accept).toHaveClass(/wm-tone-accent/);
+  await expect(decline).toHaveClass(/wm-tone-danger/);
+  for (const button of [accept, decline]) {
+    await expect(button).toHaveClass(/wm-button-md/);
+    await expect(button).not.toHaveClass(/wm-solid|wm-ghost/);
+  }
+  const cancel = page.locator('[data-request="Goatman!"]').getByRole('button', { name: 'Annuler' });
+  expect((await rect(accept)).height).toBeCloseTo((await rect(cancel)).height, 0);
+});
+
+test('Accepter : roue pendant la requête, Refuser désactivé ; l’ami rejoint la liste sans relecture', async ({ page }) => {
+  let release: () => void = () => {};
+  const answered = new Promise<void>((resolve) => (release = resolve));
+  const server = await openFriendsPage(page, {
+    answer: async (route, id) => {
+      await answered;
+      const index = server.friendships.findIndex((f) => f.id === id);
+      const found = server.friendships[index];
+      if (found) server.friendships[index] = { ...found, status: 'accepted' };
+      await route.fulfill({ json: { status: 'accepted' } });
+    },
+  });
+  const request = page.locator('[data-incoming="Mastonin"]');
+  const accept = request.getByRole('button', { name: 'Accepter' });
+  await accept.click();
+  await expect(accept).toBeDisabled();
+  await expect(accept).toHaveAttribute('aria-busy', 'true');
+  await expect(request.getByRole('button', { name: 'Refuser' })).toBeDisabled();
+  await expect(request.getByRole('button', { name: 'Refuser' })).toHaveAttribute('aria-busy', 'false');
+  release();
+  await expect(request).toHaveCount(0);
+  await expect(row(page, 'Mastonin')).toHaveCount(1);
+  await expect(page.locator('#friends-section > h2')).toHaveText('Amis (5)');
+  await expect(page.locator('#incoming-section h2')).toHaveText('Demandes reçues (1)');
+  expect(server.answered).toEqual([{ id: 'r1', action: 'accept' }]);
+  expect(server.listed).toBe(0);
+});
+
+test('Refuser : refus du site en toast, la demande reste et ses boutons reviennent, sans relecture', async ({ page }) => {
+  const server = await openFriendsPage(page, {
+    answer: (route) => route.fulfill({ status: 403, json: { error: 'Demande introuvable' } }),
+  });
+  const request = page.locator('[data-incoming="el_lokomotiv"]');
+  await request.getByRole('button', { name: 'Refuser' }).click();
+  await expect(page.getByRole('alert')).toContainText('Demande introuvable');
+  await expect(request.getByRole('button', { name: 'Refuser' })).toBeEnabled();
+  await expect(request.getByRole('button', { name: 'Accepter' })).toBeEnabled();
+  expect(server.answered).toEqual([{ id: 'r2', action: 'decline' }]);
+  expect(server.listed).toBe(0);
+});
+
+test('Refuser sans réponse du site : erreur réseau en toast, la demande reste et ses boutons reviennent', async ({ page }) => {
+  await openFriendsPage(page, { answer: (route) => route.abort() });
+  const request = page.locator('[data-incoming="el_lokomotiv"]');
+  await request.getByRole('button', { name: 'Refuser' }).click();
+  await expect(page.getByRole('alert')).toContainText("Le site n'a pas répondu (erreur réseau).");
+  await expect(request.getByRole('button', { name: 'Refuser' })).toBeEnabled();
+  await expect(request.getByRole('button', { name: 'Accepter' })).toBeEnabled();
+});
+
+test('Refuser : la demande disparaît sans relecture', async ({ page }) => {
+  const server = await openFriendsPage(page);
+  await page.locator('[data-incoming="el_lokomotiv"]').getByRole('button', { name: 'Refuser' }).click();
+  await expect(page.locator('[data-incoming="el_lokomotiv"]')).toHaveCount(0);
+  await expect(page.locator('#incoming-section h2')).toHaveText('Demandes reçues (1)');
+  await expect(friendRows(page)).toHaveCount(4);
+  expect(server.answered).toEqual([{ id: 'r2', action: 'decline' }]);
+  expect(server.listed).toBe(0);
+});
+
+test('« Tout accepter » : petit bouton vert, roue pendant la requête, demandes acceptées sans relecture', async ({ page }) => {
+  let release: () => void = () => {};
+  const answered = new Promise<void>((resolve) => (release = resolve));
+  const server = await openFriendsPage(page, {
+    acceptAll: async (route) => {
+      await answered;
+      for (const [index, f] of server.friendships.entries()) {
+        if (f.status === 'pending' && f.addressee_id === 'me') server.friendships[index] = { ...f, status: 'accepted' };
+      }
+      await route.fulfill({ json: { success: true } });
+    },
+  });
+  await expect(page.locator('#site-accept-all')).toBeHidden();
+  const all = page.locator('#incoming-section').getByRole('button', { name: 'Tout accepter' });
+  await expect(all).toHaveClass(/wm-button-sm/);
+  await expect(all).toHaveClass(/wm-tone-accent/);
+  await all.click();
+  await expect(all).toBeDisabled();
+  await expect(all).toHaveAttribute('aria-busy', 'true');
+  release();
+  await expect(all).toBeEnabled();
+  await expect(page.locator('#incoming-section > [data-incoming]')).toHaveCount(0);
+  await expect(friendRows(page)).toHaveCount(6);
+  await expect(page.locator('#friends-section > h2')).toHaveText('Amis (6)');
+  expect(server.listed).toBe(0);
+});
+
+test('« Ajouter » de la recherche de joueurs : la demande apparaît dans les demandes envoyées, sans relecture', async ({ page }) => {
+  const server = await openFriendsPage(page);
+  await expect(page.locator('#sent-section > [data-request]')).toHaveCount(3);
+  await page.evaluate(() => (window as unknown as { __friends: { sendRequest: (q: string, id: string) => Promise<void> } }).__friends.sendRequest('zorg', 'u20'));
+  await expect(page.locator('[data-request="Zorglub"]')).toHaveCount(1);
+  await expect(page.locator('#sent-section > h2')).toHaveText('Demandes envoyées (4)');
+  expect(server.listed).toBe(0);
+});
+
+test('« Ajouter » refusé : toast, rien d’ajouté, sans relecture', async ({ page }) => {
+  const server = await openFriendsPage(page, {
+    send: (route) => route.fulfill({ status: 400, json: { error: 'Demande déjà envoyée' } }),
+  });
+  await page.evaluate(() => (window as unknown as { __friends: { sendRequest: (q: string, id: string) => Promise<void> } }).__friends.sendRequest('zorg', 'u20'));
+  await expect(page.getByRole('alert')).toContainText('Demande déjà envoyée');
+  await expect(page.locator('#sent-section > [data-request]')).toHaveCount(3);
+  expect(server.listed).toBe(0);
+});
+
+test('réponse de « Ajouter » illisible : la relecture du site part au réseau', async ({ page }) => {
+  const server = await openFriendsPage(page, {
+    send: async (route) => {
+      server.friendships.push({ id: 's-u20', status: 'pending', requester_id: 'me', addressee_id: 'u20', addressee: { id: 'u20', username: 'Zorglub' } });
+      await route.fulfill({ status: 201, json: { ok: true } });
+    },
+  });
+  await page.evaluate(() => (window as unknown as { __friends: { sendRequest: (q: string, id: string) => Promise<void> } }).__friends.sendRequest('zorg', 'u20'));
+  await expect(page.locator('[data-request="Zorglub"]')).toHaveCount(1);
+  expect(server.listed).toBe(1);
 });

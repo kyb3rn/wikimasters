@@ -55,15 +55,3 @@ export function formatCountdown(ms: number): string {
   const total = Math.max(0, Math.ceil(ms / 1000));
   return `${pad(Math.floor(total / 3600))}:${pad(Math.floor(total / 60) % 60)}:${pad(total % 60)}`;
 }
-
-/**
- * Avance de l'horloge du serveur sur celle du PC, d'après l'en-tête `Date` d'une réponse fraîche (sans `Age` :
- * une réponse sortie d'un cache porte la date de sa création). L'en-tête est à la seconde près : un écart de
- * moins de 2 s est ignoré, sans quoi le décompte sauterait ou répéterait une seconde à chaque réponse.
- */
-export function serverOffset(headers: Headers, receivedAt: number): number | undefined {
-  const date = Date.parse(headers.get('date') ?? '');
-  if (!Number.isFinite(date) || Number(headers.get('age') ?? 0) > 0) return undefined;
-  const offset = date + 500 - receivedAt;
-  return Math.abs(offset) < 2000 ? 0 : offset;
-}

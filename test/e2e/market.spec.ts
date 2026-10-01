@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
-import { CAROUSEL, PACK, PULLS_HTML } from './support/pulls';
-import { openSite, presetSettings } from './support/site';
+import { CAROUSEL, openCard, packFaces } from './support/pulls';
+import { letTimePass, presetSettings } from './support/site';
 
 test.beforeEach(({ page }) => presetSettings(page, CAROUSEL));
 
@@ -36,9 +36,7 @@ async function openCardModal(page: Page, server: SalesServer) {
     for (const go of waiting) go();
     waiting = [];
   };
-  await openSite(page, '/pulls', {
-    html: PULLS_HTML,
-    api: { '/api/packs/open': PACK },
+  await openCard(page, {
     handle: async (route, url) => {
       if (!url.pathname.endsWith('/sales')) return false;
       server.count++;
@@ -47,8 +45,6 @@ async function openCardModal(page: Page, server: SalesServer) {
       return true;
     },
   });
-  await page.click('#open');
-  await page.locator('main [class*="glow-"]').click();
   return page.locator('#card-modal');
 }
 
@@ -112,7 +108,7 @@ test('les ventes restent en cache (même après un rechargement) ; « Actualiser
 
   await page.reload();
   await page.click('#open');
-  await page.locator('main [class*="glow-"]').click();
+  await packFaces(page).click();
   card = page.locator('#card-modal');
   await card.getByRole('button', { name: 'Marché' }).click();
   await expect(history(page)).toBeVisible();
@@ -202,7 +198,7 @@ test('touche A désactivée dans les réglages : sans effet, absente de l’aide
 
   const recent = await dayLabel(page, 30);
   await page.keyboard.press('a');
-  await page.waitForTimeout(200);
+  await letTimePass(page, 200);
   expect(await dateLabels(page)).toBe(recent);
 });
 
@@ -235,7 +231,7 @@ test('compte non PRO : « Marché » avec le badge PRO ouvre l’offre du site, 
 
   await page.reload();
   await page.click('#open');
-  await page.locator('main [class*="glow-"]').click();
+  await packFaces(page).click();
   card = page.locator('#card-modal');
   market = card.getByRole('button', { name: 'Marché' });
   await expect(market.locator('span.bg-violet-600')).toHaveCount(1);

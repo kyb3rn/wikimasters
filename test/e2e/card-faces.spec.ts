@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { openSite, sitePage } from './support/site';
+import { letTimePass, openSite, rect, sitePage } from './support/site';
 
 /** Classes Tailwind utiles ici, imitées dans une couche comme celles du site. */
 const TAILWIND = `<style>@layer utilities { .p-3 { padding: 12px; } .pt-1 { padding-top: 4px; } .py-1 { padding-block: 4px; }
@@ -45,8 +45,7 @@ test('le bouton du coin d’une carte reste centré sur son coin, et le suit qua
 
   // Centre du bouton par rapport au coin haut droit de la face (agrandie comprise).
   const offset = async () => {
-    const [f, b] = await Promise.all([face.boundingBox(), remove.boundingBox()]);
-    if (!f || !b) return [NaN, NaN];
+    const [f, b] = await Promise.all([rect(face), rect(remove)]);
     return [Math.round((f.x + f.width - (b.x + b.width / 2)) * 10) / 10, Math.round((b.y + b.height / 2 - f.y) * 10) / 10];
   };
   await expect.poll(offset).toEqual([4, 4]);
@@ -57,7 +56,7 @@ test('le bouton du coin d’une carte reste centré sur son coin, et le suit qua
 
   // Sur le bouton, la carte reste agrandie : il ne repart pas sous le curseur.
   await remove.hover();
-  await page.waitForTimeout(400);
+  await letTimePass(page, 400);
   await expect(face).toHaveCSS('scale', '1.05');
   expect(await offset()).toEqual([4.2, 4.2]);
 

@@ -1,4 +1,4 @@
-import { isRecord } from '@/core/guards';
+import { isRecord, parseJson } from '@/core/guards';
 
 /**
  * Masquage des secrets avant enregistrement : une capture finit dans test/fixtures/,
@@ -32,22 +32,22 @@ export function redactUrl(href: string): string {
 }
 
 export function redactHeaders(headers: Headers): Record<string, string> {
-  const result: Record<string, string> = {};
+  const record: Record<string, string> = {};
   headers.forEach((value, key) => {
-    result[key] = SECRET_HEADER.test(key) ? MASK : redactText(value);
+    record[key] = value;
   });
-  return result;
+  return redactHeaderRecord(record);
+}
+
+/** En-têtes déjà relevés (capture enregistrée) : valeur masquée pour un nom sensible, sinon textes. */
+export function redactHeaderRecord(record: Readonly<Record<string, string>>): Record<string, string> {
+  return Object.fromEntries(Object.entries(record).map(([key, value]) => [key, SECRET_HEADER.test(key) ? MASK : redactText(value)]));
 }
 
 /** Corps JSON : valeurs des clés sensibles masquées, puis textes. Autre corps : textes seulement. */
 export function redactBody(text: string): string {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    return redactText(text);
-  }
-  return JSON.stringify(redactValue(parsed));
+  const parsed = parseJson(text);
+  return parsed === undefined ? redactText(text) : JSON.stringify(redactValue(parsed));
 }
 
 export function redactValue(value: unknown): unknown {

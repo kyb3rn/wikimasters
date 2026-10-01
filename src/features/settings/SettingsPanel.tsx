@@ -3,27 +3,9 @@ import type { FeatureCatalog, FeatureEntry } from '@/core/runtime';
 import { onSettingsChange, type SettingDefinition, type Settings } from '@/core/settings';
 import { jsonStore } from '@/core/storage';
 import { ChoiceField, NumberField, StepSlider, Switch } from '@/ui/controls';
-import { Icon, type IconName } from '@/ui/icons';
+import { Icon } from '@/ui/icons';
 import { Modal } from '@/ui/modal';
-
-/** Onglet fixe, toujours en dernier. */
-const ABOUT = 'À propos';
-
-/** Icônes des onglets : celles de la navigation ou des boutons du site quand il en a une. */
-const TAB_ICONS: Readonly<Record<string, IconName>> = {
-  Général: 'settings',
-  'Défaussage rapide': 'trash',
-  Paquets: 'puzzle',
-  'Modale de carte': 'window',
-  Enchères: 'gavel',
-  Collection: 'collection',
-  Échanges: 'handshake',
-  Marché: 'market',
-  Profil: 'user',
-  'Toutes les cartes': 'globe',
-  Développement: 'bug',
-  [ABOUT]: 'info',
-};
+import { ABOUT, orderTabs, TAB_ICONS } from './tabs';
 
 /** Dernier onglet ouvert, rouvert à la prochaine ouverture (même après un rechargement). */
 const lastTab = jsonStore<string | undefined>('wm-settings-tab-v1', undefined, (raw) =>
@@ -47,7 +29,7 @@ export function SettingsPanel({ catalog, onClose }: SettingsPanelProps) {
   }, [catalog]);
 
   const entries = catalog.list().filter((entry) => !entry.feature.hidden);
-  const tabs = [...new Set(entries.map((entry) => entry.feature.category)), ABOUT];
+  const tabs = orderTabs(entries.map((entry) => entry.feature.category));
   const [selected, setSelected] = useState(() => lastTab.get());
   // Onglet retenu disparu (catégorie supprimée, « Développement » hors dev) : le premier.
   const current = selected !== undefined && tabs.includes(selected) ? selected : (tabs[0] ?? ABOUT);
@@ -133,30 +115,37 @@ function FeatureSettings({ entry, catalog }: { entry: FeatureEntry; catalog: Fea
   const label = feature.toggleLabel ?? (feature.required ? undefined : feature.name);
   const settings = feature.settings;
   const definitions = settings ? Object.entries(settings.schema) : [];
+  // Fonctionnalité obligatoire sans libellé ni description (réglages seuls) : pas de ligne d'en-tête vide, son premier
+  // réglage principal en tient lieu et en prend l'allure.
+  const head = label || feature.description || state === 'failed' || !feature.required;
   const rows = (primary: boolean) =>
     settings &&
     definitions
       .filter(([, definition]) => (definition.primary === true) === primary)
-      .map(([name, definition]) => <SettingRow key={name} settings={settings} name={name} definition={definition} />);
+      .map(([name, definition], index) => (
+        <SettingRow key={name} settings={settings} name={name} definition={definition} asHead={primary && !head && index === 0} />
+      ));
   const secondary = rows(false);
 
   return (
     <article class="wm-settings-feature" data-enabled={enabled}>
       <div class="wm-settings-main">
-        <div class="wm-settings-row">
-          <div>
-            {label && <div class="wm-settings-feature-name">{label}</div>}
-            <p class="wm-settings-text">{feature.description}</p>
-            {state === 'failed' && <p class="wm-settings-error">Erreur au démarrage : {error}</p>}
+        {head && (
+          <div class="wm-settings-row">
+            <div>
+              {label && <div class="wm-settings-feature-name">{label}</div>}
+              {feature.description && <p class="wm-settings-text">{feature.description}</p>}
+              {state === 'failed' && <p class="wm-settings-error">Erreur au démarrage : {error}</p>}
+            </div>
+            {!feature.required && (
+              <Switch
+                checked={enabled}
+                label={`${feature.name} : ${label ?? feature.name}`}
+                onChange={(value) => catalog.setEnabled(feature.id, value)}
+              />
+            )}
           </div>
-          {!feature.required && (
-            <Switch
-              checked={enabled}
-              label={`${feature.name} : ${label ?? feature.name}`}
-              onChange={(value) => catalog.setEnabled(feature.id, value)}
-            />
-          )}
-        </div>
+        )}
         {rows(true)}
       </div>
       {secondary && secondary.length > 0 && <div class="wm-settings-rows">{secondary}</div>}
@@ -164,12 +153,22 @@ function FeatureSettings({ entry, catalog }: { entry: FeatureEntry; catalog: Fea
   );
 }
 
-function SettingRow({ settings, name, definition }: { settings: Settings; name: string; definition: SettingDefinition }) {
+function SettingRow({
+  settings,
+  name,
+  definition,
+  asHead = false,
+}: {
+  settings: Settings;
+  name: string;
+  definition: SettingDefinition;
+  asHead?: boolean;
+}) {
   const value = settings.get(name);
   return (
     <div class="wm-settings-row" data-stacked={definition.type === 'choice' || undefined}>
       <div>
-        <div class="wm-settings-row-label">{definition.label}</div>
+        <div class={asHead ? 'wm-settings-feature-name' : 'wm-settings-row-label'}>{definition.label}</div>
         {definition.description && <p class="wm-settings-text">{definition.description}</p>}
       </div>
       <div class="wm-settings-row-control">

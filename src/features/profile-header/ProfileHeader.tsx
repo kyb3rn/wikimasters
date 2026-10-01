@@ -51,11 +51,12 @@ function Visibility({ state, onToggle }: { state: VisibilityState; onToggle: () 
       type="button"
       role="switch"
       aria-checked={on}
+      aria-busy={state.busy}
       disabled={state.busy}
       class={`${siteClass.visibilityButton} wm-profile-visibility`}
       onClick={onToggle}
     >
-      {state.busy ? <Icon name="spinner" size={14} class="wm-spin" /> : <Icon name={on ? 'globe' : 'lock'} size={14} />}
+      <Icon name={on ? 'globe' : 'lock'} busy={state.busy} size={14} />
       <span>{state.label || (on ? 'Visible de tous' : 'Amis seulement')}</span>
       <span class={`${siteClass.switchTrack} ${on ? siteClass.switchTrackOn : siteClass.switchTrackOff}`} aria-hidden="true">
         <span class={`${siteClass.switchKnob} ${on ? siteClass.switchKnobOn : siteClass.switchKnobOff}`} />
@@ -70,7 +71,7 @@ function Visibility({ state, onToggle }: { state: VisibilityState; onToggle: () 
  */
 export function ProfileHeader(props: ProfileHeaderProps) {
   return (
-    <section class="card-frame overflow-hidden animate-fade-in-up wm-profile-header" aria-label="Profil">
+    <section class={`${siteClass.profileHeaderFrame} wm-profile-header`} aria-label="Profil">
       <div class="wm-profile-cover">
         {props.visibility && <Visibility state={props.visibility} onToggle={props.onToggleVisibility} />}
       </div>
@@ -91,9 +92,7 @@ export function ProfileHeader(props: ProfileHeaderProps) {
               <Icon name="pencil" size={14} />
             </button>
           </div>
-          <h1 class={`${siteClass.profileName} wm-profile-name`} style={{ fontFamily: 'var(--font-heading)' }}>
-            {props.name}
-          </h1>
+          <h1 class={`${siteClass.profileName} wm-profile-name`}>{props.name}</h1>
           {props.details.length > 0 && <p class={siteClass.profileDetails}>{props.details.join(' · ')}</p>}
         </div>
         <Stat stat={props.unique} side="right" />

@@ -1,118 +1,86 @@
-import { h, type ComponentChild } from 'preact';
-import { childController } from '@/core/async';
-import { injectStyle, setClass, watchDom, whenBody } from '@/core/dom';
-import { isRecord } from '@/core/guards';
+import { h } from 'preact';
+import { classMarks, renameText, watchDom } from '@/core/dom';
 import { net } from '@/core/net';
 import type { Feature } from '@/core/runtime';
 import { confirmUnfriend } from '@/services/friends';
-import { isFriendsListRequest, isFriendshipDelete, removeFriendship, SiteApiError } from '@/site/api';
-import { dropFriendship, findFriendsPage, FRIENDS_ROUTE, readFriendRow, type FriendRow, type RowButton } from '@/site/friends';
-import { mountUi, type MountedUi } from '@/ui/mount';
-import { ensureBaseStyle } from '@/ui/theme';
+import { isFriendsList, removeFriendship, siteErrorText, type FriendshipAction } from '@/site/api';
+import { dropFriendship, findFriendsPage, readFriendRow, type FriendRow, type RowButton } from '@/site/friends';
+import { hasIcon } from '@/site/dom';
+import { FRIENDS_ROUTE } from '@/site/routes';
+import { createSlot, createSlots } from '@/ui/mount';
 import { toast } from '@/ui/toast';
-import { CSS, LIST, REQUESTS, SEARCH } from './style';
-import { CancelButton, FriendActions, SearchActions, type SiteAction } from './views';
+import { serveFriendsRefresh } from './refresh';
+import { CSS, INCOMING, LIST, REQUESTS, SEARCH } from './style';
+import { AcceptAllButton, AnswerActions, CancelButton, FriendActions, SearchActions, type SiteAction } from './views';
 
 const TITLE = 'Amis';
 const SITE_ADD = 'Rechercher un joueur';
 const ADD = 'Ajouter un ami';
 
-interface Slot {
-  readonly ui: MountedUi;
-  readonly controller: AbortController;
-}
+/** Action d'une demande en attente : annuler (envoyée), accepter ou refuser (reçue). */
+type RequestAction = 'cancel' | 'accept' | 'decline';
 
-/** Change le texte d'un bouton du site (son nœud texte : React ne le réécrit que s'il change de son côté). */
-function rename(button: HTMLButtonElement, from: string, to: string): void {
-  for (const node of button.childNodes) {
-    if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim() === from) node.textContent = ` ${to}`;
-  }
-}
+/** Action du site déclenchée par le bouton d'une ligne. */
+const ROW_ACTION: Partial<Record<FriendshipAction['kind'], RequestAction>> = { accept: 'accept', decline: 'decline', delete: 'cancel' };
 
-const errorText = (error: unknown) => {
-  const message = error instanceof SiteApiError ? error.message : 'erreur inattendue';
-  return `${message.charAt(0).toUpperCase()}${message.slice(1)}.`;
-};
+interface Pending {
+  readonly action: RequestAction;
+  /** La requête du site, puis sa relecture de la liste. */
+  readonly step: 'request' | 'refresh';
+}
 
 export const friendsLayout: Feature = {
   id: 'friends-layout',
   name: 'Page Amis',
   description:
-    'Amis et demandes en attente sur trois colonnes au plus ; Inviter et Ajouter un ami à droite de la recherche ; Message (bleu), Échanger (vert) et retirer un ami (rouge, avec confirmation) en boutons standard ; Annuler une demande en rouge.',
+    'Amis et demandes en attente sur trois colonnes au plus ; Inviter et Ajouter un ami à droite de la recherche ; Message (bleu), Échanger (vert) et retirer un ami (rouge, avec confirmation) en boutons standard ; Accepter (vert), Refuser et Annuler une demande (rouge) ; la liste suit chaque action sans être relue.',
   category: 'Amis',
   routes: [FRIENDS_ROUTE],
   required: true,
   hidden: true,
   async mount(ctx) {
     const { signal } = ctx;
-    let search: Slot | undefined;
-    const rows = new Map<HTMLElement, Slot>();
-    /** Demandes envoyées en cours d'annulation : la requête du site, puis sa relecture de la liste. */
-    const cancelling = new Map<HTMLElement, 'request' | 'refresh'>();
+    const search = createSlot(signal);
+    const acceptAll = createSlot(signal);
+    /** Actions de chaque ligne (ami, demande reçue, demande envoyée), par ligne. */
+    const rows = createSlots<HTMLElement>(signal);
+    const marks = classMarks(signal);
+    /** Demandes en attente dont l'action est en cours (site : aucun état « en cours »). */
+    const pending = new Map<HTMLElement, Pending>();
 
-    net.track(
-      (request) => isFriendshipDelete(request) && !request.own,
-      () => {
-        const started = [...cancelling].filter(([, step]) => step === 'request').map(([row]) => row);
-        return (status) => {
-          const ok = status !== undefined && status < 400;
-          for (const row of started) {
-            if (ok) cancelling.set(row, 'refresh');
-            else cancelling.delete(row);
-          }
-          if (status === undefined) toast.error("Erreur réseau : la demande n'a pas été annulée.", { title: TITLE });
-          sync();
-        };
+    serveFriendsRefresh({
+      signal,
+      log: ctx.log,
+      onActionEnd(action, status) {
+        const kind = ROW_ACTION[action.kind];
+        const ok = status !== undefined && status < 400;
+        for (const [row, entry] of pending) {
+          if (entry.step !== 'request' || entry.action !== kind) continue;
+          if (ok) pending.set(row, { action: entry.action, step: 'refresh' });
+          else pending.delete(row);
+        }
+        sync();
       },
-      { signal },
-    );
-    // Le site ne montre pas ses refus : la demande resterait là sans explication.
-    net.observe(
-      (request) => isFriendshipDelete(request) && !request.own,
-      async (exchange) => {
-        if (exchange.ok) return;
-        const body = await exchange.json().catch(() => undefined);
-        const message = isRecord(body) && typeof body.error === 'string' ? body.error : `Erreur ${exchange.status} du site.`;
-        toast.error(message, { title: TITLE });
-      },
-      { signal },
-    );
+      onRefused: (message) => toast.error(message, { title: TITLE }),
+    });
     net.track(
-      isFriendsListRequest,
+      isFriendsList,
       () => {
-        const refreshing = [...cancelling].filter(([, step]) => step === 'refresh').map(([row]) => row);
+        const refreshing = [...pending].filter(([, entry]) => entry.step === 'refresh').map(([row]) => row);
         return () => {
-          for (const row of refreshing) cancelling.delete(row);
+          for (const row of refreshing) pending.delete(row);
           sync();
         };
       },
       { signal },
     );
 
-    await whenBody();
-    if (signal.aborted) return;
-    ensureBaseStyle();
-    injectStyle('friends-layout', CSS);
-
-    /** Monte ou met à jour une interface à nous (conteneur `inline`) ; remontée si React a bougé les choses. */
-    function place(current: Slot | undefined, vnode: ComponentChild, parent: Element, before: Element | null): Slot {
-      const element = current?.ui.element;
-      if (current && element?.parentElement === parent && (before === null || element.nextElementSibling === before)) {
-        current.ui.update(vnode);
-        return current;
-      }
-      current?.controller.abort();
-      const controller = childController(signal);
-      return { ui: mountUi(vnode, { parent, before, inline: true, signal: controller.signal }), controller };
-    }
-
-    /** Éléments du site masqués par nous, rendus au démontage. */
-    const hidden = new Set<HTMLElement>();
-    function hide(element: HTMLElement, on: boolean): void {
-      setClass(element, 'wm-hidden', on);
-      if (on) hidden.add(element);
-      else hidden.delete(element);
-    }
+    if (!(await ctx.ready())) return;
+    ctx.style(CSS);
+    ctx.onDispose(() => {
+      const add = findFriendsPage()?.header?.add;
+      if (add) renameText(add, ADD, SITE_ADD);
+    });
 
     const action = (site: RowButton | undefined): SiteAction | undefined =>
       site && { title: site.button.title, disabled: site.button.disabled, onClick: () => site.button.click() };
@@ -120,7 +88,7 @@ export const friendsLayout: Feature = {
     function remove(row: FriendRow): void {
       const friend = readFriendRow(row.root);
       if (!friend) {
-        ctx.log.warn('ami de la ligne introuvable dans l’état de la page', row.root.textContent);
+        ctx.log.warn("ami de la ligne introuvable dans l'état de la page", row.root.textContent);
         toast.error("Ami non identifié : il n'a pas été retiré.", { title: TITLE });
         return;
       }
@@ -130,7 +98,7 @@ export const friendsLayout: Feature = {
           try {
             await removeFriendship(friend.friendshipId);
           } catch (error) {
-            toast.error(errorText(error), { title: TITLE });
+            toast.error(siteErrorText(error), { title: TITLE });
             return;
           }
           const section = findFriendsPage()?.list?.section ?? row.root;
@@ -142,9 +110,10 @@ export const friendsLayout: Feature = {
       );
     }
 
-    function cancel(row: HTMLElement, button: HTMLButtonElement): void {
-      if (cancelling.has(row)) return;
-      cancelling.set(row, 'request');
+    /** Clique le bouton du site (caché) d'une demande, roue jusqu'à la relecture de la liste. */
+    function answer(row: HTMLElement, action: RequestAction, button: HTMLButtonElement): void {
+      if (pending.has(row)) return;
+      pending.set(row, { action, step: 'request' });
       button.click();
       sync();
     }
@@ -154,58 +123,64 @@ export const friendsLayout: Feature = {
       const page = findFriendsPage();
       const header = page?.header;
       const list = page?.list;
-      if (header?.add) rename(header.add, SITE_ADD, ADD);
+      if (header?.add) renameText(header.add, SITE_ADD, ADD);
 
       const { invite, add } = header ?? {};
-      if (list?.search && header && invite && add) {
-        setClass(list.search, SEARCH, true);
-        hide(header.actions, true);
-        search = place(
-          search,
-          h(SearchActions, {
-            copied: invite.querySelector('svg.lucide-check') !== null,
-            onInvite: () => invite.click(),
-            onAdd: () => add.click(),
-          }),
-          list.search,
-          null,
-        );
+      const searchFrame = list?.search && header && invite && add ? list.search : undefined;
+      marks.only(SEARCH, searchFrame ? [searchFrame] : []);
+      // Sans amis, pas de recherche : les boutons restent dans l'en-tête.
+      if (header) ctx.hide(header.actions, searchFrame !== undefined);
+      if (searchFrame && invite && add) {
+        const vnode = h(SearchActions, { copied: hasIcon(invite, 'check'), onInvite: () => invite.click(), onAdd: () => add.click() });
+        search.render(vnode, { parent: searchFrame, before: null, inline: true });
       } else {
-        search?.controller.abort();
-        search = undefined;
-        // Sans amis, pas de recherche : les boutons restent dans l'en-tête.
-        if (header) hide(header.actions, false);
+        search.clear();
       }
 
+      marks.only(LIST, list ? [list.section] : []);
+      marks.only(REQUESTS, page?.requests ?? []);
       const seen = new Set<HTMLElement>();
-      if (list) setClass(list.section, LIST, true);
-      for (const section of page?.requests ?? []) setClass(section, REQUESTS, true);
       for (const row of list?.rows ?? []) {
         seen.add(row.root);
-        for (const site of [row.message, row.trade]) if (site) hide(site.slot, true);
+        for (const site of [row.message, row.trade]) if (site) ctx.hide(site.slot);
         const vnode = h(FriendActions, { message: action(row.message), trade: action(row.trade), onRemove: () => remove(row) });
-        rows.set(row.root, place(rows.get(row.root), vnode, row.actions, row.message?.slot ?? row.trade?.slot ?? null));
+        rows.render(row.root, vnode, { parent: row.actions, before: row.message?.slot ?? row.trade?.slot ?? null, inline: true });
       }
-      for (const request of page?.sent ?? []) {
-        seen.add(request.root);
-        hide(request.cancel, true);
-        const vnode = h(CancelButton, { busy: cancelling.has(request.root), onClick: () => cancel(request.root, request.cancel) });
-        rows.set(request.root, place(rows.get(request.root), vnode, request.root, request.cancel));
+      const received = page?.received;
+      const all = received?.acceptAll;
+      if (all) {
+        ctx.hide(all);
+        acceptAll.render(h(AcceptAllButton, { busy: all.disabled, onClick: () => all.click() }), {
+          parent: all.parentElement ?? all,
+          before: all,
+          inline: true,
+        });
+      } else {
+        acceptAll.clear();
       }
-      for (const [root, slot] of rows) {
-        if (seen.has(root)) continue;
-        slot.controller.abort();
-        rows.delete(root);
+      marks.only(INCOMING, received?.rows.map((request) => request.root) ?? []);
+      for (const { root, actions, accept, decline } of received?.rows ?? []) {
+        const busy = pending.get(root)?.action;
+        seen.add(root);
+        ctx.hide(accept);
+        ctx.hide(decline);
+        const vnode = h(AnswerActions, {
+          busy: busy === 'accept' || busy === 'decline' ? busy : undefined,
+          onAccept: () => answer(root, 'accept', accept),
+          onDecline: () => answer(root, 'decline', decline),
+        });
+        rows.render(root, vnode, { parent: actions, before: accept, inline: true });
       }
-      for (const row of cancelling.keys()) if (!row.isConnected) cancelling.delete(row);
+      for (const { root, cancel } of page?.sent ?? []) {
+        seen.add(root);
+        ctx.hide(cancel);
+        const vnode = h(CancelButton, { busy: pending.has(root), onClick: () => answer(root, 'cancel', cancel) });
+        rows.render(root, vnode, { parent: root, before: cancel, inline: true });
+      }
+      rows.prune((root) => seen.has(root));
+      for (const row of pending.keys()) if (!row.isConnected) pending.delete(row);
     }
 
     watchDom(sync, { signal });
-    ctx.onDispose(() => {
-      const page = findFriendsPage();
-      if (page?.header?.add) rename(page.header.add, ADD, SITE_ADD);
-      for (const name of [LIST, REQUESTS, SEARCH]) document.querySelectorAll(`.${name}`).forEach((element) => element.classList.remove(name));
-      for (const element of hidden) element.classList.remove('wm-hidden');
-    });
   },
 };

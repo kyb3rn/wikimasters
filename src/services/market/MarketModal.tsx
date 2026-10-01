@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { errorMessage } from '@/core/log';
+import { siteErrorText } from '@/site/api';
 import { RARITY_NAMES, rarityBadgeStyle } from '@/site/rarity';
 import { buttonClass } from '@/ui/button';
 import { Icon } from '@/ui/icons';
@@ -8,12 +8,13 @@ import { siteClass } from '@/ui/site';
 import { toast } from '@/ui/toast';
 import type { MarketEntry } from './cache';
 import { ageText } from './format';
-import { fetchMarket, onMarketChange, type MarketCard } from './market';
+import type { CardRef } from '@/site/cards';
+import { fetchMarket, onMarketChange } from './market';
 import { MarketView } from './MarketView';
 import { marketSettings } from './settings';
 
 export interface MarketModalProps {
-  readonly card: MarketCard;
+  readonly card: CardRef;
   readonly entry: MarketEntry;
   readonly onClose: () => void;
 }
@@ -47,7 +48,7 @@ export function MarketModal({ card, entry: initial, onClose }: MarketModalProps)
     setRefreshing(true);
     fetchMarket(card)
       .then(setEntry)
-      .catch((error: unknown) => toast.error(errorMessage(error), { title: 'Ventes non actualisées' }))
+      .catch((error: unknown) => toast.error(siteErrorText(error), { title: 'Ventes non actualisées' }))
       .finally(() => setRefreshing(false));
   };
 
@@ -65,8 +66,15 @@ export function MarketModal({ card, entry: initial, onClose }: MarketModalProps)
       width={880}
       onClose={onClose}
       actions={
-        <button type="button" class={buttonClass('standard')} disabled={refreshing} title="Recharger depuis le site" onClick={refresh}>
-          <Icon name={refreshing ? 'spinner' : 'reload'} size={16} class={refreshing ? 'wm-spin' : undefined} />
+        <button
+          type="button"
+          class={buttonClass('standard')}
+          disabled={refreshing}
+          aria-busy={refreshing}
+          title="Recharger depuis le site"
+          onClick={refresh}
+        >
+          <Icon name="reload" busy={refreshing} size={16} />
           Actualiser
         </button>
       }

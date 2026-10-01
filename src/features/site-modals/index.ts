@@ -1,7 +1,8 @@
 import { h } from 'preact';
 import { childController } from '@/core/async';
-import { guardBackdropClicks, injectStyle, ROOT_CLASS, setClass, watchDom, whenBody } from '@/core/dom';
+import { guardBackdropClicks, setClass, watchDom } from '@/core/dom';
 import type { Feature } from '@/core/runtime';
+import { isOwn } from '@/site/dom';
 import { escapeTarget, findSiteModals, isCornerCross, isSiteOverlay, readSiteModal, topSiteModal } from '@/site/modals';
 import { CloseButton } from '@/ui/controls';
 import { isModalOpen, leaveSmoothly, trackScrolls } from '@/ui/modal';
@@ -11,7 +12,6 @@ import { tokens } from '@/ui/theme';
 
 const SHADE = 'wm-modal-shade';
 const HOST = 'wm-modal-host';
-const HIDDEN = 'wm-modal-close-hidden';
 /** Rangée du titre : place laissée à notre croix (`--wm-modal-room`). */
 const ROOM = 'wm-modal-room';
 /** Bord droit de notre croix depuis le bord du cadre (`right-3` + `w-9`), plus un écart avec le titre. */
@@ -21,7 +21,6 @@ const CSS = `
 .${SHADE}.${SHADE} { background-color: ${tokens.backdrop}; -webkit-backdrop-filter: ${tokens.backdropBlur};
   backdrop-filter: ${tokens.backdropBlur}; }
 .${HOST} { position: relative; }
-.${HIDDEN} { display: none !important; }
 .${ROOM}.${ROOM} { padding-right: var(--wm-modal-room); }
 `;
 
@@ -61,12 +60,19 @@ export const siteModals: Feature = {
 
     // Avant d'attendre la page : passe devant les écouteurs de clic des autres fonctionnalités (card-modal-stay
     // ferme au clic sur le fond la modale de carte qu'il garde).
-    guardBackdropClicks(isSiteOverlay, signal);
+    guardBackdropClicks(isSiteOverlay, { signal });
 
-    await whenBody();
-    if (signal.aborted) return;
-    injectStyle('site-modals', CSS);
-    trackScrolls(signal);
+    if (!(await ctx.ready())) return;
+    ctx.style(CSS);
+    trackScrolls({ signal });
+    // Classes retirées en cherchant dans la page plutôt qu'en retenant les éléments marqués : la fonctionnalité ne se
+    // démonte jamais, des modales fermées depuis longtemps resteraient en mémoire.
+    ctx.onDispose(() => {
+      for (const element of document.querySelectorAll(`.${SHADE}, .${HOST}, .${ROOM}`)) {
+        element.classList.remove(SHADE, HOST, ROOM);
+        if (element instanceof HTMLElement) element.style.removeProperty('--wm-modal-room');
+      }
+    });
 
     function remove(frame: HTMLElement): void {
       placed.get(frame)?.controller.abort();
@@ -111,10 +117,10 @@ export const siteModals: Feature = {
           setClass(modal.shade, SHADE, true);
           const { frame, close, dismiss } = modal;
           if (!frame || !close) continue;
-          if (dismiss) setClass(blockOf(dismiss, frame), HIDDEN, true);
+          if (dismiss) ctx.hide(blockOf(dismiss, frame));
           if (isCornerCross(close)) continue;
           seen.add(frame);
-          setClass(close, HIDDEN, true);
+          ctx.hide(close);
           const current = placed.get(frame);
           if (!current || current.ui.element.parentElement !== current.host) {
             remove(frame);
@@ -129,12 +135,13 @@ export const siteModals: Feature = {
       { signal },
     );
 
-    // Le site retire ses modales d'un coup : une copie s'efface à leur place. Une tâche plus tard, pour laisser
-    // card-modal-stay garder la modale de carte qu'il remet aussitôt dans la page (plus rien à effacer).
+    // Le site retire ses modales d'un coup : une copie s'efface à leur place. Une microtâche plus tard, après les
+    // autres observateurs de la même mutation : card-modal-stay y remet aussitôt la modale de carte qu'il garde (plus
+    // rien à effacer).
     const removals = new MutationObserver((records) => {
       for (const record of records) {
         const parent = record.target;
-        if (parent instanceof Element && parent.closest(`.${ROOT_CLASS}`)) continue;
+        if (isOwn(parent)) continue;
         for (const node of record.removedNodes) {
           if (!isSiteOverlay(node)) continue;
           const before = record.nextSibling;
@@ -168,13 +175,5 @@ export const siteModals: Feature = {
       },
       { capture: true, signal },
     );
-
-    ctx.onDispose(() => {
-      for (const frame of [...placed.keys()]) remove(frame);
-      for (const element of document.querySelectorAll(`.${SHADE}, .${HOST}, .${HIDDEN}, .${ROOM}`)) {
-        element.classList.remove(SHADE, HOST, HIDDEN, ROOM);
-        if (element instanceof HTMLElement) element.style.removeProperty('--wm-modal-room');
-      }
-    });
   },
 };

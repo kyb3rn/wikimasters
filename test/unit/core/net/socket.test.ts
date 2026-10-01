@@ -67,7 +67,7 @@ describe('observation des WebSocket', () => {
     expect((ws.constructor as typeof FakeWebSocket).OPEN).toBe(1);
   });
 
-  it("copie un binaire envoyé : le site peut réutiliser son tampon", async () => {
+  it('copie un binaire envoyé : le site peut réutiliser son tampon', async () => {
     const { net, open } = setup();
     const data: unknown[] = [];
     net.observeSocket(
@@ -83,7 +83,7 @@ describe('observation des WebSocket', () => {
     expect(new Uint8Array(data[0] as ArrayBuffer)).toEqual(new Uint8Array([1, 2, 3]));
   });
 
-  it("ne notifie que les observateurs concernés, et isole leurs erreurs", async () => {
+  it('ne notifie que les observateurs concernés, et isole leurs erreurs', async () => {
     const { net, log, open } = setup();
     const seen: string[] = [];
     net.observeSocket(

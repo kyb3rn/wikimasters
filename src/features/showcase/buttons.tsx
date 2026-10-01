@@ -46,14 +46,12 @@ interface SampleProps {
   readonly label?: string;
 }
 
-const Spinner = ({ size }: { readonly size: number }) => <Icon name="spinner" size={size} class="wm-spin" />;
-
 /** Bouton qui fait tourner sa roue un moment quand on le clique, comme pendant une requête. */
 function BusyButton({ class: className, icon, iconSize: size, label }: SampleProps) {
   const [busy, run] = useBusy();
   return (
     <button type="button" class={className} disabled={busy} aria-busy={busy} aria-label={label ? undefined : icon} onClick={run}>
-      {busy ? <Spinner size={size} /> : <Icon name={icon} size={size} />}
+      <Icon name={icon} size={size} busy={busy} />
       {label}
     </button>
   );
@@ -63,7 +61,7 @@ function BusyButton({ class: className, icon, iconSize: size, label }: SamplePro
 function InactiveButton({ class: className, icon, iconSize: size, label, busy }: SampleProps & { readonly busy?: boolean }) {
   return (
     <button type="button" class={className} disabled aria-busy={busy} aria-label={label ? undefined : icon}>
-      {busy ? <Spinner size={size} /> : <Icon name={icon} size={size} />}
+      <Icon name={icon} size={size} busy={busy} />
       {label}
     </button>
   );
@@ -109,7 +107,7 @@ function TwoStepDiscard() {
         'Confirmer ?'
       ) : (
         <>
-          {stage === 'busy' ? <Spinner size={16} /> : <Icon name="trash" size={16} />}
+          <Icon name="trash" size={16} busy={stage === 'busy'} />
           Défausser tout
         </>
       )}

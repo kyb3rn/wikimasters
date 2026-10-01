@@ -1,7 +1,11 @@
+import { tokens } from '@/ui/theme';
+
 /** Section « Amis (n) » : sa liste en grille. */
 export const LIST = 'wm-friends-list';
 /** Sections des demandes en attente (reçues, envoyées) : même grille. */
 export const REQUESTS = 'wm-friends-requests';
+/** Demande reçue : fond des autres lignes (amis, demandes envoyées) au lieu de la teinte accent du site. */
+export const INCOMING = 'wm-friends-incoming';
 /** Cadre du champ de recherche des amis : le champ à gauche, nos deux boutons à droite. */
 export const SEARCH = 'wm-friends-search';
 
@@ -22,11 +26,10 @@ const MIN_WIDTH = '510px';
  * bord de la grille). Sous 640 px (le `sm` du site) : les boutons passent sous le champ, à droite.
  */
 export const CSS = `
-.wm-hidden { display: none !important; }
-
 :is(.${LIST}, .${REQUESTS}) { display: grid; gap: 0.75rem;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, max(${MIN_WIDTH}, (100% - 1.5rem) / 3 - 0.1px)), 1fr)); }
 :is(.${LIST}, .${REQUESTS}) > * { margin-block: 0; }
+.${REQUESTS} > .${INCOMING} { background-color: ${tokens.surfaceLight}; border-width: 0; }
 .${LIST} > :not(:has(> a[href^="/profile/"])),
 .${REQUESTS} > :not(div:has(> p)) { grid-column: 1 / -1; }
 

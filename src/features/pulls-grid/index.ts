@@ -1,8 +1,9 @@
 import { h } from 'preact';
 import { blockSounds } from '@/core/audio';
 import { childController, nextFrame, sleep, waitUntil } from '@/core/async';
-import { injectStyle, setClass, watchDom, whenBody } from '@/core/dom';
+import { classMarks, toggleStyle, watchDom, type ClassMarks } from '@/core/dom';
 import type { Feature } from '@/core/runtime';
+import { normalizeText } from '@/core/text';
 import {
   createPullsGrid,
   markArrived,
@@ -14,14 +15,15 @@ import {
 } from '@/services/pulls-grid';
 import { carouselLock } from '@/services/pulls-pack';
 import { findStarButton } from '@/site/cards';
-import { carouselCards, findCarousel, PULLS_ROUTE, type Carousel } from '@/site/pulls';
+import { carouselCards, findCarousel, type Carousel } from '@/site/pulls';
+import { PULLS_ROUTE } from '@/site/routes';
 import { SITE_SOUNDS } from '@/site/sound';
 import { buttonClass } from '@/ui/button';
-import { mountUi, type MountedUi } from '@/ui/mount';
+import { createSlot, type UiSlot } from '@/ui/mount';
 import { cloneFace, imagesComplete, imagesDecoded } from './face';
 import { gridLayout } from './layout';
 import { settings } from './settings';
-import { ACTIVE, ARRIVAL_MS, CSS, HIDDEN, OFFSTAGE } from './style';
+import { ARRIVAL_MS, CSS, GRID_ON_CSS, OFFSTAGE } from './style';
 
 /** Changement de carte dans le carrousel : un rendu React, sans réseau. */
 const STEP_TIMEOUT_MS = 2000;
@@ -30,7 +32,9 @@ const SHINY_TIMEOUT_MS = 4000;
 const IMAGES_TIMEOUT_MS = 1500;
 const DECODE_TIMEOUT_MS = 400;
 
-const normalize = (text: string | undefined) => (text ?? '').replace(/\s+/g, ' ').trim();
+const sameTitle = (a: string | undefined, b: string | undefined) => normalizeText(a) === normalizeText(b);
+/** Feuille posée tant que la grille est affichée. */
+const GRID_ON_STYLE = 'pulls-grid-on';
 
 /** Un paquet affiché en grille. */
 interface Session {
@@ -41,7 +45,11 @@ interface Session {
   readonly controller: AbortController;
   /** HTML de la face du site copiée dans chaque case : une face qui change est recopiée. */
   readonly sources: (string | undefined)[];
-  proceed: { readonly ui: MountedUi; readonly controller: AbortController } | undefined;
+  /** « Continuer » à nous. */
+  readonly proceed: UiSlot;
+  /** Parties du carrousel cachées, rendues à la fin. */
+  readonly hidden: Set<Element>;
+  readonly marks: ClassMarks;
   /** Toutes les cartes sont arrivées. */
   done: boolean;
   /** Le script fait tourner le carrousel (arrivée des cartes, ouverture d'une carte). */
@@ -63,9 +71,8 @@ export const pullsGrid: Feature = {
     /** Paquets où la grille a échoué : leur carrousel reste tel quel. */
     const failed = new WeakSet<HTMLElement>();
 
-    await whenBody();
-    if (signal.aborted) return;
-    injectStyle('pulls-grid', CSS);
+    if (!(await ctx.ready())) return;
+    ctx.style(CSS);
 
     const slotAt = (current: Session, index: number): PullsGridSlot | undefined => readPullsGrid(current.grid)?.slots[index];
 
@@ -151,7 +158,7 @@ export const pullsGrid: Feature = {
       current.stepping = true;
       try {
         const carousel = await showCard(index, current.controller.signal, STEP_TIMEOUT_MS);
-        if (!carousel?.face || normalize(carousel.title) !== normalize(expected)) {
+        if (!carousel?.face || !sameTitle(carousel.title, expected)) {
           log.warn('carte du carrousel différente de la carte cliquée', { carrousel: carousel?.title, grille: expected });
           return;
         }
@@ -211,7 +218,9 @@ export const pullsGrid: Feature = {
         grid,
         controller,
         sources: [],
-        proceed: undefined,
+        proceed: createSlot(controller.signal),
+        hidden: new Set(),
+        marks: classMarks(controller.signal),
         done: false,
         stepping: false,
       };
@@ -234,9 +243,9 @@ export const pullsGrid: Feature = {
       if (!session) return;
       session.controller.abort();
       session.grid.remove();
+      for (const element of session.hidden) ctx.hide(element, false);
       session = undefined;
-      for (const name of [HIDDEN, OFFSTAGE]) document.querySelectorAll(`.${name}`).forEach((el) => el.classList.remove(name));
-      document.documentElement.classList.remove(ACTIVE);
+      toggleStyle(GRID_ON_STYLE, GRID_ON_CSS, false);
       notifyPullsGridChange();
     }
 
@@ -256,20 +265,15 @@ export const pullsGrid: Feature = {
 
     /** Grille à la place de la carte, carrousel caché, « Continuer » à nous. Idempotent. */
     function place(current: Session, carousel: Carousel, original: HTMLButtonElement): void {
-      if (carousel.counter) setClass(carousel.counter, HIDDEN, true);
-      if (carousel.holder) setClass(carousel.holder, OFFSTAGE, true);
-      setClass(carousel.nav, HIDDEN, true);
-      setClass(original, HIDDEN, true);
-      setClass(document.documentElement, ACTIVE, true);
-
-      const vnode = proceedButton(current, original);
-      if (current.proceed?.ui.element.previousElementSibling === original) current.proceed.ui.update(vnode);
-      else {
-        current.proceed?.controller.abort();
-        const controller = childController(current.controller.signal);
-        const ui = mountUi(vnode, { parent: carousel.root, before: original.nextSibling, inline: true, signal: controller.signal });
-        current.proceed = { ui, controller };
+      // Compteur, navigation, bouton d'origine « Encore n cartes » / « Continuer ».
+      for (const element of [carousel.counter, carousel.nav, original]) {
+        if (!element) continue;
+        ctx.hide(element);
+        current.hidden.add(element);
       }
+      if (carousel.holder) current.marks.set(carousel.holder, OFFSTAGE, true);
+      toggleStyle(GRID_ON_STYLE, GRID_ON_CSS, true);
+      current.proceed.render(proceedButton(current, original), { parent: carousel.root, after: original, inline: true });
 
       if (current.grid.parentElement !== carousel.root || current.grid.nextElementSibling !== carousel.nav) {
         carousel.root.insertBefore(current.grid, carousel.nav);
@@ -281,7 +285,7 @@ export const pullsGrid: Feature = {
     function mirror(current: Session, carousel: Carousel): void {
       if (!current.done || current.stepping || !carousel.face) return;
       const slot = slotAt(current, carousel.index);
-      if (!slot?.arrived || normalize(slot.title) !== normalize(carousel.title)) return;
+      if (!slot?.arrived || !sameTitle(slot.title, carousel.title)) return;
       if (carousel.face.outerHTML === current.sources[slot.index]) return;
       copy(current, slot, carousel.face);
       notifyPullsGridChange();

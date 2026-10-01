@@ -1,5 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
-import { openSite, sitePage } from './support/site';
+import { expectDomIdle, openSite, sitePage } from './support/site';
 
 /**
  * /guild sans guilde (code du 30/09/2026) : carte « Vous n'êtes dans aucune guilde », remplacée au clic par le
@@ -152,7 +152,7 @@ test('requête sans réponse : message dans la fenêtre', async ({ page }) => {
   await openModal(page);
   await dialog(page).getByPlaceholder('Les Conquérants').fill('Les Conquérants');
   await dialog(page).getByRole('button', { name: 'Créer la guilde' }).click();
-  await expect(dialog(page)).toContainText('Le site n’a pas répondu. Réessayez.');
+  await expect(dialog(page)).toContainText("Le site n'a pas répondu (erreur réseau).");
 });
 
 for (const [label, close] of [
@@ -171,3 +171,10 @@ for (const [label, close] of [
     await expect(dialog(page).getByPlaceholder('Les Conquérants')).toHaveValue('Mes amis');
   });
 }
+
+test('au repos, fenêtre ouverte, le script ne resynchronise plus la page (copie de la carte comprise)', async ({ page }) => {
+  await openGuild(page);
+  await openModal(page);
+  await expect(page.locator('.wm-guild-card-copy')).toBeVisible();
+  await expectDomIdle(page);
+});

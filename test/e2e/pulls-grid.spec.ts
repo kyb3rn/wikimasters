@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
-import { CAROUSEL, PACK, playedSounds, PULLS_HTML, recordSounds } from './support/pulls';
-import { openSite, presetSettings } from './support/site';
+import { CAROUSEL, openPulls as openFakePulls, PACK, playedSounds, recordSounds } from './support/pulls';
+import { expectDomIdle, letTimePass, openSettings, presetSettings } from './support/site';
 
 const GRID = 'main .wm-pulls-grid';
 /** Rangée de navigation du carrousel du site. */
@@ -11,7 +11,6 @@ const arrived = (page: Page) => page.locator(`${GRID} > .wm-pulls-slot[data-stat
 const proceed = (page: Page) => page.getByRole('button', { name: 'Continuer' });
 const carouselIndex = (page: Page) =>
   page.evaluate(() => (window as unknown as { __pulls: { index: number } }).__pulls.index);
-const domSyncs = (page: Page) => page.evaluate(() => window.wm?.debug?.domSyncs() ?? -1);
 
 interface Watched {
   /** Arrivées des cartes : position dans le paquet, instant. */
@@ -34,8 +33,6 @@ function packOf(count: number, extra: Record<string, unknown>[] = []) {
 
 /** `hold` : la réponse de défausse attend cette promesse. */
 async function openPulls(page: Page, pack: unknown = PACK, hold?: Promise<void>) {
-  const discarded: string[] = [];
-  const starChanges: string[] = [];
   await recordSounds(page);
   // Avant le script : note les arrivées des cartes.
   await page.addInitScript(() => {
@@ -49,24 +46,13 @@ async function openPulls(page: Page, pack: unknown = PACK, hold?: Promise<void>)
       }
     }).observe(document, { subtree: true, attributes: true, attributeFilter: ['data-state'] });
   });
-  await openSite(page, '/pulls', {
-    html: PULLS_HTML,
-    api: { '/api/packs/open': pack },
-    handle: async (route, url) => {
-      if (url.pathname.startsWith('/rest/v1/')) {
-        if (route.request().method() === 'PATCH') starChanges.push(`${url.search} ${route.request().postData() ?? ''}`);
-        await route.fulfill({ status: 204, body: '' });
-        return true;
-      }
-      const match = /^\/api\/user-cards\/([^/]+)\/discard$/.exec(url.pathname);
-      if (!match?.[1]) return false;
-      discarded.push(match[1]);
+  return openFakePulls(page, {
+    pack,
+    discard: async (route) => {
       await hold;
       await route.fulfill({ json: { balance: 12661 } });
-      return true;
     },
   });
-  return { discarded, starChanges };
 }
 
 /** Ouvre le paquet et attend l'arrivée de toutes ses cartes. */
@@ -210,8 +196,7 @@ test('désactivée dans les paramètres : le carrousel du site, comme avant', as
   await expect(page.locator(NAV)).toBeVisible();
   await expect(page.locator(GRID)).toHaveCount(0);
 
-  await page.locator('button[aria-label="Paramètres WikiMasters"]:visible').click();
-  await page.getByRole('dialog', { name: 'Paramètres' }).getByRole('button', { name: 'Paquets' }).click();
+  await openSettings(page, 'Paquets');
   await page.getByRole('switch', { name: "Apparence : Afficher toutes les cartes d'un coup" }).click();
   await page.keyboard.press('Escape');
   await expect(arrived(page)).toHaveCount(3);
@@ -227,11 +212,10 @@ test('activée pendant une défausse lancée depuis le carrousel : la grille att
   await page.locator('.wm-discard-next').click();
   await expect(page.locator('.wm-discard-next')).toHaveAttribute('data-status', 'busy');
 
-  await page.locator('button[aria-label="Paramètres WikiMasters"]:visible').click();
-  await page.getByRole('dialog', { name: 'Paramètres' }).getByRole('button', { name: 'Paquets' }).click();
+  await openSettings(page, 'Paquets');
   await page.getByRole('switch', { name: "Apparence : Afficher toutes les cartes d'un coup" }).click();
   await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
+  await letTimePass(page, 300);
   await expect(arrived(page)).toHaveCount(0);
 
   release();
@@ -245,9 +229,5 @@ test('au repos, le script ne resynchronise plus la page (pas de boucle)', async 
   await openPack(page, 3);
   await slots(page).nth(0).locator('.wm-discard-next').click();
   await expect(face(page, 0).locator('.wm-stamp')).toBeVisible();
-
-  await page.waitForTimeout(300);
-  const before = await domSyncs(page);
-  await page.waitForTimeout(600);
-  expect(await domSyncs(page)).toBe(before);
+  await expectDomIdle(page);
 });

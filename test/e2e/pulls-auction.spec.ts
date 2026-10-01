@@ -1,6 +1,6 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
-import { CAROUSEL, PACK, PULLS_HTML } from './support/pulls';
-import { openSite, presetSettings } from './support/site';
+import { expect, test, type Page } from '@playwright/test';
+import { CAROUSEL, openPulls as openFakePulls, PACK } from './support/pulls';
+import { expectDomIdle, presetSettings, rect } from './support/site';
 
 const GAVEL = '.wm-auction-quick';
 const TRASH = '.wm-discard-next';
@@ -29,19 +29,16 @@ interface Options {
 async function openPulls(page: Page, options: Options = {}) {
   const posted: unknown[] = [];
   if (!options.grid) await presetSettings(page, CAROUSEL);
-  await openSite(page, '/pulls', {
-    html: PULLS_HTML,
-    api: { '/api/packs/open': PACK, '/api/marketplace/mine': { sellingCount: 2, maxConcurrentAuctions: 10 } },
-    handle: async (route: Route, url) => {
-      const method = route.request().method();
-      if (url.pathname === '/api/marketplace' && method === 'POST') {
+  await openFakePulls(page, {
+    api: { '/api/marketplace/mine': { sellingCount: 2, maxConcurrentAuctions: 10 } },
+    discard: async (route) => {
+      await options.discard;
+      await route.fulfill({ json: { balance: 12661 } });
+    },
+    handle: async (route, url) => {
+      if (url.pathname === '/api/marketplace' && route.request().method() === 'POST') {
         posted.push(route.request().postDataJSON());
         await route.fulfill({ status: 201, json: { auction_id: AUCTION_ID } });
-        return true;
-      }
-      if (/^\/api\/user-cards\/[^/]+\/discard$/.test(url.pathname)) {
-        await options.discard;
-        await route.fulfill({ json: { balance: 12661 } });
         return true;
       }
       if (url.pathname === CHUNK) {
@@ -75,11 +72,7 @@ test('le marteau vert se place juste à gauche de la corbeille, après les pasti
   expect(layout.afterDots).toBe(PACK.cards.length);
   expect(layout.beforeTrash).toBe(true);
   // Marteau, corbeille et flèche « suivante » resserrés ; l'écart des pastilles ne change pas.
-  const box = async (selector: string) => {
-    const found = await page.locator(selector).boundingBox();
-    if (!found) throw new Error(`introuvable : ${selector}`);
-    return found;
-  };
+  const box = (selector: string) => rect(page.locator(selector));
   const [dotsBox, gavelBox, trashBox, nextBox] = [
     await box('main div.flex.items-center.gap-2:has(> button.w-3)'),
     await box(GAVEL),
@@ -194,8 +187,7 @@ test('une carte défaussée ne se met pas aux enchères', async ({ page }) => {
 
 test('après un glissement, le site ignore le premier clic sur la carte : la mise en vente s’ouvre quand même', async ({ page }) => {
   await openPulls(page);
-  const area = await page.locator('main .relative').first().boundingBox();
-  if (!area) throw new Error('zone de la carte introuvable');
+  const area = await rect(page.locator('main .relative').first());
   await page.mouse.move(area.x + area.width - 5, area.y + 20);
   await page.mouse.down();
   await page.mouse.move(area.x + 5, area.y + 20);
@@ -212,11 +204,7 @@ test('au repos, le script ne resynchronise plus la page', async ({ page }) => {
   await openPulls(page);
   await page.locator(GAVEL).click();
   await expect(dialog(page)).toBeVisible();
-  await page.waitForTimeout(300);
-  const syncs = () => page.evaluate(() => window.wm?.debug?.domSyncs() ?? -1);
-  const before = await syncs();
-  await page.waitForTimeout(500);
-  expect(await syncs()).toBe(before);
+  await expectDomIdle(page);
 });
 
 test.describe('toutes les cartes d’un coup', () => {
@@ -234,9 +222,9 @@ test.describe('toutes les cartes d’un coup', () => {
   test('un marteau sous chaque carte, juste à gauche de la corbeille (écart de la grille inchangé)', async ({ page }) => {
     await openGrid(page);
     await expect(page.locator(`main .wm-pulls-grid ${GAVEL}`)).toHaveCount(PACK.cards.length);
-    const [gavelBox, trashBox] = [await gavel(page, 1).boundingBox(), await trash(page, 1).boundingBox()];
-    expect(gavelBox && trashBox && Math.round(trashBox.x - (gavelBox.x + gavelBox.width))).toBe(16);
-    expect(gavelBox && trashBox && Math.abs(gavelBox.y - trashBox.y)).toBe(0);
+    const [gavelBox, trashBox] = [await rect(gavel(page, 1)), await rect(trash(page, 1))];
+    expect(Math.round(trashBox.x - (gavelBox.x + gavelBox.width))).toBe(16);
+    expect(Math.abs(gavelBox.y - trashBox.y)).toBe(0);
     await expect(gavel(page, 1)).toHaveCSS('color', 'rgb(227, 179, 65)');
   });
 
@@ -291,6 +279,30 @@ test.describe('toutes les cartes d’un coup', () => {
     await dialog(page).getByRole('button', { name: 'Annuler' }).click();
     await expect(trash(page, 0)).toHaveAttribute('data-status', 'ready');
     await expect(gavel(page, 0)).toHaveAttribute('data-status', 'ready');
+  });
+
+  test('dès le clic sur le marteau, la corbeille de la carte attend, avant même l’ouverture de sa modale', async ({ page }) => {
+    await openGrid(page);
+    // La carte du carrousel ne s'ouvre plus : l'enchère rapide reste à attendre la modale de carte.
+    await page.evaluate(() =>
+      document.addEventListener(
+        'click',
+        (event) => {
+          const target = event.target instanceof Element ? event.target : null;
+          if (target?.closest('main [class*="glow-"]') && !target.closest('.wm-root')) event.stopImmediatePropagation();
+        },
+        true,
+      ),
+    );
+    await gavel(page, 1).click();
+    await expect(gavel(page, 1)).toHaveAttribute('data-status', 'busy');
+    await expect(trash(page, 1)).toHaveAttribute('data-status', 'blocked');
+    await expect(trash(page, 1)).toHaveAttribute('title', 'Ouverture de la mise aux enchères…');
+    await expect(trash(page, 0)).toHaveAttribute('data-status', 'ready');
+
+    // Faute de modale, l'enchère rapide abandonne : la corbeille est rendue.
+    await expect(page.getByRole('alert')).toContainText("la carte ne s'est pas ouverte");
+    await expect(trash(page, 1)).toHaveAttribute('data-status', 'ready');
   });
 
   test('pendant la défausse d’une carte, son marteau attend ; défaussée, il reste grisé', async ({ page }) => {

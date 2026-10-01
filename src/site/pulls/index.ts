@@ -1,11 +1,11 @@
 export { carouselCards, findCarousel, type Carousel } from './carousel';
 export { findPackCounter, type PackCounter } from './counter';
-export { findHumanCheck, isHumanCheckRequest } from './human-check';
+export { findHumanCheck, isHumanCheckSubmit } from './human-check';
 export { findPackButton, type PackButton } from './pack-button';
 export {
   findProDailyStates,
   findProPack,
-  isProDailyRoute,
+  isProDaily,
   isProDailyStatus,
   proClaimDate,
   type ProDailyStates,
@@ -21,6 +21,3 @@ export {
   type Pack,
   type PackCard,
 } from './pack';
-
-/** Page des paquets. */
-export const PULLS_ROUTE = '/pulls';

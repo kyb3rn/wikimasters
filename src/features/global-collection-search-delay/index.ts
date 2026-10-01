@@ -1,27 +1,24 @@
 import type { Feature } from '@/core/runtime';
 import { submitAfterTyping, trackListDelay } from '@/services/list-search';
-import { findGlobalCollectionFilters, GLOBAL_COLLECTION_ROUTE, globalCollectionList } from '@/site/global-collection';
+import { findGlobalCollectionFilters, globalCollectionList } from '@/site/global-collection';
+import { GLOBAL_COLLECTION_ROUTE } from '@/site/routes';
 
 /**
- * Comme la Collection : la recherche part d'elle-même après la frappe (le site attend Entrée ou son bouton,
- * caché), et un changement de filtre que la recherche ne retient pas ne charge qu'après un court délai sans
- * autre changement.
+ * Comme la Collection : un changement de filtre que la recherche ne retient pas ne charge qu'après un court délai
+ * sans autre changement ; sans « Empêcher le rechargement automatique », la recherche part aussi d'elle-même
+ * après la frappe (le site attend Entrée ou son bouton, caché).
  */
 export const globalCollectionSearchDelay: Feature = {
   id: 'global-collection-search-delay',
   name: 'Recherche',
-  description: 'La recherche part d’elle-même après la frappe, et les filtres ne chargent la liste qu’une fois les changements finis.',
+  description:
+    "Les filtres ne chargent la liste qu'une fois les changements finis ; sans « Empêcher le rechargement automatique », la recherche part d'elle-même après la frappe.",
   category: 'Toutes les cartes',
   routes: [GLOBAL_COLLECTION_ROUTE],
   required: true,
   hidden: true,
-  mount(ctx) {
-    const { signal, log } = ctx;
+  mount({ signal, log }) {
     trackListDelay({ source: globalCollectionList, signal, log });
-    submitAfterTyping({
-      signal,
-      field: () => findGlobalCollectionFilters()?.field,
-      submit: () => findGlobalCollectionFilters()?.submit,
-    });
+    submitAfterTyping({ source: globalCollectionList, signal, submit: () => findGlobalCollectionFilters()?.submit });
   },
 };

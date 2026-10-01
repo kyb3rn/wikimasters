@@ -1,10 +1,12 @@
-import type { MarketCard, MarketEntry } from '@/services/market';
+import type { MarketEntry } from '@/services/market';
+import type { CardRef } from '@/site/cards';
 import type { Sale } from '@/site/api';
 
-const DAY = 24 * 60 * 60 * 1000;
+/** Un jour en millisecondes, écrit tel quel : un calcul au niveau du module resterait dans le fichier de production. */
+const DAY = 86_400_000;
 
 /** Carte inventée : « Actualiser » de son historique demande ses ventes au site, qui ne la connaît pas (erreur en toast). */
-export const DEMO_CARD: MarketCard = { id: 'wm-vitrine', title: 'Tour Eiffel', rarity: 'SR' };
+export const DEMO_CARD: CardRef = { id: 'wm-vitrine', title: 'Tour Eiffel', rarity: 'SR' };
 
 /** Nombres pseudo-aléatoires à graine (mulberry32) : la vitrine montre les mêmes ventes à chaque chargement. */
 export function seededRandom(seed: number): () => number {

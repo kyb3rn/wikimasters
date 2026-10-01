@@ -1,11 +1,11 @@
 import { injectStyle } from '@/core/dom';
-import { tokens } from '@/ui/theme';
+import { alpha, tokens } from '@/ui/theme';
 import type { ChoiceFieldProps } from './controls';
 
 /** Diamètre du curseur : les crans et leurs libellés sont placés sur son centre. */
 const THUMB = 18;
 /** Piste vide : visible sur le fond des cadres, où `surfaceLight` se confond. */
-const TRACK = `color-mix(in srgb, ${tokens.foreground} 16%, transparent)`;
+const TRACK = alpha(tokens.foreground, 16, 'srgb');
 
 // Le site n'a pas de curseur : dessiné ici, aux couleurs de son thème. La part remplie de la piste s'arrête
 // au centre du curseur (`--wm-step`, de 0 à 1).

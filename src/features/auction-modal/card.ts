@@ -1,22 +1,10 @@
-import { ROOT_CLASS } from '@/core/dom';
-import { findCardModals, type AuctionModal } from '@/site/cards';
+import { textOf } from '@/core/text';
+import { cloneSiteFace, findCardModals, type AuctionModal } from '@/site/cards';
 
-const title = (face: Element) => (face.querySelector('h3')?.textContent ?? '').replace(/\s+/g, ' ').trim();
-
-const DROPPED_CLASS = /^(hover:|cursor-|transition|duration-|animate-|wm-)/;
+const title = (face: Element) => textOf(face.querySelector('h3'));
 
 /** Copie inerte d'une face du site : sans ses boutons (favori), nos ajouts ni ses effets de survol. */
-function cloneFace(face: HTMLElement): HTMLElement {
-  const clone = face.cloneNode(true) as HTMLElement;
-  clone.querySelectorAll(`button, .${ROOT_CLASS}, .wm-stamp`).forEach((node) => node.remove());
-  for (const element of [clone, ...clone.querySelectorAll('*')]) {
-    const classes = [...element.classList];
-    const kept = classes.filter((name) => !DROPPED_CLASS.test(name));
-    if (kept.length !== classes.length) element.setAttribute('class', kept.join(' '));
-    for (const { name } of [...element.attributes]) if (name.startsWith('data-wm-')) element.removeAttribute(name);
-  }
-  return clone;
-}
+const cloneFace = (face: HTMLElement) => cloneSiteFace(face, { inert: true });
 
 /** La petite face de la modale d'enchère (112 × 160) refaite au format de la modale de carte (288 × 420). */
 function enlarge(face: HTMLElement): HTMLElement {

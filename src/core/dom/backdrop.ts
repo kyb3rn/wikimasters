@@ -4,7 +4,8 @@
  * ferme. Ce clic-là est arrêté avant tout le monde : un fond ne reçoit que les clics appuyés et relâchés sur lui.
  * Les clics de programme (`click()`) passent toujours.
  */
-export function guardBackdropClicks(isBackdrop: (element: Element) => boolean, signal: AbortSignal): void {
+export function guardBackdropClicks(isBackdrop: (element: Element) => boolean, options: { signal: AbortSignal }): void {
+  const { signal } = options;
   let pressed: EventTarget | null = null;
   let released: EventTarget | null = null;
   const track = { capture: true, passive: true, signal };

@@ -1,22 +1,16 @@
+import { createListeners } from '@/core/listeners';
+import { createLogger } from '@/core/log';
 import { net } from '@/core/net';
 import { fetchCardSales, parseCardSales, readSalesRequest, type CardSales } from '@/site/api';
-import { onProStatusChange, proStatus } from '@/site/pro';
-import type { Rarity } from '@/site/rarity';
+import type { CardRef } from '@/site/cards';
+import { proStatus } from '@/site/pro';
 import { readEntry, writeEntry, type MarketEntry } from './cache';
 import { marketSettings } from './settings';
 
 const HOUR = 3_600_000;
 
-/** Une carte (modèle), telle que la connaît l'endroit d'où l'historique s'ouvre. */
-export interface MarketCard {
-  readonly id: string;
-  readonly title: string;
-  /** Rareté de la carte affichée (celle de l'exemplaire), inconnue : `undefined`. */
-  readonly rarity: Rarity | undefined;
-}
-
 const inflight = new Map<string, Promise<MarketEntry>>();
-const listeners = new Set<(entry: MarketEntry) => void>();
+const changes = createListeners<[entry: MarketEntry]>(createLogger('marché'));
 let tracking = false;
 
 /**
@@ -25,10 +19,6 @@ let tracking = false;
  */
 export function marketNeedsPro(): boolean {
   return proStatus() === false;
-}
-
-export function onMarketAvailabilityChange(listener: () => void, options: { signal: AbortSignal }): void {
-  onProStatusChange(listener, options);
 }
 
 /** Plus vieille que la durée du cache (réglage) : à redemander au site. */
@@ -45,18 +35,12 @@ async function store(cardId: string, sales: CardSales, fallbackTitle: string): P
   const sorted = [...sales.sales].sort((a, b) => a.time - b.time);
   const entry: MarketEntry = { cardId, title: sales.title || fallbackTitle, fetchedAt: Date.now(), sales: sorted };
   await writeEntry(entry);
-  for (const listener of [...listeners]) {
-    try {
-      listener(entry);
-    } catch {
-      // Un abonné défaillant n'empêche pas les autres d'être prévenus.
-    }
-  }
+  changes.emit(entry);
   return entry;
 }
 
 /** Ventes demandées au site, puis mises en cache. Une seule requête à la fois par carte. */
-export function fetchMarket(card: MarketCard): Promise<MarketEntry> {
+export function fetchMarket(card: CardRef): Promise<MarketEntry> {
   const pending = inflight.get(card.id);
   if (pending) return pending;
   const request = fetchCardSales(card.id)
@@ -68,9 +52,7 @@ export function fetchMarket(card: MarketCard): Promise<MarketEntry> {
 
 /** Prévenu de chaque chargement de ventes (le nôtre ou celui du site). */
 export function onMarketChange(listener: (entry: MarketEntry) => void, options: { signal: AbortSignal }): void {
-  if (options.signal.aborted) return;
-  listeners.add(listener);
-  options.signal.addEventListener('abort', () => listeners.delete(listener), { once: true });
+  changes.on(listener, options);
 }
 
 /** Les ventes que le site demande lui-même vont aussi dans le cache (une fois pour tout le script). */

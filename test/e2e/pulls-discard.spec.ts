@@ -1,6 +1,6 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
-import { CAROUSEL, PACK, PRO_COPIES, PRO_PACK, PULLS_HTML } from './support/pulls';
-import { openSite, presetSettings, SUPABASE } from './support/site';
+import { CAROUSEL, openPulls as openFakePulls, PACK, packFaces } from './support/pulls';
+import { letTimePass, openSettings, presetSettings, rect } from './support/site';
 
 // Le carrousel du site, sans « toutes les cartes d'un coup ».
 test.beforeEach(({ page }) => presetSettings(page, CAROUSEL));
@@ -15,28 +15,9 @@ function deferred() {
   return { ready, release };
 }
 
+/** /pulls imité, pack PRO du jour compris ; rend les exemplaires dont la défausse a été demandée. */
 async function openPulls(page: Page, discard: (route: Route, userCardId: string) => Promise<void>, pack: unknown = PACK) {
-  const discarded: string[] = [];
-  await page.route(`${SUPABASE}/**`, (route) =>
-    route.fulfill({ json: PRO_COPIES, headers: { 'access-control-allow-origin': '*' } }),
-  );
-  await openSite(page, '/pulls', {
-    html: PULLS_HTML,
-    api: { '/api/packs/open': pack, '/api/packs/pro-daily': PRO_PACK },
-    handle: async (route, url) => {
-      // Favori et étiquettes (Supabase, servi ici sur la même origine) : acceptés.
-      if (url.pathname.startsWith('/rest/v1/')) {
-        await route.fulfill({ status: route.request().method() === 'POST' ? 201 : 204, body: '' });
-        return true;
-      }
-      const match = /^\/api\/user-cards\/([^/]+)\/discard$/.exec(url.pathname);
-      if (!match?.[1]) return false;
-      discarded.push(match[1]);
-      await discard(route, match[1]);
-      return true;
-    },
-  });
-  return discarded;
+  return (await openFakePulls(page, { discard, pack, pro: true })).discarded;
 }
 
 const accept = (route: Route) => route.fulfill({ json: { balance: 12661 } });
@@ -75,16 +56,14 @@ test('défausse la carte, la marque « Défaussée », puis passe à la suivante
   await expect(page.locator(TRASH)).toHaveAttribute('data-status', 'busy');
   await expect(page.locator(TRASH)).toHaveCSS('cursor', 'not-allowed');
   await expect(page.locator('main button.w-12').last()).toHaveCSS('cursor', 'not-allowed');
-  await expect(page.locator('main [class*="glow-"]')).toHaveCSS('cursor', 'not-allowed');
+  await expect(packFaces(page)).toHaveCSS('cursor', 'not-allowed');
   await page.locator('main button.w-12').last().click({ force: true });
   await page.locator('main .gap-2 > button').nth(2).click({ force: true });
-  const area = await page.locator('main .relative').first().boundingBox();
-  if (area) {
-    await page.mouse.move(area.x + area.width - 5, area.y + 20);
-    await page.mouse.down();
-    await page.mouse.move(area.x + 5, area.y + 20);
-    await page.mouse.up();
-  }
+  const area = await rect(page.locator('main .relative').first());
+  await page.mouse.move(area.x + area.width - 5, area.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(area.x + 5, area.y + 20);
+  await page.mouse.up();
   expect(await index(page)).toBe(0);
 
   response.release({ status: 200, json: { balance: 12661 } });
@@ -103,7 +82,7 @@ test('sur la dernière carte, reste dessus ; revenir sur une carte défaussée l
   await page.locator(TRASH).click();
 
   await expect(page.locator('.wm-stamp')).toBeVisible();
-  await page.waitForTimeout(600);
+  await letTimePass(page, 600);
   expect(await index(page)).toBe(2);
   await expect(page.locator(TRASH)).toHaveAttribute('data-status', 'discarded');
   await expect(page.locator(TRASH)).toBeDisabled();
@@ -123,11 +102,10 @@ test('un refus du site s’affiche en toast sous le solde, sans changer de carte
   const alert = page.getByRole('alert');
   await expect(alert).toContainText('Défausse impossible');
   await expect(alert).toContainText('« Tour Eiffel » : Cette carte a déjà été défaussée');
-  const balance = await page.locator('button[aria-label="Ouvrir la boutique WikiBidous"]:visible').boundingBox();
-  const toastBox = await alert.boundingBox();
-  expect(toastBox && balance && toastBox.y >= balance.y + balance.height + 8).toBe(true);
+  const balance = await rect(page.locator('button[aria-label="Ouvrir la boutique WikiBidous"]:visible'));
+  expect((await rect(alert)).y).toBeGreaterThanOrEqual(balance.y + balance.height + 8);
 
-  await page.waitForTimeout(500);
+  await letTimePass(page, 500);
   expect(await index(page)).toBe(0);
   await expect(page.locator('.wm-stamp')).toHaveCount(0);
   await expect(page.locator(TRASH)).toHaveAttribute('data-status', 'ready');
@@ -143,8 +121,7 @@ test('une carte en favori est protégée (cadenas), selon le réglage', async ({
   await expect(trash).toHaveAttribute('title', 'Protégée : carte en favori');
   await expect(trash).toBeDisabled();
 
-  await page.locator('button[aria-label="Paramètres WikiMasters"]:visible').click();
-  await page.getByRole('switch', { name: 'Protéger les cartes en favori' }).click();
+  await (await openSettings(page)).getByRole('switch', { name: 'Protéger les cartes en favori' }).click();
   await page.keyboard.press('Escape');
   await expect(trash).toHaveAttribute('data-status', 'ready');
   await trash.click();
@@ -156,7 +133,7 @@ test('une étiquette ajoutée dans la modale du site protège la carte tout de s
   await page.click('#open');
   await expect(page.locator(TRASH)).toHaveAttribute('data-status', 'ready');
 
-  await page.locator('main [class*="glow-"]').click();
+  await packFaces(page).click();
   await page.getByPlaceholder('Ajouter une étiquette…').fill('garder');
   await page.getByPlaceholder('Ajouter une étiquette…').press('Enter');
   await page.getByRole('button', { name: 'Fermer' }).click();
@@ -171,7 +148,7 @@ test('une carte défaussée ne peut plus être défaussée, mise aux enchères n
   await expect.poll(() => index(page)).toBe(1);
   await page.locator('main button.w-12').first().click();
 
-  await page.locator('main [class*="glow-"]').click();
+  await packFaces(page).click();
   const modal = page.locator('#card-modal');
   for (const control of [
     modal.getByRole('button', { name: /Défausser/ }),
@@ -187,7 +164,7 @@ test('une carte défaussée ne peut plus être défaussée, mise aux enchères n
 
   // Carte non défaussée : modale intacte.
   await page.locator('main button.w-12').last().click();
-  await page.locator('main [class*="glow-"]').click();
+  await packFaces(page).click();
   await expect(page.locator('#card-modal').getByRole('button', { name: 'Vendre' })).toBeEnabled();
 });
 
@@ -201,7 +178,7 @@ test('dans sa modale, une carte défaussée est grisée ; un clic la montre prop
   // Fin de la défausse (délai compris) : le carrousel n'est plus verrouillé.
   await expect(page.locator(TRASH)).toHaveAttribute('data-status', 'discarded');
 
-  await page.locator('main [class*="glow-"]').click();
+  await packFaces(page).click();
   const modal = page.locator('#card-modal');
   const face = modal.locator('[class*="glow-"]');
   const mark = face.locator('.wm-stamp');
@@ -221,7 +198,7 @@ test('dans sa modale, une carte défaussée est grisée ; un clic la montre prop
   await face.click({ position: { x: 30, y: 200 } });
   await expect(mark).toHaveCSS('opacity', '0');
   await modal.getByRole('button', { name: 'Fermer' }).click();
-  await page.locator('main [class*="glow-"]').click();
+  await packFaces(page).click();
   await expect(page.locator('#card-modal .wm-stamp')).toHaveCSS('opacity', '1');
   // Le bouton favori sur la carte ne bascule pas le gris.
   await page.locator('#card-modal').getByRole('button', { name: 'Ajouter aux favoris' }).click();
@@ -231,7 +208,7 @@ test('dans sa modale, une carte défaussée est grisée ; un clic la montre prop
 test('une défausse faite par le bouton du site marque aussi la carte', async ({ page }) => {
   const discarded = await openPulls(page, accept);
   await page.click('#open');
-  await page.locator('main [class*="glow-"]').click();
+  await packFaces(page).click();
   await page.locator('#card-modal').getByRole('button', { name: /Défausser/ }).click();
 
   await expect(page.locator('main .wm-stamp')).toHaveText('Défaussée');

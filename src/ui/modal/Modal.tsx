@@ -1,13 +1,13 @@
 import type { ComponentChildren } from 'preact';
-import { useEffect, useRef } from 'preact/hooks';
+import { useRef } from 'preact/hooks';
 import { injectStyle } from '@/core/dom';
 import { CloseButton } from '@/ui/controls';
-import { tokens } from '@/ui/theme';
-import { useBackdropGuard } from './backdrop';
-import { useSmoothExit } from './exit';
+import { cx } from '@/ui/cx';
+import { layers, tokens } from '@/ui/theme';
+import { useModalBehavior } from './behavior';
 
 const MODAL_CSS = `
-.wm-modal-backdrop { position: fixed; inset: 0; z-index: 2147482000; display: flex; align-items: center;
+.wm-modal-backdrop { position: fixed; inset: 0; z-index: ${layers.modal}; display: flex; align-items: center;
   justify-content: center; padding: 16px; background: ${tokens.backdrop}; backdrop-filter: ${tokens.backdropBlur}; }
 .wm-modal { display: flex; flex-direction: column; width: 100%; max-height: min(640px, calc(100vh - 32px));
   background: ${tokens.surface}; border: 1px solid ${tokens.border}; border-radius: 16px;
@@ -19,25 +19,8 @@ const MODAL_CSS = `
 .wm-modal-subtitle { margin-top: 2px; font-size: 12px; opacity: 0.55; }
 .wm-modal-actions { display: flex; flex: none; align-items: center; gap: 8px; }
 .wm-modal-body { flex: 1; min-height: 0; display: flex; }
+.wm-modal-body.wm-modal-padded { flex-direction: column; padding: 20px; overflow-y: auto; }
 `;
-
-/** Modales du script actuellement ouvertes. */
-let openCount = 0;
-
-/** Une de nos modales est-elle ouverte ? (les raccourcis clavier des fonctionnalités s'effacent alors) */
-export function isModalOpen(): boolean {
-  return openCount > 0;
-}
-
-/** Compte le composant parmi nos modales ouvertes tant qu'il est affiché. */
-export function useOpenModal(): void {
-  useEffect(() => {
-    openCount++;
-    return () => {
-      openCount--;
-    };
-  }, []);
-}
 
 export interface ModalProps {
   readonly title: string;
@@ -48,47 +31,49 @@ export interface ModalProps {
   /** Boutons de l'en-tête, avant la croix. */
   readonly actions?: ComponentChildren;
   readonly onClose: () => void;
+  /** Action en cours : ni Échap, ni le fond, ni la croix (désactivée) ne ferment la modale. */
+  readonly locked?: boolean;
   /** Largeur maximale en pixels. */
   readonly width?: number;
   /** Hauteur fixe en pixels (réduite si l'écran est plus petit) ; sinon, selon le contenu. */
   readonly height?: number;
+  /** Hauteur selon le contenu, au plus ces pixels (640 par défaut ; réduite si l'écran est plus petit). */
+  readonly maxHeight?: number;
+  /**
+   * Corps avec la marge standard (20 px), contenu en colonne sur toute la largeur et qui défile s'il dépasse ;
+   * sinon le contenu occupe le corps de bord à bord et gère lui-même ses marges.
+   */
+  readonly padded?: boolean;
   readonly children: ComponentChildren;
 }
 
 /** Modale aux couleurs du site : fond assombri, fermeture par Échap, clic sur le fond ou ✕. */
-export function Modal({ title, titleBefore, subtitle, actions, onClose, width = 760, height, children }: ModalProps) {
+export function Modal({
+  title,
+  titleBefore,
+  subtitle,
+  actions,
+  onClose,
+  locked = false,
+  width = 760,
+  height,
+  maxHeight,
+  padded = false,
+  children,
+}: ModalProps) {
   injectStyle('ui-modal', MODAL_CSS);
   const backdrop = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLDivElement>(null);
-  useOpenModal();
-  useSmoothExit(backdrop, panel);
-  useBackdropGuard(backdrop);
-
-  useEffect(() => {
-    // Un champ du contenu a pu prendre le focus (ses effets passent avant ceux de la modale) : le lui laisser.
-    if (!panel.current?.contains(document.activeElement)) panel.current?.focus();
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      event.stopPropagation();
-      onClose();
-    };
-    document.addEventListener('keydown', onKey, true);
-    return () => document.removeEventListener('keydown', onKey, true);
-  }, [onClose]);
+  useModalBehavior({ overlay: backdrop, frame: panel, onClose, locked });
 
   return (
-    <div
-      ref={backdrop}
-      class="wm-modal-backdrop"
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
+    <div ref={backdrop} class="wm-modal-backdrop">
       <div
         ref={panel}
         class="wm-modal"
         style={{
           maxWidth: `${width}px`,
+          ...(maxHeight !== undefined && { maxHeight: `min(${maxHeight}px, calc(100vh - 32px))` }),
           ...(height !== undefined && { height: `${height}px`, maxHeight: 'calc(100vh - 32px)' }),
         }}
         role="dialog"
@@ -105,9 +90,9 @@ export function Modal({ title, titleBefore, subtitle, actions, onClose, width = 
             {subtitle && <div class="wm-modal-subtitle">{subtitle}</div>}
           </div>
           {actions && <div class="wm-modal-actions">{actions}</div>}
-          <CloseButton onClick={onClose} />
+          <CloseButton disabled={locked} onClick={onClose} />
         </div>
-        <div class="wm-modal-body">{children}</div>
+        <div class={cx('wm-modal-body', padded && 'wm-modal-padded')}>{children}</div>
       </div>
     </div>
   );

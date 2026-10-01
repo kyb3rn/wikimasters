@@ -1,20 +1,21 @@
 import { expect, test, type Page } from '@playwright/test';
-import { CAROUSEL, PACK, PULLS_HTML } from './support/pulls';
-import { openSite, presetSettings } from './support/site';
+import { CAROUSEL, openCard } from './support/pulls';
+import { presetSettings } from './support/site';
 
 // Le carrousel du site, sans « toutes les cartes d'un coup ».
 test.beforeEach(({ page }) => presetSettings(page, CAROUSEL));
 
 const AUCTION_ID = 'a1b2c3d4-0000-4000-8000-000000000001';
 
-async function listCurrentCard(page: Page, response: { status: number; json: unknown } = { status: 201, json: { auction_id: AUCTION_ID } }) {
-  await openSite(page, '/pulls', {
-    html: PULLS_HTML,
-    api: { '/api/packs/open': PACK },
+/** Réponse de la création : `abort`, le site ne répond pas du tout. */
+type Creation = { status: number; json: unknown } | 'abort';
+
+async function listCurrentCard(page: Page, response: Creation = { status: 201, json: { auction_id: AUCTION_ID } }) {
+  await openCard(page, {
     handle: async (route, url) => {
       const method = route.request().method();
       if (url.pathname === '/api/marketplace' && method === 'POST') {
-        await route.fulfill(response);
+        await (response === 'abort' ? route.abort('failed') : route.fulfill(response));
         return true;
       }
       if (url.pathname === `/api/marketplace/${AUCTION_ID}` && method === 'DELETE') {
@@ -24,8 +25,6 @@ async function listCurrentCard(page: Page, response: { status: number; json: unk
       return false;
     },
   });
-  await page.click('#open');
-  await page.locator('main [class*="glow-"]').click();
   await page.locator('#card-modal').getByRole('button', { name: 'Vendre' }).click();
   await page.getByRole('dialog', { name: 'Mise en vente' }).getByRole('button', { name: 'Confirmer' }).click();
 }
@@ -39,7 +38,7 @@ test('après la mise en vente : pas de redirection, retour à la carte, bouton g
   await expect(page.locator('#auction-modal')).toHaveCount(0);
   const sell = page.locator('#card-modal').getByRole('button', { name: 'Vendre' });
   await expect(sell).toBeDisabled();
-  await expect(sell).toHaveAttribute('title', 'Carte mise aux enchères');
+  await expect(sell).toHaveAttribute('title', 'Carte déjà en vente');
   await expect(sell).toHaveCSS('cursor', 'not-allowed');
 
   // Le lien de la notification mène à l'enchère (navigation du site).
@@ -58,12 +57,12 @@ test('carte aux enchères : Vendre, Défausser, étiquettes et défaussage rapid
   ];
   for (const control of controls) {
     await expect(control).toBeDisabled();
-    await expect(control).toHaveAttribute('title', 'Carte mise aux enchères');
+    await expect(control).toHaveAttribute('title', 'Carte déjà en vente');
     await expect(control).toHaveCSS('cursor', 'not-allowed');
   }
   const trash = page.locator('.wm-discard-next');
   await expect(trash).toHaveAttribute('data-status', 'listed');
-  await expect(trash).toHaveAttribute('title', 'Carte mise aux enchères');
+  await expect(trash).toHaveAttribute('title', 'Carte déjà en vente');
   await expect(trash).toBeDisabled();
 
   // Enchère retirée (depuis sa fiche) : l'exemplaire revient, tout se déverrouille.
@@ -112,4 +111,18 @@ test('une mise en vente refusée ne retient aucune redirection', async ({ page }
   await expect(page.getByRole('dialog', { name: 'Mise en vente' }).getByRole('alert')).toHaveText('Mise de départ invalide');
   await expect(page.getByRole('status').filter({ hasText: 'Enchère publiée' })).toHaveCount(0);
   await expect(page.locator('#card-modal').getByRole('button', { name: 'Vendre' })).toBeEnabled();
+});
+
+test('une mise en vente restée sans réponse ne retient pas la navigation suivante vers une enchère', async ({ page }) => {
+  const failed = page.waitForEvent('requestfailed', (request) => new URL(request.url()).pathname === '/api/marketplace');
+  await listCurrentCard(page, 'abort');
+  await failed;
+  // Navigation du site vers une enchère (son routeur, lu dans l'état React au-dessus de <main>).
+  await page.evaluate((id) => {
+    type Fiber = { return: { memoizedProps: { value: { push(href: string): void } } } };
+    const main = document.querySelector('main') as unknown as Record<string, Fiber>;
+    main['__reactFiber$test']?.return.memoizedProps.value.push(`/marketplace/${id}`);
+  }, AUCTION_ID);
+  await expect.poll(() => new URL(page.url()).pathname).toBe(`/marketplace/${AUCTION_ID}`);
+  await expect(page.getByRole('status').filter({ hasText: 'Enchère publiée' })).toHaveCount(0);
 });

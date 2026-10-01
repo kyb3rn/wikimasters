@@ -1,23 +1,18 @@
 import { h } from 'preact';
-import { childController } from '@/core/async';
-import { injectStyle, setClass, watchDom, whenBody } from '@/core/dom';
+import { watchDom } from '@/core/dom';
 import type { Feature } from '@/core/runtime';
 import { onSettingsChange } from '@/core/settings';
 import { pullsSoundSettings } from '@/services/pulls-sound';
-import { findPackButton, findPackCounter, PULLS_ROUTE } from '@/site/pulls';
-import { mountUi, type MountedUi } from '@/ui/mount';
+import { findPackButton, findPackCounter } from '@/site/pulls';
+import { PULLS_ROUTE } from '@/site/routes';
+import { createSlot } from '@/ui/mount';
 import { tokens } from '@/ui/theme';
 import { PacksBar } from './PacksBar';
 
-const HIDDEN = 'wm-pack-counter-hidden';
-/** Rangée du site autour de son cadre (avec, à 0 paquet, le bouton d'achat) : retirée de la colonne si elle n'a plus rien d'affiché. */
-const BOX = 'wm-pack-counter-box';
 /** Fonctionnalité dont l'activation est le choix carrousel / grille (réglage « Apparence » des paquets). */
 const GRID_FEATURE = 'pulls-grid';
 
 const CSS = `
-.${HIDDEN} { display: none !important; }
-.${BOX}:not(:has(> :not(.${HIDDEN}))) { display: none !important; }
 .wm-packs-bar { display: flex; align-items: stretch; justify-content: center; }
 .wm-packs-part { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
   min-width: 7.5rem; padding: 0 1.25rem; text-align: center; }
@@ -43,22 +38,16 @@ export const pullsBar: Feature = {
   hidden: true,
   async mount(ctx) {
     const { signal, catalog } = ctx;
-    let placed: { readonly ui: MountedUi; readonly controller: AbortController } | undefined;
     /** Cadre du site suivi : le temps restant y est réécrit chaque seconde, en texte seul (hors watchDom). */
     let observed: HTMLElement | undefined;
     const observer = new MutationObserver(() => sync());
     signal.addEventListener('abort', () => observer.disconnect(), { once: true });
 
-    await whenBody();
-    if (signal.aborted) return;
-    injectStyle('pulls-bar', CSS);
+    if (!(await ctx.ready())) return;
+    ctx.style(CSS);
+    const slot = createSlot(signal);
 
     const gridEnabled = () => catalog.list().find((entry) => entry.feature.id === GRID_FEATURE)?.enabled ?? false;
-
-    function remove(): void {
-      placed?.controller.abort();
-      placed = undefined;
-    }
 
     function sync(): void {
       if (signal.aborted) return;
@@ -68,11 +57,12 @@ export const pullsBar: Feature = {
       const anchor = findPackButton()?.root ?? counter?.root;
       const parent = anchor?.parentElement;
       if (!counter || !box || !anchor || !parent) {
-        remove();
+        slot.clear();
         return;
       }
-      setClass(counter.root, HIDDEN, true);
-      setClass(box, BOX, true);
+      ctx.hide(counter.root);
+      // Rangée du site autour de son cadre (avec, à 0 paquet, le bouton d'achat) : retirée de la colonne s'il n'y a plus qu'elle.
+      ctx.hide(box, [...box.children].every((child) => child === counter.root));
       if (observed !== counter.root) {
         observer.disconnect();
         observer.observe(counter.root, { childList: true, subtree: true, characterData: true });
@@ -87,21 +77,11 @@ export const pullsBar: Feature = {
         onSound: () => pullsSoundSettings.set('enabled', !pullsSoundSettings.get('enabled')),
         onGrid: (grid) => catalog.setEnabled(GRID_FEATURE, grid),
       });
-      if (placed?.ui.element.parentElement === parent && placed.ui.element.nextElementSibling === anchor) {
-        placed.ui.update(vnode);
-        return;
-      }
-      remove();
-      const controller = childController(signal);
-      placed = { ui: mountUi(vnode, { parent, before: anchor, signal: controller.signal }), controller };
+      slot.render(vnode, { parent, before: anchor });
     }
 
     watchDom(sync, { signal });
     catalog.onChange(sync, { signal });
     onSettingsChange(sync, { signal });
-    ctx.onDispose(() => {
-      remove();
-      document.querySelectorAll(`.${HIDDEN}, .${BOX}`).forEach((el) => el.classList.remove(HIDDEN, BOX));
-    });
   },
 };

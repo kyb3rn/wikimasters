@@ -2,7 +2,8 @@ import { useState } from 'preact/hooks';
 import { RarityFilter, SearchButton } from '@/services/list-search';
 import { RARITIES, type Rarity } from '@/site/rarity';
 import { buttonClass } from '@/ui/button';
-import { ChoiceField, NumberField, Pagination, StepSlider, Switch, type PaginationControl } from '@/ui/controls';
+import { tagChipStyle } from '@/site/collection';
+import { ChoiceField, Listbox, LoadError, NumberField, Pagination, StepSlider, Switch, type PaginationControl } from '@/ui/controls';
 import { Icon } from '@/ui/icons';
 import { siteClass } from '@/ui/site';
 import { DEMO_BUSY_MS, Group, Specimen } from './layout';
@@ -36,8 +37,16 @@ function Toggle({ initial, disabled }: { readonly initial: boolean; readonly dis
 function VisibilityPill({ initial, busy }: { readonly initial: boolean; readonly busy?: boolean }) {
   const [on, setOn] = useState(initial);
   return (
-    <button type="button" role="switch" aria-checked={on} disabled={busy} class={siteClass.visibilityButton} onClick={() => setOn(!on)}>
-      {busy ? <Icon name="spinner" size={14} class="wm-spin" /> : <Icon name={on ? 'globe' : 'lock'} size={14} />}
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      disabled={busy}
+      aria-busy={busy}
+      class={siteClass.visibilityButton}
+      onClick={() => setOn(!on)}
+    >
+      <Icon name={on ? 'globe' : 'lock'} size={14} busy={busy} />
       <span>{on ? 'Visible de tous' : 'Amis seulement'}</span>
       <span class={`${siteClass.switchTrack} ${on ? siteClass.switchTrackOn : siteClass.switchTrackOff}`} aria-hidden="true">
         <span class={`${siteClass.switchKnob} ${on ? siteClass.switchKnobOn : siteClass.switchKnobOff}`} />
@@ -54,6 +63,33 @@ function Rarities({ initial }: { readonly initial: readonly Rarity[] }) {
     setChecked(next);
   };
   return <RarityFilter rarities={RARITIES} checked={checked} onToggle={toggle} onReset={() => setChecked(new Set())} />;
+}
+
+// Dans une fonction : rien au niveau du module qui ne soit pur (la vitrine est retirée du fichier de production).
+const tagOptions = () => [
+  { value: '', label: 'Toutes les étiquettes' },
+  { value: 't1', label: '#rouge (12)', chipStyle: tagChipStyle('#ef4444') },
+  { value: 't2', label: '#à échanger (3)', chipStyle: tagChipStyle('#3b82f6') },
+];
+
+function DemoListbox({ initial }: { readonly initial: string }) {
+  const [value, setValue] = useState(initial);
+  return <Listbox ariaLabel="Filtrer par étiquette" value={value} options={tagOptions()} onChange={setValue} class="wm-showcase-listbox" />;
+}
+
+/** Chargement en échec : « Réessayer » tourne un moment. */
+function DemoLoadError() {
+  const [busy, setBusy] = useState(false);
+  return (
+    <LoadError
+      message="Le chargement des cartes a échoué."
+      busy={busy}
+      onRetry={() => {
+        setBusy(true);
+        setTimeout(() => setBusy(false), DEMO_BUSY_MS);
+      }}
+    />
+  );
 }
 
 /** Pagination qui charge un moment après chaque changement, roue sur le bouton cliqué. */
@@ -105,6 +141,17 @@ export function Fields() {
           </button>
           <SearchButton status="search" onClick={() => undefined} />
         </div>
+      </Group>
+
+      <Group title="Listes déroulantes">
+        <DemoListbox initial="" />
+        <DemoListbox initial="t1" />
+      </Group>
+
+      <Group title="Chargement en échec">
+        <Specimen width="28rem">
+          <DemoLoadError />
+        </Specimen>
       </Group>
 
       <Group title="Nombre">

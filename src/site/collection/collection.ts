@@ -1,15 +1,17 @@
-import { ROOT_CLASS } from '@/core/dom';
 import { isRecord } from '@/core/guards';
 import type { NetRequest } from '@/core/net';
+import { FACE } from '@/site/cards';
+import { isOwn } from '@/site/dom';
+import { SITE_OVERLAY } from '@/site/modals';
 
-/**
+/*
  * Page de la collection (captures du 29/09/2026) : liste de 50 exemplaires par page
  * (`GET /api/my-collection?sort=&page=&stats=0[&filtres]`) et ses compteurs (`GET /api/my-collection/stats?…`).
  * Grille `div.flex.flex-wrap.justify-center` > `div.relative.isolate.group` > face, dans l'ordre de la liste.
  * Après une défausse ou une mise aux enchères réussie depuis sa modale, le site recharge tout : liste,
  * compteurs, échanges en cours, étiquettes, solde (la liste peut alors échouer : 500, grille vide).
+ * La fenêtre d'échange (côté « Mes cartes ») lit la même route avec `owned_by=<ami>` : ce n'est pas la page.
  */
-export const COLLECTION_ROUTE = '/collection';
 
 /** Exemplaire de la liste (`collection[]`) : `id` est celui que défausse ou met en vente sa modale. */
 export interface CollectionEntry {
@@ -22,12 +24,15 @@ export interface CollectionEntry {
 /** Voile avec roue posé sur la grille pendant un chargement (sauf le premier : toute la page tourne). */
 export const LIST_LOADING_VEIL = 'div.absolute.inset-0.z-20[aria-busy="true"]';
 
+const isPageRequest = (request: NetRequest, pathname: string) =>
+  request.method === 'GET' && request.url.pathname === pathname && !request.url.searchParams.has('owned_by');
+
 export function isCollectionList(request: NetRequest): boolean {
-  return request.method === 'GET' && request.url.pathname === '/api/my-collection';
+  return isPageRequest(request, '/api/my-collection');
 }
 
 export function isCollectionStats(request: NetRequest): boolean {
-  return request.method === 'GET' && request.url.pathname === '/api/my-collection/stats';
+  return isPageRequest(request, '/api/my-collection/stats');
 }
 
 export function parseCollection(raw: unknown): CollectionEntry[] | undefined {
@@ -49,7 +54,5 @@ export function parseCollection(raw: unknown): CollectionEntry[] | undefined {
 export function findCollectionFaces(doc: Document = document): HTMLElement[] {
   const main = doc.querySelector('main');
   if (!main) return [];
-  return [...main.querySelectorAll<HTMLElement>('[class*="glow-"]')].filter(
-    (face) => face.querySelector('h3') && !face.closest('div.fixed.inset-0') && !face.closest(`.${ROOT_CLASS}`),
-  );
+  return [...main.querySelectorAll<HTMLElement>(FACE)].filter((face) => face.querySelector('h3') && !face.closest(SITE_OVERLAY) && !isOwn(face));
 }

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openSite, sitePage } from './support/site';
+import { openSite, rect, sitePage } from './support/site';
 
 /**
  * Mise en page du site (29/09/2026) : `<main>` de hauteur fixe, qui défile, non flex. Feuille posée dans `<head>` :
@@ -19,8 +19,7 @@ const CONTENT = '<div class="flex-1 p-4 md:p-6 space-y-6"><h1 id="content">Colle
 
 /** Écart entre le centre du rond et celui de `<main>`, en pixels. */
 async function offCenter(page: Page) {
-  const [main, spinner] = [await page.locator('main').boundingBox(), await page.locator('#spinner').boundingBox()];
-  if (!main || !spinner) throw new Error('main ou rond introuvable');
+  const [main, spinner] = [await rect(page.locator('main')), await rect(page.locator('#spinner'))];
   return {
     x: Math.abs(spinner.x + spinner.width / 2 - (main.x + main.width / 2)),
     y: Math.abs(spinner.y + spinner.height / 2 - (main.y + main.height / 2)),
@@ -46,8 +45,8 @@ test('le contenu arrivé, la page reprend sa mise en page', async ({ page }) => 
 
   await page.locator('main').evaluate((main, content) => (main.innerHTML = content), CONTENT);
   await expect(page.locator('main')).not.toHaveClass(/wm-page-spinner/);
-  const [main, content] = [await page.locator('main').boundingBox(), await page.locator('#content').boundingBox()];
-  expect(content!.y - main!.y).toBeLessThan(40);
+  const [main, content] = [await rect(page.locator('main')), await rect(page.locator('#content'))];
+  expect(content.y - main.y).toBeLessThan(40);
 });
 
 test('/pulls : 50 / 50 pendant le chargement, puis 40 / 60 pour le contenu', async ({ page }) => {

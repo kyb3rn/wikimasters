@@ -1,5 +1,6 @@
 import { isRecord } from '@/core/guards';
-import { currentFiberAncestors, stateHooks, type Fiber, type StateHook } from '@/core/react';
+import { currentFiberAncestors, type Fiber, type StateHook } from '@/core/react';
+import { statesAboveRefresh } from '@/site/list-page';
 import { findCollectionFilters } from './filters';
 
 /** Étiquette telle que la page la garde (sur un exemplaire, dans son catalogue, dans ses compteurs). */
@@ -73,14 +74,11 @@ interface PageStates {
 /**
  * Premiers états de la page Collection (code du site, 29/09/2026), dans l'ordre : exemplaires affichés,
  * total, compteurs des étiquettes (`tagOptions`), étiquettes de l'utilisateur (lues à Supabase, `null` avant).
- * La grille (étiquettes sur les faces), la liste des étiquettes et la modale de carte s'en dessinent. La page
- * est le premier composant à états au-dessus de son « tirer pour rafraîchir » (props `onRefresh`).
+ * La grille (étiquettes sur les faces), la liste des étiquettes et la modale de carte s'en dessinent
+ * (`statesAboveRefresh`).
  */
 export function pageStatesAmong(ancestors: readonly Fiber[]): PageStates | undefined {
-  const refresh = ancestors.findIndex((fiber) => isRecord(fiber.memoizedProps) && typeof fiber.memoizedProps.onRefresh === 'function');
-  if (refresh < 0) return undefined;
-  const page = ancestors.slice(refresh + 1).find((fiber) => stateHooks(fiber).length > 0);
-  const [list, total, tagOptions, catalog] = page ? stateHooks(page) : [];
+  const [list, total, tagOptions, catalog] = statesAboveRefresh(ancestors) ?? [];
   if (!list || !total || !tagOptions || !catalog) return undefined;
   const entries = Array.isArray(list.value) && list.value.every((entry) => isRecord(entry) && 'card' in entry);
   const valid = entries && typeof total.value === 'number' && Array.isArray(tagOptions.value) && (catalog.value === null || Array.isArray(catalog.value));

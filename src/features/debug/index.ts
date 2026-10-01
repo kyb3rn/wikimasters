@@ -1,11 +1,10 @@
-import { sleep } from '@/core/async';
 import { domSyncRounds } from '@/core/dom';
 import { expose } from '@/core/expose';
 import { net } from '@/core/net';
 import type { Feature } from '@/core/runtime';
-import { supabaseFetch, supabaseUserId } from '@/site/api';
+import { supabaseFetch } from '@/site/api';
+import { toast } from '@/ui/toast';
 import { buildCapture, captureFileName, downloadJson } from './capture';
-import { ProbeStop, runCollectionProbe, type ProbeReport } from './probe';
 import {
   createRecorder,
   isRecordable,
@@ -14,10 +13,10 @@ import {
   type RecordedExchange,
   type RecordedSocketEvent,
 } from './recorder';
-import { toast } from '@/ui/toast';
 
 export type { Capture } from './capture';
 export type { RecordedExchange, RecordedSocketEvent } from './recorder';
+export { containsSecret } from './redact';
 export { sanitizeCapture, type StoredCapture } from './sanitize';
 
 export interface CaptureSummary {
@@ -40,10 +39,11 @@ export interface DebugConsole {
   /** Passes de synchronisation du DOM depuis le chargement (au repos, ce nombre doit rester fixe). */
   domSyncs(): number;
   /**
-   * Sonde de la Collection, en lecture seule (3 à 4 minutes) : paramètres de /api/my-collection que le site
-   * n'envoie pas, requêtes Supabase directes. Télécharge wm-sonde-collection-….json.
+   * Lecture Supabase en direct avec la session du site, en GET seulement : `sb('auctions?select=id&limit=1')`.
+   * Statut, durée et `Content-Range` dans la console, corps renvoyé. `prefer` : en-tête `Prefer`
+   * (`count=estimated` ; jamais `count=exact` sur une grande table : la base s'arrête au bout de 10 s).
    */
-  probeCollection(): Promise<ProbeReport | undefined>;
+  sb(path: string, prefer?: string): Promise<unknown>;
   clear(): void;
 }
 
@@ -88,35 +88,15 @@ export const debug: Feature = {
       return { file, exchanges: result.exchanges.length, sockets: result.sockets.length, htmlChars: result.html.length };
     }
 
-    let probing = false;
-    async function probeCollection(): Promise<ProbeReport | undefined> {
-      if (probing) {
-        toast.info('Elle est déjà en cours.', { title: 'Sonde de la Collection' });
-        return undefined;
-      }
-      probing = true;
-      toast.info('Lecture seule, 3 à 4 minutes : rester sur la page.', { title: 'Sonde de la Collection lancée' });
-      try {
-        const report = await runCollectionProbe({
-          site: (path) => net.fetch(path, { credentials: 'include' }),
-          supabase: (path, headers) => supabaseFetch(path, { headers }),
-          userId: supabaseUserId,
-          progress: (message) => ctx.log.info(`sonde : ${message}`),
-          sleep: async (ms) => {
-            await sleep(ms, signal);
-            if (signal.aborted) throw new ProbeStop('script démonté pendant la sonde');
-          },
-        });
-        const file = captureFileName('/collection', new Date()).replace('wm-capture-', 'wm-sonde-');
-        downloadJson(document, file, report);
-        ctx.log.info(`sonde terminée : ${file}`, report);
-        const summary = `${report.requests} requêtes en ${report.durationSeconds} s`;
-        if (report.stopped) toast.error(`${report.stopped} (${summary}, fichier ${file})`, { title: 'Sonde arrêtée' });
-        else toast.success(`${summary} · ${file}`, { title: 'Sonde terminée' });
-        return report;
-      } finally {
-        probing = false;
-      }
+    async function sb(path: string, prefer?: string): Promise<unknown> {
+      const started = performance.now();
+      const response = await supabaseFetch(`/rest/v1/${path.replace(/^\/+/, '')}`, {
+        headers: prefer ? { Prefer: prefer } : {},
+      });
+      const ms = Math.round(performance.now() - started);
+      const body: unknown = await response.json().catch(() => undefined);
+      ctx.log.info(`${response.status} · ${ms} ms · ${response.headers.get('content-range') ?? 'sans Content-Range'}`, body);
+      return body;
     }
 
     document.addEventListener(
@@ -137,7 +117,7 @@ export const debug: Feature = {
         exchanges: () => recorder.list(),
         sockets: () => recorder.sockets(),
         domSyncs: domSyncRounds,
-        probeCollection,
+        sb,
         clear: () => recorder.clear(),
       },
       signal,

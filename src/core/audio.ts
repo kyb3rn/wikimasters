@@ -1,3 +1,6 @@
+import { createListeners } from './listeners';
+import { createLogger } from './log';
+
 /**
  * Filtre des sons Web Audio de la page. `name` : le fichier du son sans son extension (`card-flip`),
  * quand il a été chargé par `fetch` puis décodé par `decodeAudioData` ; sinon `undefined`.
@@ -5,7 +8,8 @@
  */
 export type SoundFilter = (name: string | undefined) => boolean;
 
-const filters = new Set<SoundFilter>();
+/** Chaque filtre vote : un seul « vrai » suffit à couper le son. */
+const filters = createListeners<[name: string | undefined, verdict: { blocked: boolean }]>(createLogger('sons'), 'filtre de son');
 /** Octets d'un fichier son → son nom, le temps qu'ils soient décodés. */
 const loaded = new WeakMap<ArrayBuffer, string>();
 const names = new WeakMap<AudioBuffer, string>();
@@ -14,8 +18,8 @@ let installed = false;
 const AUDIO_FILE = /\/([^/?#]+)\.(mp3|ogg|wav|m4a|aac)(?:[?#]|$)/i;
 
 /**
- * Reconnaît désormais les sons de la page à leur fichier. À appeler avant qu'elle ne les charge
- * (au démarrage du script) ; `blockSounds` l'appelle aussi.
+ * Reconnaît désormais les sons de la page à leur fichier. Appelé au démarrage du script (`main.ts`), avant
+ * que la page ne les charge ; `blockSounds` l'appelle aussi.
  */
 export function trackSounds(): void {
   if (installed || !('AudioBufferSourceNode' in window)) return;
@@ -51,7 +55,9 @@ export function trackSounds(): void {
     const name = this.buffer ? names.get(this.buffer) : undefined;
     // Joué sur une durée nulle plutôt que jamais démarré : il se termine aussitôt (`ended`), et la page
     // qui le suit le libère au lieu de le garder branché.
-    if ([...filters].some((filter) => filter(name))) start.call(this, 0, 0, 0);
+    const verdict = { blocked: false };
+    filters.emit(name, verdict);
+    if (verdict.blocked) start.call(this, 0, 0, 0);
     else start.apply(this, args);
   };
 }
@@ -60,6 +66,7 @@ export function trackSounds(): void {
 export function blockSounds(filter: SoundFilter, options: { signal: AbortSignal }): void {
   if (options.signal.aborted) return;
   trackSounds();
-  filters.add(filter);
-  options.signal.addEventListener('abort', () => filters.delete(filter), { once: true });
+  filters.on((name, verdict) => {
+    if (filter(name)) verdict.blocked = true;
+  }, options);
 }

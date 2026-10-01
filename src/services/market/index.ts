@@ -4,10 +4,8 @@ export {
   fetchMarket,
   isStale,
   marketNeedsPro,
-  onMarketAvailabilityChange,
   onMarketChange,
   trackMarket,
-  type MarketCard,
 } from './market';
 export { closeMarketModal, openMarketModal, showMarketModal, showProOffer } from './open';
 export { ProBadge } from './ProOffer';

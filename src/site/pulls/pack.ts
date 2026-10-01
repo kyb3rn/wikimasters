@@ -1,12 +1,14 @@
 import { isRecord } from '@/core/guards';
 import type { NetRequest } from '@/core/net';
+import { PRO_DAILY_PATH } from '@/site/api';
+import { parseRarity, type Rarity } from '@/site/rarity';
 
 /** Carte d'un paquet ouvert (`POST /api/packs/open` ou `/api/packs/pro-daily`). */
 export interface PackCard {
   /** Id de la carte (modèle), pas de l'exemplaire. */
   readonly id: string;
   readonly title: string;
-  readonly rarity: string;
+  readonly rarity: Rarity | undefined;
   readonly isShiny: boolean;
 }
 
@@ -29,7 +31,7 @@ export interface Pack {
 
 /** Ouverture d'un paquet, classique ou PRO du jour. */
 export function isPackOpening(request: NetRequest): boolean {
-  return request.method === 'POST' && /^\/api\/packs\/(open|pro-daily)$/.test(request.url.pathname);
+  return request.method === 'POST' && (request.url.pathname === '/api/packs/open' || request.url.pathname === PRO_DAILY_PATH);
 }
 
 /** Requête du site qui charge les exemplaires des cartes d'un paquet quand la réponse ne les donnait pas. */
@@ -57,7 +59,7 @@ export function parseCards(raw: unknown): PackCard[] | undefined {
     cards.push({
       id: card.id,
       title: typeof card.wikipedia_title === 'string' ? card.wikipedia_title : '',
-      rarity: typeof card.rarity === 'string' ? card.rarity : '',
+      rarity: parseRarity(card.rarity),
       isShiny: card.is_shiny === true,
     });
   }

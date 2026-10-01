@@ -1,29 +1,30 @@
-import { h, type ComponentChild } from 'preact';
-import { childController, sleep } from '@/core/async';
-import { injectStyle, setClass, watchDom, whenBody } from '@/core/dom';
+import { h } from 'preact';
+import { childController, later, sleep } from '@/core/async';
+import { classMarks, watchDom } from '@/core/dom';
 import type { Feature } from '@/core/runtime';
-import { listingOf, onListingsChange, trackListings } from '@/services/listings';
-import { findPullsGrid, onPullsGridChange, type PullsGrid } from '@/services/pulls-grid';
+import { normalizeText } from '@/core/text';
+import { listingOf, trackListings } from '@/services/listings';
+import { findPullsGrid } from '@/services/pulls-grid';
 import {
   carouselLock,
   clickThrough,
   injectCarouselStyle,
   lockCarousel,
-  onCarouselLockChange,
-  onPackChange,
+  markBusy,
+  onPackActionsChange,
+  packActions,
   packCarousel,
   trackPack,
   unlockCarousel,
   type OpenPack,
 } from '@/services/pulls-pack';
-import { findAuctionModal, findCardModals, isSiteModalOpen, type CardModal } from '@/site/cards';
-import { PULLS_ROUTE, type Carousel } from '@/site/pulls';
-import { mountUi, type MountedUi } from '@/ui/mount';
+import { findAuctionModal, findCardModals, type CardModal } from '@/site/cards';
+import { isSiteModalOpen } from '@/site/modals';
+import { PULLS_ROUTE } from '@/site/routes';
 import { toast } from '@/ui/toast';
 import { AuctionButton, type AuctionStatus } from './AuctionButton';
-import { CSS, HOST_HIDDEN } from './style';
 
-/** Propriétaire du verrou du carrousel. */
+/** Propriétaire du verrou du carrousel et de la carte occupée. */
 const OWNER = 'pulls-auction';
 const OPENING_LABEL = 'Ouverture de la mise aux enchères…';
 /**
@@ -34,6 +35,8 @@ const RETRY_CLICK_MS = 500;
 const CARD_TIMEOUT_MS = 3000;
 /** La modale d'enchère du site se charge à sa première ouverture, et le site peut être lent. */
 const AUCTION_TIMEOUT_MS = 20_000;
+/** Modale de carte ouverte par l'enchère rapide : cachée (mais affichée), seule la mise en vente se voit. */
+const HOST_HIDDEN = 'wm-quick-auction-host';
 
 /**
  * - `card` : clic sur la carte, en attente de la modale de carte ;
@@ -44,6 +47,7 @@ type Phase = 'card' | 'auction' | 'open';
 
 interface Opening {
   readonly title: string;
+  readonly pack: OpenPack;
   /** Position de la carte dans le paquet. */
   readonly index: number;
   /** Lancée depuis la grille : c'est elle qui ouvre la carte (clic sur sa copie). */
@@ -54,14 +58,6 @@ interface Opening {
   /** Minuteries de cette ouverture. */
   readonly controller: AbortController;
 }
-
-/** Notre bouton, dans son conteneur : rangée du carrousel, ou dessous d'une carte de la grille. */
-interface Placed {
-  readonly ui: MountedUi;
-  readonly controller: AbortController;
-}
-
-const normalize = (text: string | undefined) => (text ?? '').replace(/\s+/g, ' ').trim();
 
 /**
  * Le site ne met en vente que depuis la modale de carte : on la fait ouvrir, cachée (clic sur la carte du
@@ -81,18 +77,18 @@ export const pullsAuction: Feature = {
     trackListings();
     trackPack();
     let opening: Opening | undefined;
-    const placed = new Map<HTMLElement, Placed>();
 
-    await whenBody();
-    if (signal.aborted) return;
-    injectStyle('pulls-auction', CSS);
+    if (!(await ctx.ready())) return;
     injectCarouselStyle();
+    ctx.style(`.${HOST_HIDDEN} { visibility: hidden !important; pointer-events: none !important; }`);
+    const marks = classMarks(signal);
 
     function status(pack: OpenPack, index: number): { status: AuctionStatus; reason?: string } {
       if (opening) return opening.index === index ? { status: 'busy' } : { status: 'blocked', reason: OPENING_LABEL };
+      const busy = pack.busy.get(index);
+      if (busy) return { status: 'blocked', reason: busy.label };
       const lock = carouselLock();
       if (lock) return { status: 'blocked', reason: lock.label };
-      if (pack.discarding.has(index)) return { status: 'blocked', reason: 'Défausse en cours…' };
       if (pack.discarded.has(index)) return { status: 'discarded' };
       const card = pack.cards[index];
       const copy = card && pack.chosen?.get(card.id);
@@ -101,10 +97,16 @@ export const pullsAuction: Feature = {
       return { status: 'ready' };
     }
 
+    // Juste à gauche de la corbeille : après les pastilles du carrousel, en tête sous une carte de la grille.
+    const actions = packActions(
+      ({ pack, index, inGrid }) => h(AuctionButton, { ...status(pack, index), onClick: () => start(index, inGrid) }),
+      { place: 'start', signal },
+    );
+
     function hostOf(current: Opening): CardModal | undefined {
       const modals = findCardModals();
       if (current.modal) return modals.find((modal) => modal.root === current.modal);
-      return modals.find((modal) => normalize(modal.title) === current.title);
+      return modals.find((modal) => normalizeText(modal.title) === current.title);
     }
 
     /** Clic sur la carte `current.index` : celle du carrousel, ou sa copie dans la grille. */
@@ -115,17 +117,12 @@ export const pullsAuction: Feature = {
       else if (carousel.face && carousel.index === current.index) clickThrough(carousel.face);
     }
 
-    function later(current: Opening, ms: number, phase: Phase, action: () => void): void {
-      void sleep(ms, current.controller.signal).then(() => {
-        if (opening === current && current.phase === phase && !current.controller.signal.aborted) action();
-      });
-    }
-
     function finish(current: Opening): void {
       if (opening !== current) return;
       opening = undefined;
       current.controller.abort();
-      if (current.modal?.isConnected) setClass(current.modal, HOST_HIDDEN, false);
+      if (current.modal) marks.set(current.modal, HOST_HIDDEN, false);
+      markBusy(current.pack, current.index, OWNER, undefined);
       unlockCarousel(OWNER);
       sync();
     }
@@ -160,7 +157,8 @@ export const pullsAuction: Feature = {
       if (!card || status(pack, index).status !== 'ready') return;
       if (fromGrid ? !findPullsGrid(carousel.root)?.slots[index]?.arrived : carousel.index !== index) return;
       const current: Opening = {
-        title: normalize(card.title),
+        title: normalizeText(card.title),
+        pack,
         index,
         fromGrid,
         phase: 'card',
@@ -169,12 +167,13 @@ export const pullsAuction: Feature = {
       };
       opening = current;
       // Dans la grille, le verrou attend la modale de carte : la grille ne fait pas passer le carrousel sur
-      // la carte tant qu'une action le tient.
+      // la carte tant qu'une action le tient. La carte, elle, est occupée tout de suite (sa corbeille attend).
       if (!fromGrid && !lockCarousel(OWNER, OPENING_LABEL)) {
         opening = undefined;
         current.controller.abort();
         return;
       }
+      markBusy(pack, index, OWNER, OPENING_LABEL);
       log.debug('ouverture de la mise aux enchères', card.title);
       void openCard(current);
       sync();
@@ -191,7 +190,7 @@ export const pullsAuction: Feature = {
         return;
       }
       current.modal = host.root;
-      setClass(host.root, HOST_HIDDEN, true);
+      marks.set(host.root, HOST_HIDDEN, true);
 
       if (current.phase === 'card') {
         const sell = host.auctionButton;
@@ -208,7 +207,13 @@ export const pullsAuction: Feature = {
           fail(current, 'une autre action est en cours sur la carte.');
           return;
         }
-        later(current, AUCTION_TIMEOUT_MS, 'auction', () => fail(current, "la mise aux enchères ne s'est pas ouverte."));
+        later(
+          () => {
+            if (opening === current && current.phase === 'auction') fail(current, "la mise aux enchères ne s'est pas ouverte.");
+          },
+          AUCTION_TIMEOUT_MS,
+          current.controller.signal,
+        );
         sell.click();
         return;
       }
@@ -223,41 +228,6 @@ export const pullsAuction: Feature = {
       }
     }
 
-    /** Pose (ou redessine) notre bouton dans `parent`, juste après `after` (en tête sans lui) : à gauche de la corbeille. */
-    function place(parent: HTMLElement, after: Element | null, vnode: ComponentChild): void {
-      const current = placed.get(parent);
-      const element = current?.ui.element;
-      if (current && element?.parentElement === parent && element.previousElementSibling === after) {
-        current.ui.update(vnode);
-        return;
-      }
-      current?.controller.abort();
-      const controller = childController(signal);
-      const before = after ? after.nextSibling : parent.firstChild;
-      placed.set(parent, { ui: mountUi(vnode, { parent, before, inline: true, signal: controller.signal }), controller });
-    }
-
-    /** Retire nos boutons hors de `keep`. */
-    function prune(keep: readonly HTMLElement[]): void {
-      for (const [parent, current] of placed) {
-        if (keep.includes(parent)) continue;
-        current.controller.abort();
-        placed.delete(parent);
-      }
-    }
-
-    function button(carousel: Carousel, pack: OpenPack, index: number, fromGrid: boolean) {
-      return h(AuctionButton, {
-        ...status(pack, index),
-        onClick: () => start(index, fromGrid),
-      });
-    }
-
-    function syncGrid(grid: PullsGrid, carousel: Carousel, pack: OpenPack): void {
-      for (const slot of grid.slots) place(slot.actions, null, button(carousel, pack, slot.index, true));
-      prune(grid.slots.map((slot) => slot.actions));
-    }
-
     /** Synchronisation en cours : les notifications qu'elle provoque (verrou, paquet) n'en relancent pas une autre. */
     let syncing = false;
 
@@ -267,38 +237,18 @@ export const pullsAuction: Feature = {
       syncing = true;
       try {
         syncOpening();
-        syncButtons();
+        actions.sync();
       } finally {
         syncing = false;
       }
     }
 
-    function syncButtons(): void {
-      const found = packCarousel();
-      if (!found) {
-        prune([]);
-        return;
-      }
-      const { carousel, pack } = found;
-      const grid = findPullsGrid(carousel.root);
-      if (grid?.slots.length === pack.cards.length) {
-        syncGrid(grid, carousel, pack);
-        return;
-      }
-      place(carousel.nav, carousel.dotsBox, button(carousel, pack, carousel.index, false));
-      prune([carousel.nav]);
-    }
-
     watchDom(sync, { signal });
-    onPackChange(sync, { signal });
-    onListingsChange(sync, { signal });
-    onCarouselLockChange(sync, { signal });
-    onPullsGridChange(sync, { signal });
+    onPackActionsChange(sync, { signal });
     ctx.onDispose(() => {
-      prune([]);
+      if (opening) markBusy(opening.pack, opening.index, OWNER, undefined);
       opening?.controller.abort();
       opening = undefined;
-      document.querySelectorAll(`.${HOST_HIDDEN}`).forEach((element) => element.classList.remove(HOST_HIDDEN));
       unlockCarousel(OWNER);
     });
   },

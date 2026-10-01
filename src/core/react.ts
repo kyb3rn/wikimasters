@@ -14,9 +14,9 @@ export interface Fiber {
   readonly memoizedState?: unknown;
 }
 
-/** Fiber d'un élément rendu par React (propriété `__reactFiber$…`), s'il y en a un. */
-export function fiberOf(element: Element): Fiber | undefined {
-  const record = element as unknown as Record<string, unknown>;
+/** Fiber d'un nœud rendu par React (propriété `__reactFiber$…`), s'il y en a un. */
+export function fiberOf(node: Node): Fiber | undefined {
+  const record = node as unknown as Record<string, unknown>;
   for (const key of Object.keys(record)) {
     if (key.startsWith('__reactFiber$')) return record[key] as Fiber;
   }
@@ -85,24 +85,44 @@ function isFiber(value: unknown): value is Fiber {
  * de chaque fiber et ne met pas à jour celui noté sur le nœud du DOM : lui et ses `return` peuvent être
  * ceux du rendu précédent (props périmées, rappels qui liraient un ancien état). On redescend donc depuis
  * la racine affichée (`stateNode.current` du fiber racine) jusqu'à l'élément. Sans racine lisible : les
- * ancêtres notés (`fiberAncestors`).
+ * ancêtres notés (`fiberAncestors`). Un élément rendu en portail (modales du site, dans `body`) est sous un
+ * nœud du DOM qui ne le contient pas : s'il n'est pas trouvé ainsi, l'arbre est parcouru en entier.
  */
-export function currentFiberAncestors(element: Element, limit = 100_000): Fiber[] {
-  const noted = fiberOf(element);
+export function currentFiberAncestors(node: Node, limit = 100_000): Fiber[] {
+  const noted = fiberOf(node);
   let top: Fiber | undefined;
   for (const fiber of fiberAncestors(noted)) top = fiber;
   const root = isRecord(top?.stateNode) ? top.stateNode.current : undefined;
-  return (isFiber(root) ? pathTo(root, element, limit) : undefined) ?? [...fiberAncestors(noted)];
+  const path = isFiber(root) ? (pathTo(root, node, limit, true) ?? pathTo(root, node, limit, false)) : undefined;
+  return path ?? [...fiberAncestors(noted)];
 }
 
-/** Du fiber de `target` à la racine, en parcourant l'arbre depuis `root` (sans entrer dans le DOM qui ne le contient pas). */
-function pathTo(root: Fiber, target: Element, limit: number): Fiber[] | undefined {
+/**
+ * Premier ancêtre React de `node` (lui compris) dont les props passent `test`, dans l'arbre affiché
+ * (`currentFiberAncestors` : props du dernier rendu).
+ */
+export function findPropsAbove(
+  node: Node,
+  test: (props: Record<string, unknown>) => boolean,
+): { readonly fiber: Fiber; readonly props: Record<string, unknown> } | undefined {
+  for (const fiber of currentFiberAncestors(node)) {
+    const props = fiber.memoizedProps;
+    if (isRecord(props) && test(props)) return { fiber, props };
+  }
+  return undefined;
+}
+
+/**
+ * Du fiber de `target` à la racine, en parcourant l'arbre depuis `root` ; avec `prune`, sans entrer dans le DOM
+ * qui ne le contient pas.
+ */
+function pathTo(root: Fiber, target: Node, limit: number, prune: boolean): Fiber[] | undefined {
   const parents: Fiber[] = [];
   let fiber: Fiber | null | undefined = root;
   for (let steps = 0; fiber && steps < limit; steps++) {
     const node = fiber.stateNode;
     if (node === target) return [fiber, ...parents.reverse()];
-    if (fiber.child && (!isDomNode(node) || node.contains(target))) {
+    if (fiber.child && (!prune || !isDomNode(node) || node.contains(target))) {
       parents.push(fiber);
       fiber = fiber.child;
       continue;

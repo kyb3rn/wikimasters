@@ -1,4 +1,6 @@
 import { isRecord } from '@/core/guards';
+import { createListeners } from '@/core/listeners';
+import { createLogger } from '@/core/log';
 import { jsonStore } from '@/core/storage';
 
 /**
@@ -29,17 +31,7 @@ const store = jsonStore<StoredSettings>(SETTINGS_KEY, EMPTY, (raw) => {
   return { features, values };
 });
 
-const listeners = new Set<() => void>();
-
-function notify(): void {
-  for (const listener of [...listeners]) {
-    try {
-      listener();
-    } catch {
-      // Un écouteur défaillant n'empêche pas les autres d'être prévenus.
-    }
-  }
-}
+const listeners = createListeners(createLogger('réglages'), 'écouteur des réglages');
 
 export function readSettings(): StoredSettings {
   return store.get();
@@ -47,21 +39,18 @@ export function readSettings(): StoredSettings {
 
 export function updateSettings(change: (current: StoredSettings) => StoredSettings): void {
   store.update(change);
-  notify();
+  listeners.emit();
 }
 
 /** Prévenu de tout changement de réglage : dans cet onglet, ou dans un autre (voir `syncSettingsAcrossTabs`). */
 export function onSettingsChange(listener: () => void, options?: { signal?: AbortSignal }): void {
-  const signal = options?.signal;
-  if (signal?.aborted) return;
-  listeners.add(listener);
-  signal?.addEventListener('abort', () => listeners.delete(listener), { once: true });
+  listeners.on(listener, options);
 }
 
 /** Un réglage changé dans un autre onglet est signalé ici aussi. */
 export function syncSettingsAcrossTabs(win: Window): void {
   win.addEventListener('storage', (event) => {
-    if (event.key === SETTINGS_KEY) notify();
+    if (event.key === SETTINGS_KEY) listeners.emit();
   });
 }
 

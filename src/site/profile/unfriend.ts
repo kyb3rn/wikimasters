@@ -1,3 +1,5 @@
+import { ROOT_CLASS } from '@/core/dom';
+
 /**
  * « Retirer des amis » du profil d'un ami (code du site du 30/09/2026) : petit bouton `title="Retirer des amis"`
  * (lucide `user-minus`, texte « … » et désactivé pendant le retrait) en haut à droite de l'en-tête, à côté de
@@ -5,7 +7,7 @@
  * `DELETE /api/friends/<id>` (refus ignoré), relecture du profil : 403 (profil privé) → /friends.
  */
 export function findUnfriendButton(doc: Document = document): HTMLButtonElement | undefined {
-  return doc.querySelector<HTMLButtonElement>('main button[title="Retirer des amis"]:not(.wm-root *)') ?? undefined;
+  return doc.querySelector<HTMLButtonElement>(`main button[title="Retirer des amis"]:not(.${ROOT_CLASS} *)`) ?? undefined;
 }
 
 const QUESTION = /^Retirer (.+) de votre liste d'amis \?$/s;

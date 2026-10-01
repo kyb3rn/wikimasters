@@ -1,3 +1,4 @@
+import { isPlainClick } from '@/core/dom';
 import { profilePath } from '@/site/profile';
 import { navigateTo } from '@/site/router';
 
@@ -23,7 +24,7 @@ export function ProfileLink({ username, className, label = username }: ProfileLi
       title={`Profil de ${username}`}
       onClick={(event) => {
         event.stopPropagation();
-        if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+        if (!isPlainClick(event)) return;
         event.preventDefault();
         navigateTo(href);
       }}

@@ -1,6 +1,6 @@
 {
   "name": "wikimasters",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Outils pour wiki-masters.com, en un seul userscript Tampermonkey.",
   "author": "mamzet",
   "private": true,
@@ -13,7 +13,7 @@
     "lint": "eslint .",
     "deps": "depcruise src --config .dependency-cruiser.cjs",
     "test": "vitest run",
-    "test:e2e": "node build.mjs --dev && playwright test",
+    "test:e2e": "npm run build:dev && playwright test",
     "check": "npm run typecheck && npm run lint && npm run deps && npm run test && npm run test:e2e && npm run build",
     "captures:sanitize": "node test/tools/run.mjs test/tools/sanitize-captures.ts",
     "site:classes": "node test/tools/run.mjs test/tools/check-site-classes.ts"

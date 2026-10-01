@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { prefersReducedMotion } from '@/core/dom';
 import { buttonClass, type ButtonTone } from '@/ui/button';
 import { Icon } from '@/ui/icons';
-import { tokens } from '@/ui/theme';
+import { alpha, layers, palette, tokens } from '@/ui/theme';
 import { withLeaving, withoutToast, type ShownToast } from './leaving';
 import type { Toast, ToastPosition, ToastStore, ToastVariant } from './store';
 
@@ -13,21 +14,21 @@ import type { Toast, ToastPosition, ToastStore, ToastVariant } from './store';
 // Sortie : l'entrée à l'envers (fondu, 6 px vers le bas), puis la pile se referme sur sa place : une marge négative
 // de sa hauteur et de l'écart, du côté où sont les toasts suivants (dessous en haut, dessus en bas).
 const PALETTE: Record<ToastVariant, { text: string; tint: string }> = {
-  error: { text: 'oklch(70.4% 0.191 22.216)', tint: 'oklch(63.7% 0.237 25.331)' },
-  success: { text: 'oklch(76.5% 0.177 163.223)', tint: 'oklch(69.6% 0.17 162.48)' },
-  warning: { text: 'oklch(82.8% 0.189 84.429)', tint: 'oklch(76.9% 0.188 70.08)' },
-  info: { text: 'oklch(74.6% 0.16 232.661)', tint: 'oklch(68.5% 0.169 237.323)' },
+  error: { text: palette.red[400], tint: palette.red[500] },
+  success: { text: palette.emerald[400], tint: palette.emerald[500] },
+  warning: { text: palette.amber[400], tint: palette.amber[500] },
+  info: { text: palette.sky[400], tint: palette.sky[500] },
 };
 
 /** Durée totale de la sortie : fondu, puis fermeture de la pile, qui commence avant la fin du fondu. */
 const EXIT_MS = 300;
 const GAP = 10;
 
-const tint = (percent: number) => `color-mix(in oklab, var(--wm-toast-tint) ${percent}%, transparent)`;
-const dim = (percent: number) => `color-mix(in oklab, ${tokens.foreground} ${percent}%, transparent)`;
+const tint = (percent: number) => alpha('var(--wm-toast-tint)', percent);
+const dim = (percent: number) => alpha(tokens.foreground, percent);
 
 export const TOASTER_CSS = `
-.wm-toaster { position: fixed; right: 16px; z-index: 2147483000; display: flex; flex-direction: column; gap: ${GAP}px;
+.wm-toaster { position: fixed; right: 16px; z-index: ${layers.toast}; display: flex; flex-direction: column; gap: ${GAP}px;
   width: min(360px, calc(100vw - 32px)); pointer-events: none; }
 .wm-toaster[data-position="bottom-right"] { bottom: 16px; flex-direction: column-reverse; }
 .wm-toast { position: relative; overflow: hidden; pointer-events: auto; display: flex; gap: 10px; align-items: flex-start; padding: 14px;
@@ -64,12 +65,6 @@ ${(Object.keys(PALETTE) as ToastVariant[])
 
 const ACTION_TONE: Record<ToastVariant, ButtonTone> = { error: 'danger', success: 'accent', warning: 'warning', info: 'info' };
 
-const ICON: Record<ToastVariant, 'error' | 'success' | 'warning' | 'info'> = {
-  error: 'error',
-  success: 'success',
-  warning: 'warning',
-  info: 'info',
-};
 
 export interface ToasterProps {
   readonly store: ToastStore;
@@ -83,7 +78,7 @@ export function Toaster({ store, topOffset }: ToasterProps) {
   useEffect(
     () =>
       store.subscribe(() => {
-        const animate = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const animate = !prefersReducedMotion();
         setShown((previous) => withLeaving(previous, store.list(), animate));
       }),
     [store],
@@ -156,7 +151,7 @@ function ToastView({ toast, store, leaving, onGone }: ToastViewProps) {
       onPointerLeave={() => hover(false)}
     >
       <span class="wm-toast-icon" aria-hidden="true">
-        <Icon name={ICON[toast.variant]} size={20} />
+        <Icon name={toast.variant} size={20} />
       </span>
       <div class="wm-toast-body">
         {toast.title && <div class="wm-toast-title">{toast.title}</div>}

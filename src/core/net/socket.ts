@@ -1,3 +1,4 @@
+import { createListeners } from '@/core/listeners';
 import type { Logger } from '@/core/log';
 import type { ListenOptions, SocketData, SocketEvent, SocketMatcher, SocketObserver } from './types';
 
@@ -5,11 +6,6 @@ export interface Sockets {
   observe(match: SocketMatcher, observer: SocketObserver, options?: ListenOptions): void;
   /** Remplace `window.WebSocket` par une sous-classe qui signale ses événements. */
   install(win: Window & typeof globalThis): void;
-}
-
-interface Entry {
-  readonly match: SocketMatcher;
-  readonly fn: SocketObserver;
 }
 
 type SendData = Parameters<WebSocket['send']>[0];
@@ -20,39 +16,28 @@ type SendData = Parameters<WebSocket['send']>[0];
  * tels quels ; les observateurs sont appelés après coup, dans l'ordre des événements.
  */
 export function createSockets(log: Logger): Sockets {
-  const observers = new Set<Entry>();
+  // Les observateurs eux-mêmes sont appelés plus tard : une erreur ici vient de leur filtre.
+  const observers = createListeners<[SocketEvent]>(log, 'filtre de WebSocket');
   let seq = 0;
 
   function emit(event: Omit<SocketEvent, 'seq' | 'at'>): void {
-    const targets = [...observers].filter(({ match }) => {
-      try {
-        return match(event.url);
-      } catch (error) {
-        log.error('filtre de WebSocket en échec', error);
-        return false;
-      }
-    });
-    if (targets.length === 0) return;
-    const full: SocketEvent = { ...event, seq: ++seq, at: Date.now() };
-    const fail = (error: unknown) => log.error('observateur de WebSocket en échec', full.url.href, error);
-    queueMicrotask(() => {
-      for (const { fn } of targets) {
-        try {
-          Promise.resolve(fn(full)).catch(fail);
-        } catch (error) {
-          fail(error);
-        }
-      }
-    });
+    if (observers.size === 0) return;
+    observers.emit({ ...event, seq: ++seq, at: Date.now() });
   }
 
   return {
     observe(match, fn, options) {
-      const signal = options?.signal;
-      if (signal?.aborted) return;
-      const entry = { match, fn };
-      observers.add(entry);
-      signal?.addEventListener('abort', () => observers.delete(entry), { once: true });
+      observers.on((event) => {
+        if (!match(event.url)) return;
+        const fail = (error: unknown) => log.error('observateur de WebSocket en échec', event.url.href, error);
+        queueMicrotask(() => {
+          try {
+            Promise.resolve(fn(event)).catch(fail);
+          } catch (error) {
+            fail(error);
+          }
+        });
+      }, options);
     },
 
     install(win) {

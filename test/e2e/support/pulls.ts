@@ -1,5 +1,5 @@
-import type { Page } from '@playwright/test';
-import { sitePage, SUPABASE } from './site';
+import type { Page, Route } from '@playwright/test';
+import { openSite, sitePage, SUPABASE, type FakeSite } from './site';
 
 /** Paquet de test (données inventées, même forme que `POST /api/packs/open`). */
 export const PACK = {
@@ -40,7 +40,7 @@ export const CAROUSEL = { features: { 'pulls-grid': false }, values: {} };
 
 /** Paquet PRO : pas d'exemplaires dans la réponse, le site les demande à Supabase. */
 export const PRO_PACK = { cards: PACK.cards, eligible: true, claimed_today: true };
-export const PRO_COPIES = [
+const PRO_COPIES = [
   { id: 'p1', card_id: 'c1', starred: false, is_shiny: false },
   { id: 'p2', card_id: 'c2', starred: false, is_shiny: false },
   { id: 'p3', card_id: 'c3', starred: false, is_shiny: false },
@@ -60,8 +60,8 @@ const SCRIPT = `
 (() => {
   const ARROW = 'w-12 h-12 rounded-full bg-[var(--color-surface-light)] border border-[var(--color-border)] flex items-center justify-center disabled:opacity-20 hover:bg-[var(--color-accent)]/10 transition-all cursor-pointer disabled:cursor-not-allowed';
   const DOT = 'w-3 h-3 rounded-full transition-all duration-200 cursor-pointer';
+  const { el, button, icon, nextRouter } = kit;
   const svg = (points) => '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="' + points + '"></polyline></svg>';
-  const el = (tag, cls) => { const node = document.createElement(tag); node.className = cls; return node; };
   let cards = [], copies = [], index = 0, seen = new Set(), revealed = new Set(), revealTimer, counter, area, prev, dots, next, cont;
   let swiped = false;
   window.__pulls = { get index() { return index; }, get swiped() { return swiped; } };
@@ -91,20 +91,12 @@ const SCRIPT = `
     } catch (error) {}
   }
 
-  // Routeur Next.js imité : l'objet de useRouter(), fourni par un contexte React au-dessus de <main>.
-  const router = {
-    push(href) {
-      history.pushState(null, '', href);
-      closeModal();
-      document.getElementById('stage').textContent = 'Fiche ' + href;
-    },
-    replace(href) { this.push(href); },
-    prefetch() {},
-  };
-  document.querySelector('main')['__reactFiber$test'] = {
-    memoizedProps: {},
-    return: { memoizedProps: { value: router, children: null }, return: null },
-  };
+  // Routeur Next.js imité : une fiche ouverte remplace la page.
+  const router = nextRouter((href) => {
+    history.pushState(null, '', href);
+    closeModal();
+    document.getElementById('stage').textContent = 'Fiche ' + href;
+  });
   const copyOf = (card) => copies.find((copy) => copy.card_id === card.id)?.id;
   /** Cartes en favori, étiquettes par exemplaire (état du site, pour la modale). */
   const starred = new Set(), tags = new Map();
@@ -154,30 +146,24 @@ const SCRIPT = `
     back.onclick = () => back.remove();
     const panel = el('div', 'card-frame relative max-w-lg w-full p-6');
     panel.onclick = (event) => event.stopPropagation();
-    const close = el('button', 'absolute top-3 right-3'); close.type = 'button'; close.setAttribute('aria-label', 'Fermer'); close.textContent = '×';
-    close.onclick = () => back.remove();
-    const title = el('h2', 'text-lg font-bold'); title.textContent = 'Mettre aux enchères';
-    const note = el('p', 'text-xs'); note.textContent = "Un exemplaire sera mis en réserve pour la durée de l'enchère.";
+    const close = button('absolute top-3 right-3', '×', () => back.remove()); close.setAttribute('aria-label', 'Fermer');
+    const title = el('h2', 'text-lg font-bold', 'Mettre aux enchères');
+    const note = el('p', 'text-xs', "Un exemplaire sera mis en réserve pour la durée de l'enchère.");
     const quota = el('p', 'text-[11px]');
     const face = el('div', 'w-28 h-40 glow-' + card.rarity.toLowerCase() + ' relative rounded-2xl overflow-hidden cursor-pointer hover:z-10');
     face.style.cssText = 'width:112px;height:160px;background:#30363d';
-    const faceTitle = el('h3', 'text-[10px] shrink-0 font-bold'); faceTitle.textContent = card.wikipedia_title;
-    face.append(faceTitle);
+    face.append(el('h3', 'text-[10px] shrink-0 font-bold', card.wikipedia_title));
     const input = el('input', 'flex-1 min-w-0'); input.type = 'number'; input.setAttribute('aria-label', 'Mise de départ'); input.value = price;
     input.addEventListener('input', () => { price = input.value; render(); });
     const step = (label, delta) => {
-      const b = el('button', 'flex items-center'); b.type = 'button'; b.setAttribute('aria-label', label); b.textContent = delta > 0 ? '+' : '−';
-      b.onclick = () => { price = String(Math.max(1, Number(price) + delta)); input.value = price; render(); };
+      const b = button('flex items-center', delta > 0 ? '+' : '−', () => { price = String(Math.max(1, Number(price) + delta)); input.value = price; render(); });
+      b.setAttribute('aria-label', label);
       return b;
     };
-    const durationButtons = DURATIONS.map(([label, value]) => {
-      const b = el('button', ''); b.type = 'button'; b.textContent = label; b.onclick = () => { minutes = value; render(); };
-      return b;
-    });
+    const durationButtons = DURATIONS.map(([label, value]) => button('', label, () => { minutes = value; render(); }));
     const errorText = el('p', 'mt-4 text-xs text-red-500');
-    const cancel = el('button', 'flex-1'); cancel.type = 'button'; cancel.textContent = 'Annuler'; cancel.onclick = () => back.remove();
-    const launch = el('button', 'flex-1'); launch.type = 'button';
-    launch.onclick = async () => {
+    const cancel = button('flex-1', 'Annuler', () => back.remove());
+    const launch = button('flex-1', '', async () => {
       error = null; sending = true; render();
       const response = await fetch('/api/marketplace', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ card_id: copyOf(card), base_amount: Number(price), duration_minutes: minutes }) });
       const body = await response.json();
@@ -185,7 +171,7 @@ const SCRIPT = `
       if (!response.ok) { error = body.error ?? "Impossible de créer l'enchère"; render(); return; }
       back.remove();
       router.push('/marketplace/' + body.auction_id);
-    };
+    });
     function render() {
       const valid = Number.isInteger(Number(price)) && Number(price) >= 1;
       const full = selling !== null && selling >= max;
@@ -209,8 +195,6 @@ const SCRIPT = `
   // onglets Détails / Marché, étiquettes, bloc « Signaler l'image »), rangée d'actions (icônes lucide).
   function openModal(card) {
     closeModal();
-    const icon = (name) => '<svg class="lucide lucide-' + name + '" width="16" height="16"></svg>';
-    const button = (cls, html, onclick) => { const b = el('button', cls); b.type = 'button'; b.innerHTML = html; b.onclick = onclick; return b; };
     const back = el('div', 'fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm');
     back.id = 'card-modal';
     // Comme le site : le composant de la modale (props card, onClose…) rend lui-même le fond.
@@ -335,8 +319,8 @@ const SCRIPT = `
   document.getElementById('open').onclick = () => open('/api/packs/open');
   // Pack PRO : comme le site, « Ouverture… » pendant la requête, puis l'état donné par la réponse.
   document.getElementById('pro').addEventListener('click', async (event) => {
-    const button = event.target.closest('button');
-    if (!button || button.disabled) return;
+    const target = event.target.closest('button');
+    if (!target || target.disabled) return;
     window.__pro.opening(true);
     try { window.__pro.update(await open('/api/packs/pro-daily')); } finally { window.__pro.opening(false); }
   });
@@ -386,8 +370,7 @@ const SCRIPT = `
     const title = el('h3', 'text-xs shrink-0 font-bold');
     title.textContent = card.wikipedia_title;
     const on = starred.has(card.id);
-    const star = el('button', 'p-0.5 rounded-md');
-    star.type = 'button';
+    const star = button('p-0.5 rounded-md', '');
     star.setAttribute('aria-label', on ? 'Retirer des favoris' : 'Ajouter aux favoris');
     star.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="' + (on ? 'currentColor' : 'none') + '" stroke="currentColor" d="M12 2l3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1z"></path></svg>';
     star.style.cssText = 'position:absolute;top:4px;right:4px';
@@ -503,13 +486,14 @@ const PRO_SCRIPT = `
     } catch (error) {}
   }
   // États de la page (hooks React) : profil, …, plateforme, disponible, déjà réclamé, ouverture en cours.
-  const hook = (get, set, next) => ({ get memoizedState() { return get(); }, queue: { dispatch: set }, next });
-  let states = hook(() => opening, (value) => { opening = value; render(); }, null);
-  states = hook(() => claimed, (value) => { claimed = value; render(); }, states);
-  states = hook(() => eligible, (value) => { eligible = value; render(); }, states);
-  states = hook(() => 'web', () => {}, states);
-  states = hook(() => ({ is_pro: true, packs_remaining: 3 }), () => {}, states);
-  box['__reactFiber$test'] = { memoizedProps: {}, return: { memoizedProps: {}, memoizedState: states, return: null } };
+  const states = kit.hooks([
+    [() => ({ is_pro: true, packs_remaining: 3 })],
+    [() => 'web'],
+    [() => eligible, (value) => { eligible = value; render(); }],
+    [() => claimed, (value) => { claimed = value; render(); }],
+    [() => opening, (value) => { opening = value; render(); }],
+  ]);
+  kit.fiber(box, {}, kit.fiber(null, {}, null, { memoizedState: states[0] }));
   window.__pro = { check, update, opening(value) { opening = value; render(); } };
   check();
 })();
@@ -523,7 +507,68 @@ const PACK_BUTTON = `
   <span class="text-lg md:text-xl font-bold">Ouvrir</span>
 </button>`;
 
-export const PULLS_HTML = sitePage(
+const PULLS_HTML = sitePage(
   `<div id="stage" class="flex-1 flex flex-col items-center justify-center gap-4 md:gap-8 p-4 md:p-6">${PACK_BUTTON}${COUNTER}${PRO}</div>`,
   COUNTER_SCRIPT + PRO_SCRIPT + SCRIPT,
 );
+
+export interface PullsOptions {
+  /** Réponse de `POST /api/packs/open` (par défaut : `PACK`). */
+  readonly pack?: unknown;
+  /** Autres réponses JSON par chemin (`/api/marketplace/mine`…). */
+  readonly api?: Readonly<Record<string, unknown>>;
+  /** Défausse d'un exemplaire (`POST /api/user-cards/<id>/discard`) ; par défaut acceptée (nouveau solde). */
+  readonly discard?: (route: Route, userCardId: string) => Promise<void>;
+  /** Pack PRO du jour disponible (`PRO_PACK`), ses exemplaires lus à Supabase (`PRO_COPIES`). */
+  readonly pro?: boolean;
+  /** Réponse sur mesure, avant les autres : renvoie vrai si la requête a été traitée. */
+  readonly handle?: FakeSite['handle'];
+}
+
+export interface PullsServer {
+  /** Exemplaires dont la défausse a été demandée, dans l'ordre. */
+  readonly discarded: string[];
+  /** Favoris changés (`PATCH` à Supabase, servi sur la même origine) : paramètres et corps. */
+  readonly starChanges: string[];
+}
+
+/**
+ * Ouvre /pulls imité (paquet pas encore ouvert). Favori et étiquettes (Supabase, servi sur la même origine) :
+ * acceptés ; défausses notées, puis `discard` ou acceptées.
+ */
+export async function openPulls(page: Page, options: PullsOptions = {}): Promise<PullsServer> {
+  const server: PullsServer = { discarded: [], starChanges: [] };
+  if (options.pro) {
+    await page.route(`${SUPABASE}/**`, (route) => route.fulfill({ json: PRO_COPIES, headers: { 'access-control-allow-origin': '*' } }));
+  }
+  await openSite(page, '/pulls', {
+    html: PULLS_HTML,
+    api: { '/api/packs/open': options.pack ?? PACK, ...(options.pro && { '/api/packs/pro-daily': PRO_PACK }), ...options.api },
+    handle: async (route, url) => {
+      if (options.handle && (await options.handle(route, url))) return true;
+      const method = route.request().method();
+      if (url.pathname.startsWith('/rest/v1/')) {
+        if (method === 'PATCH') server.starChanges.push(`${url.search} ${route.request().postData() ?? ''}`);
+        await route.fulfill({ status: method === 'POST' ? 201 : 204, body: '' });
+        return true;
+      }
+      const discard = /^\/api\/user-cards\/([^/]+)\/discard$/.exec(url.pathname)?.[1];
+      if (!discard) return false;
+      server.discarded.push(discard);
+      await (options.discard ?? ((accepted) => accepted.fulfill({ json: { balance: 12661 } })))(route, discard);
+      return true;
+    },
+  });
+  return server;
+}
+
+/** Faces affichées du paquet ouvert (carrousel : la carte affichée). */
+export const packFaces = (page: Page) => page.locator('main [class*="glow-"]');
+
+/** /pulls imité, paquet ouvert, modale de la carte affichée ouverte (carrousel). */
+export async function openCard(page: Page, options: PullsOptions = {}): Promise<PullsServer> {
+  const server = await openPulls(page, options);
+  await page.click('#open');
+  await packFaces(page).click();
+  return server;
+}

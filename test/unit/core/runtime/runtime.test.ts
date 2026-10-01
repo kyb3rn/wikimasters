@@ -1,8 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { setHidden } from '@/core/dom';
 import { createRuntime, type Feature, type FeatureContext } from '@/core/runtime';
 import { flush, memoryLogger } from '../../support';
+import { arrive, asElement, FakeElement, installFakeDocument, installFakeObservers, styleText } from '../fake-dom';
 
-/** Fonctionnalité de test qui note ses montages et démontages. */
+/** Chemin passé au dernier `runtime.update` : noté au montage. */
+let page = '';
+
+/** Fonctionnalité de test qui note ses montages (et la page) et ses démontages. */
 function probe(
   id: string,
   routes: Feature['routes'],
@@ -18,7 +23,7 @@ function probe(
     routes,
     ...extra,
     mount(ctx) {
-      events.push(`monte ${ctx.path} ${JSON.stringify(ctx.params)}`);
+      events.push(`monte ${page}`);
       ctx.onDispose(() => events.push('démonte'));
       return mount?.(ctx);
     },
@@ -31,11 +36,16 @@ function setup(features: Feature[], disabled: string[] = []) {
   const logs = memoryLogger();
   const runtime = createRuntime({
     features,
-    isEnabled: (f) => choices.get(f.id) ?? f.enabledByDefault ?? true,
+    isEnabled: (f) => choices.get(f.id) ?? true,
     saveEnabled: (id, enabled) => choices.set(id, enabled),
     createLogger: () => logs,
   });
-  return { runtime, logs };
+  const update = runtime.update.bind(runtime);
+  runtime.update = (path) => {
+    page = path;
+    update(path);
+  };
+  return { runtime, logs, choices };
 }
 
 describe('createRuntime', () => {
@@ -46,7 +56,7 @@ describe('createRuntime', () => {
     runtime.update('/pulls');
     runtime.setEnabled('settings', false);
 
-    expect(settings.events).toEqual(['monte /pulls {}']);
+    expect(settings.events).toEqual(['monte /pulls']);
     expect(runtime.catalog.list()[0]).toMatchObject({ enabled: true, state: 'mounted' });
   });
 
@@ -69,17 +79,11 @@ describe('createRuntime', () => {
 
   it('réapplique les choix d’activation changés ailleurs (refresh)', () => {
     const a = probe('a', 'all');
-    const choices = new Map<string, boolean>();
-    const runtime = createRuntime({
-      features: [a.feature],
-      isEnabled: (f) => choices.get(f.id) ?? true,
-      saveEnabled: () => {},
-      createLogger: () => memoryLogger(),
-    });
+    const { runtime, choices } = setup([a.feature]);
     runtime.update('/pulls');
     choices.set('a', false);
     runtime.refresh();
-    expect(a.events).toEqual(['monte /pulls {}', 'démonte']);
+    expect(a.events).toEqual(['monte /pulls', 'démonte']);
   });
 
   it('monte une fonctionnalité sur ses pages et la démonte ailleurs', () => {
@@ -90,7 +94,7 @@ describe('createRuntime', () => {
     runtime.update('/marketplace/a1');
     runtime.update('/collection');
 
-    expect(fiche.events).toEqual(['monte /marketplace/a1 {"id":"a1"}', 'démonte']);
+    expect(fiche.events).toEqual(['monte /marketplace/a1', 'démonte']);
   });
 
   it('remonte quand les paramètres changent, pas quand ils restent les mêmes', () => {
@@ -101,20 +105,20 @@ describe('createRuntime', () => {
     runtime.update('/marketplace/a1/');
     runtime.update('/marketplace/b2');
 
-    expect(fiche.events).toEqual(['monte /marketplace/a1 {"id":"a1"}', 'démonte', 'monte /marketplace/b2 {"id":"b2"}']);
+    expect(fiche.events).toEqual(['monte /marketplace/a1', 'démonte', 'monte /marketplace/b2']);
   });
 
-  it("garde montée une fonctionnalité de toutes les pages", () => {
+  it('garde montée une fonctionnalité de toutes les pages', () => {
     const partout = probe('partout', 'all');
     const { runtime } = setup([partout.feature]);
 
     runtime.update('/pulls');
     runtime.update('/collection');
 
-    expect(partout.events).toEqual(['monte /pulls {}']);
+    expect(partout.events).toEqual(['monte /pulls']);
   });
 
-  it("interrompt le signal au démontage", () => {
+  it('interrompt le signal au démontage', () => {
     let signal: AbortSignal | undefined;
     const fiche = probe('fiche', ['/pulls'], (ctx) => {
       signal = ctx.signal;
@@ -127,7 +131,7 @@ describe('createRuntime', () => {
     expect(signal?.aborted).toBe(true);
   });
 
-  it("isole un démarrage en échec (synchrone ou non) : les autres tournent, il est démonté", async () => {
+  it('isole un démarrage en échec (synchrone ou non) : les autres tournent, il est démonté', async () => {
     const sync = probe('sync', 'all', () => {
       throw new Error('boum');
     });
@@ -143,7 +147,7 @@ describe('createRuntime', () => {
       ['async', 'failed', 'plouf'],
       ['ok', 'mounted', undefined],
     ]);
-    expect(sync.events).toEqual(['monte /pulls {}', 'démonte']);
+    expect(sync.events).toEqual(['monte /pulls', 'démonte']);
     expect(logs.errors).toHaveLength(2);
   });
 
@@ -173,10 +177,10 @@ describe('createRuntime', () => {
     expect(runtime.status()[0]?.state).toBe('off');
 
     runtime.setEnabled('fiche', true);
-    expect(fiche.events).toEqual(['monte /pulls {}']);
+    expect(fiche.events).toEqual(['monte /pulls']);
 
     runtime.setEnabled('fiche', false);
-    expect(fiche.events).toEqual(['monte /pulls {}', 'démonte']);
+    expect(fiche.events).toEqual(['monte /pulls', 'démonte']);
   });
 
   it('indique « idle » pour une fonctionnalité active hors de ses pages', () => {
@@ -193,7 +197,7 @@ describe('createRuntime', () => {
     expect(() => runtime.setEnabled('zz', true)).toThrow('fonctionnalité inconnue : zz');
   });
 
-  it("exécute tout de suite une action de nettoyage ajoutée après le démontage", async () => {
+  it('exécute tout de suite une action de nettoyage ajoutée après le démontage', async () => {
     let ctxRef: FeatureContext | undefined;
     const lent = probe('lent', ['/pulls'], async (ctx) => {
       ctxRef = ctx;
@@ -209,5 +213,80 @@ describe('createRuntime', () => {
     });
     await flush();
     expect(cleaned).toBe(true);
+  });
+});
+
+describe('contexte d’une fonctionnalité', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('ready : vrai une fois <body> là, faux si la fonctionnalité a été démontée entre-temps', async () => {
+    const doc = installFakeDocument({ body: false });
+    const observers = installFakeObservers();
+    const results: string[] = [];
+    const a = probe('a', ['/pulls'], async (ctx) => void results.push(`a ${await ctx.ready()}`));
+    const b = probe('b', 'all', async (ctx) => void results.push(`b ${await ctx.ready()}`));
+    const { runtime } = setup([a.feature, b.feature]);
+    runtime.update('/pulls');
+    runtime.update('/collection');
+    await flush();
+    expect(results).toEqual(['a false']);
+
+    arrive(doc, 'body');
+    observers.mutate();
+    await flush();
+    expect(results).toEqual(['a false', 'b true']);
+  });
+
+  it('style : feuille de la fonctionnalité, remplacée par un appel du même nom, retirée au démontage', () => {
+    const doc = installFakeDocument();
+    const a = probe('a', ['/pulls'], (ctx) => {
+      ctx.style('.x {}');
+      ctx.style('.y {}', 'grille');
+      ctx.style('.z {}', 'grille');
+    });
+    const { runtime } = setup([a.feature]);
+    runtime.update('/pulls');
+    expect(styleText(doc, 'a')).toBe('.x {}');
+    expect(styleText(doc, 'a-grille')).toBe('.z {}');
+    expect(doc.head?.childNodes).toHaveLength(2);
+    runtime.update('/collection');
+    expect(doc.head?.childNodes).toHaveLength(0);
+  });
+
+  it('style sans <head> : posée dès <body>, avec le dernier contenu ; rien si démontée avant', async () => {
+    const doc = installFakeDocument({ head: false, body: false });
+    const observers = installFakeObservers();
+    const a = probe('a', 'all', (ctx) => {
+      ctx.style('.x {}');
+      ctx.style('.y {}');
+    });
+    const b = probe('b', ['/pulls'], (ctx) => ctx.style('.b {}'));
+    const { runtime } = setup([a.feature, b.feature]);
+    runtime.update('/pulls');
+    runtime.update('/collection');
+    expect(doc.documentElement.childNodes).toHaveLength(0);
+
+    const head = arrive(doc, 'head');
+    arrive(doc, 'body');
+    observers.mutate();
+    await flush();
+    expect(styleText(doc, 'a')).toBe('.y {}');
+    expect(head.childNodes).toHaveLength(1);
+  });
+
+  it('hide : masque au nom de la fonctionnalité, tout rendu au démontage', () => {
+    const doc = installFakeDocument();
+    const [x, y] = [new FakeElement('div'), new FakeElement('div')];
+    doc.body?.append(x, y);
+    setHidden(asElement(y), 'autre', true);
+    const a = probe('a', ['/pulls'], (ctx) => {
+      ctx.hide(asElement(x));
+      ctx.hide(asElement(y));
+    });
+    const { runtime } = setup([a.feature]);
+    runtime.update('/pulls');
+    expect([x.getAttribute('data-wm-hidden'), y.getAttribute('data-wm-hidden')]).toEqual(['a', 'autre a']);
+    runtime.update('/collection');
+    expect([x.getAttribute('data-wm-hidden'), y.getAttribute('data-wm-hidden')]).toEqual([null, 'autre']);
   });
 });

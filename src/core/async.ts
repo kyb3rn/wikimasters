@@ -15,6 +15,24 @@ export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
+/**
+ * Appelle `action` dans `ms` millisecondes, sauf si `signal` est interrompu avant (rien s'il l'est déjà).
+ * La fonction rendue annule l'appel.
+ */
+export function later(action: () => void, ms: number, signal: AbortSignal): () => void {
+  if (signal.aborted) return () => {};
+  const cancel = () => {
+    clearTimeout(timer);
+    signal.removeEventListener('abort', cancel);
+  };
+  const timer = setTimeout(() => {
+    signal.removeEventListener('abort', cancel);
+    action();
+  }, ms);
+  signal.addEventListener('abort', cancel, { once: true });
+  return cancel;
+}
+
 /** Attend la prochaine image (`requestAnimationFrame`) ; tout de suite si `signal` est interrompu. */
 export function nextFrame(signal?: AbortSignal): Promise<void> {
   return new Promise((resolve) => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { readCollectionQuery, sameFilters, sameListChoice, sameOtherFilters, withCollectionFilters } from '@/site/collection';
+import { collectionList, readCollectionQuery, sameCollectionChoice, withCollectionFilters } from '@/site/collection/filters';
+import { netRequest } from '../../support';
 
 const read = (search: string) => readCollectionQuery(new URL(`https://www.wiki-masters.com/api/my-collection${search}`));
 
@@ -17,16 +18,12 @@ describe('filtres de la collection', () => {
     expect(read('?sort=rarity').page).toBeUndefined();
   });
 
-  it('distingue les choix (étiquette, tri, raretés) de la recherche', () => {
+  it('choix : étiquette, tri, raretés ; ni la recherche ni la page', () => {
     const base = read('?sort=rarity&page=3&stats=0');
-    expect(sameListChoice(base, read('?sort=rarity&page=0&stats=0&q=tour'))).toBe(true);
-    expect(sameListChoice(base, read('?sort=name&page=3'))).toBe(false);
-    expect(sameListChoice(base, read('?sort=rarity&untagged=1'))).toBe(false);
-    expect(sameListChoice(base, read('?sort=rarity&rarity=C'))).toBe(false);
-    expect(sameOtherFilters(base, read('?sort=name&tag_id=t1&rarity=C&page=0'))).toBe(true);
-    expect(sameOtherFilters(base, read('?sort=rarity&q=tour'))).toBe(false);
-    expect(sameFilters(base, read('?sort=rarity&page=0'))).toBe(true);
-    expect(sameFilters(base, read('?sort=rarity&q=tour'))).toBe(false);
+    expect(sameCollectionChoice(base, read('?sort=rarity&page=0&stats=0&q=tour'))).toBe(true);
+    expect(sameCollectionChoice(base, read('?sort=name&page=3'))).toBe(false);
+    expect(sameCollectionChoice(base, read('?sort=rarity&untagged=1'))).toBe(false);
+    expect(sameCollectionChoice(base, read('?sort=rarity&rarity=C'))).toBe(false);
   });
 
   it('refait l’adresse avec d’autres filtres, page et `stats` gardés, dans l’ordre du site', () => {
@@ -37,5 +34,11 @@ describe('filtres de la collection', () => {
     expect(withCollectionFilters(stats, read('?sort=added&untagged=1')).href).toBe(
       'https://www.wiki-masters.com/api/my-collection/stats?sort=added&untagged=1',
     );
+  });
+
+  it('liste de la page et ses compteurs, en lecture', () => {
+    expect(collectionList.isList(netRequest('/api/my-collection?sort=rarity&page=0&stats=0'))).toBe(true);
+    expect(collectionList.isCompanion?.(netRequest('/api/my-collection/stats?sort=rarity'))).toBe(true);
+    expect(collectionList.isList(netRequest('/api/my-collection?sort=rarity', { method: 'POST' }))).toBe(false);
   });
 });

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { openSite, sitePage } from './support/site';
+import { openSite, rect, sitePage } from './support/site';
 
 /** Classes Tailwind de la vignette, imitées dans une couche comme celles du site (Tailwind v4 : `@layer utilities`). */
 const TAILWIND = `<style>@layer utilities {
@@ -36,8 +36,14 @@ const HTML = sitePage(
     tile('a1', 'Production Prod-Prod') +
     tile('a2', 'eli!', { badge: 'Vous menez' }) +
     tile('a3', 'Conch', { duration: 'Terminée' }) +
+    tile('a4', 'Conch') +
+    tile('a5', 'Conch') +
     `</div>`,
   `window.opened = [];
+  // Annonce lue dans les props du composant de la vignette, comme chez le site : fin dans 2:07:28, et une terminée.
+  const props = (id, ms) => ({ memoizedProps: { auction: { id, end_at: new Date(Date.now() + ms).toISOString() } }, return: null });
+  document.getElementById('marketplace-auction-a4')['__reactFiber$test'] = props('a4', (2 * 3600 + 7 * 60 + 28) * 1000 + 700);
+  document.getElementById('marketplace-auction-a5')['__reactFiber$test'] = props('a5', -1000);
   document.addEventListener('click', (event) => {
     const link = event.target.closest('a[href^="/marketplace/"]');
     if (!link) return;
@@ -53,22 +59,21 @@ test('annonces : carte sans cadre, appendice (mise, durée) qui dépasse sous la
   const case_ = page.locator('#marketplace-auction-a1');
   await expect(page.locator('#marketplace-auction-a1 .wm-profile-link')).toBeAttached();
 
-  const [faceBox, frameBox, caseBox] = await Promise.all([face.boundingBox(), frame.boundingBox(), case_.boundingBox()]);
-  if (!faceBox || !frameBox || !caseBox) throw new Error('vignette invisible');
+  const [faceBox, frameBox, caseBox] = await Promise.all([rect(face), rect(frame), rect(case_)]);
   // La carte est en haut de la case, le cadre commence sous elle (32 px cachés) et a sa largeur.
   expect(Math.abs(faceBox.y - caseBox.y)).toBeLessThanOrEqual(1);
   expect(Math.abs(frameBox.y - (faceBox.y + faceBox.height - 32))).toBeLessThanOrEqual(1);
   expect(Math.abs(frameBox.width - faceBox.width)).toBeLessThanOrEqual(1);
   expect(Math.abs(frameBox.x - faceBox.x)).toBeLessThanOrEqual(1);
-  const price = await page.locator('#marketplace-auction-a1 .justify-between').boundingBox();
-  expect(price!.y).toBeGreaterThan(faceBox.y + faceBox.height);
+  const price = await rect(page.locator('#marketplace-auction-a1 .justify-between'));
+  expect(price.y).toBeGreaterThan(faceBox.y + faceBox.height);
   // Le vendeur n'est plus dans l'appendice : il se termine sous la mise et la durée.
-  expect(frameBox.y + frameBox.height - (price!.y + price!.height)).toBeLessThanOrEqual(10);
+  expect(frameBox.y + frameBox.height - (price.y + price.height)).toBeLessThanOrEqual(10);
 
   // Onglet Mes enchères : le bandeau passe sous la carte, dans l'appendice.
-  const badge = await page.getByText('Vous menez').boundingBox();
-  const face2 = await page.locator('#marketplace-auction-a2 .glow-r').boundingBox();
-  expect(badge!.y).toBeGreaterThan(face2!.y + face2!.height);
+  const badge = await rect(page.getByText('Vous menez'));
+  const face2 = await rect(page.locator('#marketplace-auction-a2 .glow-r'));
+  expect(badge.y).toBeGreaterThan(face2.y + face2.height);
 });
 
 test('annonces : « Terminée » en italique, plus petit que les durées en cours', async ({ page }) => {
@@ -78,7 +83,8 @@ test('annonces : « Terminée » en italique, plus petit que les durées en cour
   await expect(ended).toHaveCSS('font-style', 'italic');
   await expect(ended).toHaveCSS('font-size', '11px');
   await expect(running).toHaveCSS('font-style', 'normal');
-  await expect(running).toHaveCSS('font-size', '13px');
+  await expect(running).toHaveCSS('font-size', '12px');
+  await expect(running).toHaveCSS('font-weight', '400');
 
   // Le compte à rebours arrive à zéro : seul son texte change.
   await page.evaluate(() => {
@@ -102,10 +108,10 @@ test('annonces : « @vendeur » sur l’image de la carte au survol, mène au pr
   await expect(seller).toHaveCSS('opacity', '0');
   await tileA1.locator('.justify-between').hover();
   await expect(seller).toHaveCSS('opacity', '1');
-  const [link, image] = await Promise.all([seller.boundingBox(), tileA1.locator('.bg-black\\/20').boundingBox()]);
-  expect(Math.abs(link!.x - image!.x - 6)).toBeLessThanOrEqual(1);
-  expect(link!.height).toBeLessThanOrEqual(20);
-  expect(Math.abs(image!.y + image!.height - (link!.y + link!.height) - 6)).toBeLessThanOrEqual(1);
+  const [link, image] = await Promise.all([rect(seller), rect(tileA1.locator('.bg-black\\/20'))]);
+  expect(Math.abs(link.x - image.x - 6)).toBeLessThanOrEqual(1);
+  expect(link.height).toBeLessThanOrEqual(20);
+  expect(Math.abs(image.y + image.height - (link.y + link.height) - 6)).toBeLessThanOrEqual(1);
 
   // Clic sur la carte : l'annonce s'ouvre comme avant.
   await tileA1.locator('h3').click();
@@ -114,4 +120,25 @@ test('annonces : « @vendeur » sur l’image de la carte au survol, mène au pr
   // Pas de routeur Next.js dans le faux site : la navigation recharge la page.
   await seller.click();
   await expect(page).toHaveURL(/\/profile\/Production%20Prod-Prod$/);
+});
+
+test('annonces : temps restant court (« 2h »), précis au survol de la vignette (« 2:07:28 »), « Terminée » à zéro', async ({ page }) => {
+  await openSite(page, '/marketplace', { html: HTML });
+  const tile = page.locator('#marketplace-auction-a4');
+  const short = tile.locator('.wm-auction-time-short');
+  const precise = tile.locator('.wm-auction-time-precise');
+  await expect(short).toHaveText('2h');
+  await expect(precise).toBeHidden();
+  // Le compte à rebours du site (horloge du PC) est caché.
+  await expect(tile.getByText('9m 38s')).toBeHidden();
+  await expect(tile.locator('.wm-auction-time')).toHaveCSS('font-size', '12px');
+
+  await tile.locator('h3').hover();
+  await expect(short).toBeHidden();
+  await expect(precise).toHaveText(/^2:07:2\d$/);
+
+  const ended = page.locator('#marketplace-auction-a5 .wm-auction-time');
+  await expect(ended).toHaveText('Terminée');
+  await expect(ended).toHaveCSS('font-style', 'italic');
+  await expect(ended).toHaveCSS('font-size', '11px');
 });

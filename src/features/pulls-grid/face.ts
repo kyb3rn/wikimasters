@@ -1,17 +1,10 @@
 import { sleep } from '@/core/async';
-import { ROOT_CLASS } from '@/core/dom';
+import { prefersReducedMotion } from '@/core/dom';
+import { cloneSiteFace } from '@/site/cards';
 
-/** Copie d'une face du site, sans nos ajouts (tampon, classes et attributs `wm`) ni identifiants. */
+/** Copie d'une face du carrousel pour la grille ; une shiny garde son reflet qui suit la souris. */
 export function cloneFace(face: HTMLElement): HTMLElement {
-  const clone = face.cloneNode(true) as HTMLElement;
-  clone.querySelectorAll(`.${ROOT_CLASS}`).forEach((node) => node.remove());
-  for (const node of [clone, ...clone.querySelectorAll('*')]) {
-    node.removeAttribute('id');
-    for (const name of [...node.classList]) if (name.startsWith('wm-')) node.classList.remove(name);
-    for (const { name } of [...node.attributes]) if (name.startsWith('data-wm-')) node.removeAttribute(name);
-  }
-  // Déjà en cache : `lazy` retarderait l'image d'une carte encore cachée.
-  for (const image of clone.querySelectorAll('img')) image.loading = 'eager';
+  const clone = cloneSiteFace(face);
   if (clone.classList.contains('shiny-card')) followPointer(clone);
   return clone;
 }
@@ -36,7 +29,7 @@ function followPointer(face: HTMLElement): void {
     face.style.setProperty('--shiny-mx', `${(100 * x).toFixed(1)}%`);
     face.style.setProperty('--shiny-my', `${(100 * y).toFixed(1)}%`);
     face.classList.add('shiny-hover');
-    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (!prefersReducedMotion()) {
       const tilt = `rotateY(${((x - 0.5) * 14).toFixed(2)}deg) rotateX(${((0.5 - y) * 14).toFixed(2)}deg)`;
       face.style.transform = `perspective(${Math.round(3.125 * face.offsetWidth)}px) ${tilt}`;
     }

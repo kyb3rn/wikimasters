@@ -1,5 +1,7 @@
-import { currentFiberAncestors, stateHooks, type Fiber, type StateHook } from '@/core/react';
+import { isSet } from '@/core/guards';
+import { currentFiberAncestors, type Fiber, type StateHook } from '@/core/react';
 import { findListbox } from '@/site/listbox';
+import { renewSet, uniqueStateRun } from '@/site/list-page';
 import { findGlobalCollectionFilters } from './filters';
 
 /**
@@ -14,26 +16,13 @@ export interface GlobalCollectionStates {
   readonly page: StateHook;
 }
 
-const isSet = (value: unknown) => Object.prototype.toString.call(value) === '[object Set]';
-
 /**
- * La page est le premier composant à états au-dessus de la ligne des filtres. Tri, raretés et page s'y suivent :
- * le tri est reconnu à sa valeur (celle de la liste affichée), suivi d'un `Set` et d'un nombre. Rien si ce
- * n'est pas sans ambiguïté.
+ * La page est le premier composant à états au-dessus de la ligne des filtres : tri (reconnu à sa valeur, celle de
+ * la liste affichée), raretés, page. Rien si ce n'est pas sans ambiguïté.
  */
 export function globalCollectionStatesAmong(ancestors: readonly Fiber[], sort: string): GlobalCollectionStates | undefined {
-  for (const fiber of ancestors) {
-    const states = stateHooks(fiber);
-    if (states.length === 0) continue;
-    const found = states.flatMap((state, i) => {
-      const rarities = states[i + 1];
-      const page = states[i + 2];
-      return state.value === sort && rarities && isSet(rarities.value) && page && typeof page.value === 'number' ? [{ rarities, page }] : [];
-    });
-    const [only, ...others] = found;
-    return only && others.length === 0 ? only : undefined;
-  }
-  return undefined;
+  const [, rarities, page] = uniqueStateRun(ancestors, [(value) => value === sort, isSet, (value) => typeof value === 'number']) ?? [];
+  return rarities && page ? { rarities, page } : undefined;
 }
 
 export function findGlobalCollectionStates(doc: Document = document): GlobalCollectionStates | undefined {
@@ -42,10 +31,8 @@ export function findGlobalCollectionStates(doc: Document = document): GlobalColl
   return filters && sort ? globalCollectionStatesAmong(currentFiberAncestors(filters.line), sort.value) : undefined;
 }
 
-/** Recharge la liste telle qu'elle est (filtres, page), par l'effet de la page. Faux si son état est illisible. */
-export function reloadGlobalCollection(doc: Document = document): boolean {
+/** De quoi recharger la liste telle qu'elle est (filtres, page), par l'effet de la page ; rien si son état est illisible. */
+export function findGlobalCollectionReload(doc: Document = document): (() => void) | undefined {
   const states = findGlobalCollectionStates(doc);
-  if (!states) return false;
-  states.rarities.set(new Set(states.rarities.value as Set<unknown>));
-  return true;
+  return states && (() => renewSet(states.rarities));
 }

@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { openSite, sitePage } from './support/site';
+import { letTimePass, openSettings, openSite, rect, sitePage } from './support/site';
 
 /**
  * Modales du site, une de chaque sorte (balisage des captures et du code du 29/09/2026). Comme sur le site : le
@@ -129,12 +129,6 @@ const siteLog = (page: Page) => page.evaluate(() => (window as unknown as { site
 /** Notre croix : le bouton rond « Fermer » posé par le script. */
 const ourCross = (frame: Locator) => frame.locator('.wm-root button[aria-label="Fermer"]');
 
-async function box(locator: Locator) {
-  const rect = await locator.boundingBox();
-  if (!rect) throw new Error('élément sans boîte');
-  return rect;
-}
-
 type Point = { x: number; y: number };
 
 /** Appuie en `from`, glisse, relâche en `to` (le navigateur envoie le clic à leur ancêtre commun). */
@@ -147,7 +141,7 @@ async function drag(page: Page, from: Point, to: Point) {
 
 /** Point du cadre loin de ses boutons : au milieu, 10 px au-dessus du bas. */
 async function inside(frame: Locator): Promise<Point> {
-  const { x, y, width, height } = await box(frame);
+  const { x, y, width, height } = await rect(frame);
   return { x: x + width / 2, y: y + height - 10 };
 }
 
@@ -164,7 +158,7 @@ test('modales du site : la croix de la barre de titre devient la croix ronde dan
   const cross = ourCross(frame);
   await expect(cross).toHaveClass(/absolute top-3 right-3 z-20 .*wm-button-round.*wm-ghost/);
   await expect(frame.getByRole('button', { name: 'Fermer' })).toHaveCount(1);
-  const [outer, inner] = await Promise.all([box(frame), box(cross)]);
+  const [outer, inner] = await Promise.all([rect(frame), rect(cross)]);
   expect(outer.x + outer.width - (inner.x + inner.width)).toBeCloseTo(12, 0);
   expect(inner.y - outer.y).toBeCloseTo(12, 0);
   // La rangée du titre recule jusqu'à la croix (12 + 36 px) plus 8 px d'écart.
@@ -216,7 +210,7 @@ test('modales du site : la croix reste en haut d’une modale qui défile sous u
   const cross = ourCross(shop);
   await expect(cross).toBeVisible();
   await shop.evaluate((el) => (el.scrollTop = 300));
-  const [outer, inner] = await Promise.all([box(shop), box(cross)]);
+  const [outer, inner] = await Promise.all([rect(shop), rect(cross)]);
   expect(inner.y - outer.y).toBeCloseTo(12, 0);
   await cross.click();
   expect(await siteLog(page)).toEqual(['shop : croix']);
@@ -237,7 +231,7 @@ test('Échap ferme la modale du dessus par sa croix, sinon « Annuler », jamais
   // Invitation : ni croix ni « Annuler », et le fond déclinerait : Échap ne fait rien.
   const invite = await open(page, 'invite');
   await page.keyboard.press('Escape');
-  await page.waitForTimeout(100);
+  await letTimePass(page, 100);
   await expect(invite).toBeVisible();
   expect(await siteLog(page)).toEqual(['confirm : annulé', 'card : croix']);
 });
@@ -246,17 +240,17 @@ test('Échap laisse faire le site quand il le gère lui-même (fermeture, demand
   await open(page, 'report');
   await page.keyboard.press('Escape');
   await expect(page.locator('#report')).toHaveCount(0);
-  await page.waitForTimeout(100);
+  await letTimePass(page, 100);
   expect(await siteLog(page)).toEqual(['report : échap du site']);
 
   const trade = await open(page, 'trade');
   await page.keyboard.press('Escape');
   await expect(page.locator('#unsaved')).toBeVisible();
-  await page.waitForTimeout(100);
+  await letTimePass(page, 100);
   await expect(trade).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.locator('#unsaved')).toHaveCount(0);
-  await page.waitForTimeout(100);
+  await letTimePass(page, 100);
   await expect(trade).toBeVisible();
   expect(await siteLog(page)).toEqual(['report : échap du site', 'unsaved : resté']);
 });
@@ -267,7 +261,7 @@ test('glisser de la modale jusqu’au fond, ou du fond jusqu’à la modale, ne 
   await open(page, 'friends');
   await drag(page, await inside(live('friends')), BACKDROP);
   await drag(page, BACKDROP, await inside(live('friends')));
-  await page.waitForTimeout(100);
+  await letTimePass(page, 100);
   await expect(live('friends')).toBeVisible();
   expect(await siteLog(page)).toEqual([]);
 
@@ -275,7 +269,7 @@ test('glisser de la modale jusqu’au fond, ou du fond jusqu’à la modale, ne 
   const card = await open(page, 'card');
   await card.locator('#ask').click();
   await drag(page, await inside(live('confirm')), BACKDROP);
-  await page.waitForTimeout(100);
+  await letTimePass(page, 100);
   await expect(live('confirm')).toBeVisible();
   await expect(live('card')).toBeVisible();
   expect(await siteLog(page)).toEqual([]);
@@ -291,7 +285,7 @@ test('aide sans croix (/pulls) : « Compris ! » devient la croix ronde dans le 
   const help = await open(page, 'help');
   await expect(help.getByRole('button', { name: 'Compris !' })).toBeHidden();
   const cross = ourCross(help);
-  const [outer, inner] = await Promise.all([box(help), box(cross)]);
+  const [outer, inner] = await Promise.all([rect(help), rect(cross)]);
   expect(outer.x + outer.width - (inner.x + inner.width)).toBeCloseTo(12, 0);
   expect(inner.y - outer.y).toBeCloseTo(12, 0);
   // Le titre, seul sur sa ligne, s'arrête 8 px avant la croix (cadre `p-6` : 24 px déjà).
@@ -377,20 +371,18 @@ test('une modale imbriquée s’efface dans sa parente, qui reste', async ({ pag
 });
 
 test('nos modales : glisser jusqu’au fond ne les ferme pas, un clic sur le fond, si (paramètres)', async ({ page }) => {
-  await page.locator('button[aria-label="Paramètres WikiMasters"]:visible').click();
-  const dialog = page.getByRole('dialog', { name: 'Paramètres' });
+  const dialog = await openSettings(page);
   await expect(dialog).toBeVisible();
   await drag(page, await inside(dialog), BACKDROP);
   await drag(page, BACKDROP, await inside(dialog));
-  await page.waitForTimeout(100);
+  await letTimePass(page, 100);
   await expect(dialog).toBeVisible();
   await page.mouse.click(BACKDROP.x, BACKDROP.y);
   await expect(dialog).toHaveCount(0);
 });
 
 test('nos modales s’effacent aussi en fondu (paramètres)', async ({ page }) => {
-  await page.locator('button[aria-label="Paramètres WikiMasters"]:visible').click();
-  const dialog = page.getByRole('dialog', { name: 'Paramètres' });
+  const dialog = await openSettings(page);
   await expect(dialog).toBeVisible();
   const look = await page.evaluate(async () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));

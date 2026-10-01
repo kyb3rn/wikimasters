@@ -2,11 +2,11 @@ import type { ComponentChildren } from 'preact';
 import { useMemo } from 'preact/hooks';
 import { parseRarity, rarityColor } from '@/site/rarity';
 import { Switch } from '@/ui/controls';
-import { Icon } from '@/ui/icons';
 import type { MarketEntry } from './cache';
+import { Coin } from './Coin';
 import { chartModel } from './chart';
 import { formatDate, formatNumber, plural, round1 } from './format';
-import type { MarketCard } from './market';
+import type { CardRef } from '@/site/cards';
 import { AVERAGE_WINDOWS, SalesChart } from './SalesChart';
 import { marketSettings } from './settings';
 import { lastMean, saleRarity, salesStats } from './stats';
@@ -26,8 +26,6 @@ const chartHelp = (keys: readonly string[]) =>
   `curseur (un seul axe sur sa graduation). ${keys.map((key) => `${key}. `).join('')}Raretés au-dessus : choisir les ventes affichées.`;
 
 const CHIP_HELP = 'Afficher ou masquer cette rareté (points, moyennes et tuiles suivent la sélection)';
-
-const Coin = () => <Icon name="coin" class="wm-market-coin" />;
 
 function Tile({ label, sub, children }: { label: string; sub?: string; children: ComponentChildren }) {
   return (
@@ -59,14 +57,14 @@ const Dash = () => (
 );
 
 /** Raretés affichées : celles demandées qui ont des ventes, sinon la rareté de la carte si elle en a, sinon toutes. */
-export function selectRarities(available: readonly string[], wanted: readonly string[] | undefined, own: string | undefined): string[] {
+function selectRarities(available: readonly string[], wanted: readonly string[] | undefined, own: string | undefined): string[] {
   const kept = (wanted ?? []).filter((rarity) => available.includes(rarity));
   if (kept.length) return kept;
   return own && available.includes(own) ? [own] : [...available];
 }
 
 export interface MarketViewProps {
-  readonly card: MarketCard;
+  readonly card: CardRef;
   readonly entry: MarketEntry;
   /** Raretés choisies ; `undefined` : le choix par défaut. */
   readonly selection: readonly string[] | undefined;

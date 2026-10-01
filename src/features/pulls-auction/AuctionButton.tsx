@@ -1,12 +1,11 @@
-import { CAROUSEL_ACTION } from '@/services/pulls-pack';
-import { buttonClass } from '@/ui/button';
-import { Icon } from '@/ui/icons';
+import { CARD_MARK_REASONS } from '@/services/card-marks';
+import { PackActionButton } from '@/services/pulls-pack';
 
 /**
- * - `ready` : prêt à ouvrir la mise aux enchères de la carte affichée ;
+ * - `ready` : prêt à ouvrir la mise aux enchères de la carte ;
  * - `busy` : ouverture en cours (roue à la place du marteau) ;
  * - `blocked` : une autre action tient la carte (défausse en cours) ;
- * - `discarded` : la carte affichée est défaussée ;
+ * - `discarded` : la carte est défaussée ;
  * - `listed` : la carte est déjà aux enchères (exemplaire réservé par le site), cadenas ;
  * - `unavailable` : exemplaire inconnu, rien à mettre en vente.
  */
@@ -21,9 +20,9 @@ function title(status: AuctionStatus, reason: string | undefined): string {
     case 'blocked':
       return reason ?? 'Action en cours sur la carte';
     case 'discarded':
-      return 'Carte défaussée';
+      return CARD_MARK_REASONS.discarded;
     case 'listed':
-      return 'Carte déjà aux enchères';
+      return CARD_MARK_REASONS.listed;
     case 'unavailable':
       return 'Exemplaire introuvable : mise aux enchères impossible';
   }
@@ -36,23 +35,19 @@ export interface AuctionButtonProps {
   readonly onClick: () => void;
 }
 
-/** Rond vert en contour, comme les flèches du carrousel ; gris quand la carte est déjà en vente (cadenas). */
+/** Rond vert en contour ; gris et cadenas quand la carte est déjà en vente. */
 export function AuctionButton({ status, reason, onClick }: AuctionButtonProps) {
-  const label = title(status, reason);
-  const icon =
-    status === 'busy' ? <Icon name="spinner" size={20} class="wm-spin" /> : <Icon name={status === 'listed' ? 'lock' : 'gavel'} size={20} />;
   return (
-    <button
-      type="button"
-      class={`${buttonClass('round', { tone: status === 'listed' ? 'neutral' : 'accent' })} wm-auction-quick ${CAROUSEL_ACTION}`}
-      data-status={status}
-      disabled={status !== 'ready'}
-      aria-busy={status === 'busy'}
-      aria-label={label}
-      title={label}
+    <PackActionButton
+      icon="gavel"
+      tone="accent"
+      status={status}
+      label={title(status, reason)}
+      enabled={status === 'ready'}
+      busy={status === 'busy'}
+      locked={status === 'listed'}
+      className="wm-auction-quick"
       onClick={onClick}
-    >
-      {icon}
-    </button>
+    />
   );
 }

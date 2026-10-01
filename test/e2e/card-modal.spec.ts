@@ -1,27 +1,15 @@
 import { expect, test, type Page } from '@playwright/test';
-import { CAROUSEL, PACK, PULLS_HTML } from './support/pulls';
-import { openSite, presetSettings } from './support/site';
+import { CAROUSEL, openCard, packFaces } from './support/pulls';
+import { animationsDone, expectDomIdle, openSettings, presetSettings, rect } from './support/site';
 
 // Le carrousel du site, sans « toutes les cartes d'un coup ».
 test.beforeEach(({ page }) => presetSettings(page, CAROUSEL));
 
-const domSyncs = (page: Page) => page.evaluate(() => window.wm?.debug?.domSyncs() ?? -1);
-
 async function openCardModal(page: Page) {
-  await openSite(page, '/pulls', {
-    html: PULLS_HTML,
-    api: { '/api/packs/open': PACK },
-    handle: async (route, url) => {
-      if (!url.pathname.endsWith('/discard')) return false;
-      await route.fulfill({ json: { balance: 1 } });
-      return true;
-    },
-  });
-  await page.click('#open');
-  await page.locator('main [class*="glow-"]').click();
+  await openCard(page);
   const modal = page.locator('#card-modal');
   // Fin de l'apparition (animate-fade-in-up) : les positions mesurées sont les définitives.
-  await modal.locator(':scope > .card-frame').evaluate((panel) => Promise.all(panel.getAnimations().map((a) => a.finished)));
+  await animationsDone(modal.locator(':scope > .card-frame'));
   return modal;
 }
 
@@ -40,13 +28,10 @@ test('« Signaler l’image » est une pastille en bas à droite de l’image, q
   await expect(report).toBeVisible();
   await expect(report).toHaveAttribute('aria-label', "Signaler l'image");
 
-  const image = await modal.locator('[class*="h-[45%]"]').boundingBox();
-  const box = await report.boundingBox();
-  expect(image && box).toBeTruthy();
-  if (image && box) {
-    expect(Math.round(image.x + image.width - (box.x + box.width))).toBe(8);
-    expect(Math.round(image.y + image.height - (box.y + box.height))).toBe(8);
-  }
+  const image = await rect(modal.locator('[class*="h-[45%]"]'));
+  const box = await rect(report);
+  expect(Math.round(image.x + image.width - (box.x + box.width))).toBe(8);
+  expect(Math.round(image.y + image.height - (box.y + box.height))).toBe(8);
 
   await report.click();
   await expect(report).toHaveAttribute('aria-pressed', 'true');
@@ -68,8 +53,7 @@ test('actions : Vendre à gauche, Marché (gris) au centre, Défausser (rouge) �
 test('pas d’interrupteur dans les paramètres : c’est la présentation par défaut', async ({ page }) => {
   await openCardModal(page);
   await page.getByRole('button', { name: 'Fermer' }).click();
-  await page.locator('button[aria-label="Paramètres WikiMasters"]:visible').click();
-  await expect(page.getByRole('dialog', { name: 'Paramètres' })).not.toContainText('Présentation de la modale de carte');
+  await expect(await openSettings(page)).not.toContainText('Présentation de la modale de carte');
 });
 
 test('au repos, le script ne resynchronise plus la page (pas de boucle)', async ({ page }) => {
@@ -79,11 +63,7 @@ test('au repos, le script ne resynchronise plus la page (pas de boucle)', async 
   await page.locator('.wm-discard-next').click();
   await expect.poll(() => page.evaluate(() => (window as unknown as { __pulls: { index: number } }).__pulls.index)).toBe(1);
   await page.locator('main button.w-12').first().click();
-  await page.locator('main [class*="glow-"]').click();
+  await packFaces(page).click();
   await expect(page.locator('#card-modal .wm-stamp')).toBeVisible();
-
-  await page.waitForTimeout(300);
-  const before = await domSyncs(page);
-  await page.waitForTimeout(600);
-  expect(await domSyncs(page)).toBe(before);
+  await expectDomIdle(page);
 });

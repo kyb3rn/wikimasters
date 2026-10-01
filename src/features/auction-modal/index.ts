@@ -1,6 +1,6 @@
 import { h } from 'preact';
 import { childController } from '@/core/async';
-import { injectStyle, setClass, watchDom, whenBody } from '@/core/dom';
+import { classMarks, watchDom } from '@/core/dom';
 import { setReactInputValue } from '@/core/react';
 import type { Feature } from '@/core/runtime';
 import { findAuctionModal, type AuctionModal } from '@/site/cards';
@@ -10,6 +10,7 @@ import { SalePanel, type SaleActions } from './SalePanel';
 import { settings } from './settings';
 import { CSS } from './style';
 
+/** Modale du site, moteur de la nôtre : cachée, mais affichée (ses contrôles restent cliquables par le script). */
 const SITE_HIDDEN = 'wm-sale-site-hidden';
 
 interface OpenSale {
@@ -31,9 +32,9 @@ export const auctionModalLayout: Feature = {
   settings,
   async mount(ctx) {
     const { signal } = ctx;
-    await whenBody();
-    if (signal.aborted) return;
-    injectStyle('auction-modal', CSS);
+    if (!(await ctx.ready())) return;
+    ctx.style(`${CSS}.${SITE_HIDDEN} { visibility: hidden !important; pointer-events: none !important; }`);
+    const marks = classMarks(signal);
     let open: OpenSale | undefined;
 
     // La modale du site reste le moteur (cachée) : on écrit la mise et la durée dans ses contrôles et on
@@ -95,14 +96,11 @@ export const auctionModalLayout: Feature = {
           open = undefined;
         }
         if (!modal) return;
-        setClass(modal.root, SITE_HIDDEN, true);
+        marks.set(modal.root, SITE_HIDDEN, true);
         if (!open) open = openSale(modal);
         else open.ui?.update(view(modal, open));
       },
       { signal },
     );
-    ctx.onDispose(() => {
-      document.querySelectorAll(`.${SITE_HIDDEN}`).forEach((element) => element.classList.remove(SITE_HIDDEN));
-    });
   },
 };

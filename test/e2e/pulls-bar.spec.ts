@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
-import { PACK, playedSounds, PULLS_HTML, recordSounds } from './support/pulls';
-import { openSite } from './support/site';
+import { openPulls as openFakePulls, playedSounds, recordSounds } from './support/pulls';
+import { letTimePass, openSettings } from './support/site';
 
 const bar = (page: Page) => page.locator('.wm-packs-bar');
 const soundButton = (page: Page) => bar(page).locator('button[aria-pressed]');
@@ -15,13 +15,8 @@ async function openPulls(page: Page, siteSound?: 'on' | 'off') {
       localStorage.setItem('wiki-masters-sound', initial);
     }
   }, siteSound);
-  await openSite(page, '/pulls', { html: PULLS_HTML, api: { '/api/packs/open': PACK } });
+  await openFakePulls(page);
   await expect(bar(page)).toBeVisible();
-}
-
-async function openSettings(page: Page) {
-  await page.locator('button[aria-label="Paramètres WikiMasters"]:visible').click();
-  await page.getByRole('dialog', { name: 'Paramètres' }).getByRole('button', { name: 'Paquets' }).click();
 }
 
 test('le cadre du site devient un cadre en largeur : paquets, recharge, son, affichage', async ({ page }) => {
@@ -64,21 +59,21 @@ test('le bouton du son coupe les sons des paquets, réglage partagé avec les pa
   await expect(bar(page)).toContainText('son coupé');
   expect(await stored(page)).toEqual({ features: {}, values: { 'pulls-sound': { enabled: false } } });
 
-  await openSettings(page);
+  await openSettings(page, 'Paquets');
   const toggle = page.getByRole('switch', { name: 'Jouer les sons des paquets' });
   await expect(toggle).toHaveAttribute('aria-checked', 'false');
   await page.keyboard.press('Escape');
 
   await page.click('#open');
   await expect(page.locator('main [class*="glow-"]').first()).toBeAttached();
-  await page.waitForTimeout(300);
+  await letTimePass(page, 300);
   expect(await playedSounds(page)).toEqual([]);
 });
 
 test('rétabli dans les paramètres, le son revient tout de suite dans le cadre', async ({ page }) => {
   await openPulls(page);
   await soundButton(page).click();
-  await openSettings(page);
+  await openSettings(page, 'Paquets');
   await page.getByRole('switch', { name: 'Jouer les sons des paquets' }).click();
   await page.keyboard.press('Escape');
   await expect(soundButton(page)).toHaveAttribute('aria-pressed', 'true');
@@ -101,7 +96,7 @@ test('carrousel ou grille : le choix du cadre est celui des paramètres', async 
   await expect(carousel).toHaveAttribute('aria-checked', 'true');
   await expect(bar(page)).toContainText('carrousel');
   expect(await stored(page)).toEqual({ features: { 'pulls-grid': false }, values: {} });
-  await openSettings(page);
+  await openSettings(page, 'Paquets');
   await expect(page.getByRole('switch', { name: "Apparence : Afficher toutes les cartes d'un coup" })).toHaveAttribute(
     'aria-checked',
     'false',

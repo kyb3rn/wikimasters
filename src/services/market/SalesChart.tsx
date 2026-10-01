@@ -1,7 +1,6 @@
 import type { ComponentChildren } from 'preact';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
-import { parseRarity } from '@/site/rarity';
-import { Icon } from '@/ui/icons';
+import { parseRarity, rarityColor } from '@/site/rarity';
 import {
   clampView,
   cursorDateLabel,
@@ -19,6 +18,7 @@ import {
   type ChartModel,
   type View,
 } from './chart';
+import { Coin } from './Coin';
 import { formatDate, formatNumber, formatTime, round1, shortDate } from './format';
 import { marketSettings } from './settings';
 
@@ -85,10 +85,8 @@ function zoneOf(point: { x: number; y: number }): Zone {
 /** Couleur d'une vente : celle de sa rareté (thème du site). */
 function rarityFill(rarity: string): string {
   const known = parseRarity(rarity);
-  return known ? `var(--color-rarity-${known.toLowerCase()}, currentColor)` : 'currentColor';
+  return known ? rarityColor(known) : 'currentColor';
 }
-
-const Coin = () => <Icon name="coin" class="wm-market-coin" />;
 
 /** Valeur d'une moyenne à l'abscisse `x` (interpolée entre ses deux points voisins), hors courbe : `undefined`. */
 function interpolate(points: readonly { x: number; y: number; price: number }[], x: number) {

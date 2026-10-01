@@ -1,44 +1,39 @@
-/** Classe de toutes nos racines d'interface : l'observateur de DOM ignore ce qui s'y passe. */
-export const ROOT_CLASS = 'wm-root';
+/** Attente partagée de `<body>` : une seule promesse et un seul observateur pour tout le script. */
+let pending: Promise<HTMLElement> | undefined;
 
-/**
- * Copie d'une modale qui s'efface après sa fermeture (`ui/modal`) : une image, qu'aucune recherche des modales
- * ouvertes ne doit trouver.
- */
-export const GHOST_CLASS = 'wm-modal-ghost';
-
-/**
- * Attend que `document.body` existe. Le script démarre à `document-start`, avant le HTML :
- * toute fonctionnalité qui touche au DOM commence par là.
- */
-export function whenBody(doc: Document = document): Promise<HTMLElement> {
-  if (doc.body) return Promise.resolve(doc.body);
-  return new Promise((resolve) => {
+function bodyArrival(): Promise<HTMLElement> {
+  pending ??= new Promise((resolve) => {
     const observer = new MutationObserver(() => {
-      if (!doc.body) return;
+      const { body } = document;
+      if (!body) return;
       observer.disconnect();
-      resolve(doc.body);
+      pending = undefined;
+      resolve(body);
     });
     // Au tout début du chargement, même `<html>` n'existe pas encore : on observe le document.
-    observer.observe(doc, { childList: true, subtree: true });
+    observer.observe(document, { childList: true, subtree: true });
   });
+  return pending;
 }
 
 /**
- * Met ou retire une classe sans écrire dans le DOM si rien ne change. `classList.add` réécrit
- * l'attribut même quand la classe est déjà là : dans un rappel de `watchDom`, chaque appel
- * déclencherait une nouvelle mutation, donc un nouvel appel, à chaque image.
+ * Attend que `document.body` existe. Le script démarre à `document-start`, avant le HTML : tout ce qui touche
+ * au DOM commence par là. Avec un signal : `undefined` dès qu'il est interrompu (fonctionnalité démontée).
  */
-export function setClass(element: Element, name: string, on: boolean): void {
-  if (element.classList.contains(name) !== on) element.classList.toggle(name, on);
-}
-
-/** Feuille de style, une seule fois par identifiant. */
-export function injectStyle(id: string, css: string, doc: Document = document): void {
-  const elementId = `wm-style-${id}`;
-  if (doc.getElementById(elementId)) return;
-  const style = doc.createElement('style');
-  style.id = elementId;
-  style.textContent = css;
-  (doc.head ?? doc.documentElement).append(style);
+export function whenBody(): Promise<HTMLElement>;
+export function whenBody(signal: AbortSignal): Promise<HTMLElement | undefined>;
+export function whenBody(signal?: AbortSignal): Promise<HTMLElement | undefined> {
+  if (signal?.aborted) return Promise.resolve(undefined);
+  const { body } = document;
+  if (body) return Promise.resolve(body);
+  const arrival = bodyArrival();
+  if (!signal) return arrival;
+  return new Promise((resolve) => {
+    const abort = () => resolve(undefined);
+    signal.addEventListener('abort', abort, { once: true });
+    void arrival.then((element) => {
+      signal.removeEventListener('abort', abort);
+      resolve(signal.aborted ? undefined : element);
+    });
+  });
 }

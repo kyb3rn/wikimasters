@@ -1,15 +1,9 @@
-import { expect, test, type Page } from '@playwright/test';
-import { CAROUSEL, PACK, PULLS_HTML } from './support/pulls';
-import { openSite, presetSettings } from './support/site';
+import { expect, test } from '@playwright/test';
+import { CAROUSEL, openCard } from './support/pulls';
+import { presetSettings } from './support/site';
 
 // Le carrousel du site, sans « toutes les cartes d'un coup ».
 test.beforeEach(({ page }) => presetSettings(page, CAROUSEL));
-
-async function openCard(page: Page) {
-  await openSite(page, '/pulls', { html: PULLS_HTML, api: { '/api/packs/open': PACK } });
-  await page.click('#open');
-  await page.locator('main [class*="glow-"]').click();
-}
 
 test('attaque et défense masquées à droite, toujours sur la carte', async ({ page }) => {
   await openCard(page);

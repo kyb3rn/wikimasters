@@ -1,55 +1,29 @@
-import { isRecord } from '@/core/guards';
-import { currentFiberAncestors } from '@/core/react';
-import { findListbox, type SiteListbox } from '@/site/listbox';
+import { appendRarities, readBaseListQuery, SITE_TYPING_DELAY, type BaseListQuery, type ListSource } from '@/site/list-query';
+import { refreshAbove } from '@/site/list-page';
+import { isCollectionList, isCollectionStats } from './collection';
 
 /**
  * Filtres de la page Collection (code du site, 29/09/2026) : champ de recherche (pris en compte 300 ms
  * après la frappe), deux listes déroulantes à lui (bouton `aria-haspopup="listbox"` : étiquette, tri),
  * pastilles de rareté. Tout changement remet la page à 0 et relance aussitôt la liste, et ses compteurs
- * (la page 0 seulement). La page s'actualise en entier (étiquettes, échanges, liste) par le rappel
- * `onRefresh` de son composant « tirer pour rafraîchir », qui l'entoure.
+ * (la page 0 seulement), partis juste avant elle. La page s'actualise en entier (étiquettes, échanges, liste)
+ * par le rappel `onRefresh` de son composant « tirer pour rafraîchir », qui l'entoure.
  */
 
-/** Attente du site après la dernière frappe dans le champ de recherche, avant de charger. */
-export const SEARCH_TYPING_DELAY = 300;
-
-/** Filtres d'une requête de la liste (`/api/my-collection`) ou de ses compteurs (`…/stats`). */
-export interface CollectionQuery {
-  readonly sort: string;
+/** Filtres d'une requête de la liste (`/api/my-collection`) ou de ses compteurs (`…/stats`, sans page). */
+export interface CollectionQuery extends BaseListQuery {
   /** Étiquette choisie : son id, `untagged` (« Sans étiquette ») ou vide (toutes). */
   readonly tag: string;
-  readonly search: string;
-  /** Raretés cochées, triées. */
-  readonly rarities: string;
-  /** Liste seulement : les compteurs n'ont pas de page. */
-  readonly page: number | undefined;
 }
 
 export function readCollectionQuery(url: URL): CollectionQuery {
   const params = url.searchParams;
-  const page = Number(params.get('page'));
-  return {
-    sort: params.get('sort') ?? '',
-    tag: params.get('untagged') === '1' ? 'untagged' : (params.get('tag_id') ?? ''),
-    search: params.get('q') ?? '',
-    rarities: params.getAll('rarity').sort().join(','),
-    page: params.has('page') && Number.isInteger(page) ? page : undefined,
-  };
+  return { ...readBaseListQuery(params), tag: params.get('untagged') === '1' ? 'untagged' : (params.get('tag_id') ?? '') };
 }
 
 /** Mêmes choix : les deux listes (étiquette, tri) et les raretés cochées. */
-export function sameListChoice(a: CollectionQuery, b: CollectionQuery): boolean {
+export function sameCollectionChoice(a: CollectionQuery, b: CollectionQuery): boolean {
   return a.sort === b.sort && a.tag === b.tag && a.rarities === b.rarities;
-}
-
-/** Même autre filtre : la recherche. */
-export function sameOtherFilters(a: CollectionQuery, b: CollectionQuery): boolean {
-  return a.search === b.search;
-}
-
-/** Mêmes filtres, la page mise à part. */
-export function sameFilters(a: CollectionQuery, b: CollectionQuery): boolean {
-  return sameListChoice(a, b) && sameOtherFilters(a, b);
 }
 
 /** Valeur de « Sans étiquette » dans la liste des étiquettes du site. */
@@ -62,7 +36,7 @@ export const UNTAGGED_OPTION = '__untagged__';
 export function withCollectionFilters(url: URL, query: CollectionQuery): URL {
   const params = new URLSearchParams({ sort: query.sort });
   if (query.search) params.set('q', query.search);
-  for (const rarity of query.rarities ? query.rarities.split(',') : []) params.append('rarity', rarity);
+  appendRarities(params, query.rarities);
   if (query.tag === 'untagged') params.set('untagged', '1');
   else if (query.tag) params.set('tag_id', query.tag);
   for (const key of ['page', 'stats']) {
@@ -97,27 +71,19 @@ export function findCollectionSearchField(doc: Document = document): HTMLInputEl
   return [...(line?.children ?? [])].find((child): child is HTMLInputElement => child instanceof HTMLInputElement && child.type === 'text');
 }
 
-export function isCollectionSearchField(target: EventTarget | null, doc: Document = document): boolean {
-  return target instanceof HTMLInputElement && target === findCollectionSearchField(doc);
-}
-
-/** Liste déroulante du site (étiquette, tri), lue dans les props de son composant. */
-export type CollectionSelect = SiteListbox;
-export const findCollectionSelect = findListbox;
-
-/**
- * Actualisation de la page (le rappel `onRefresh`, lu dans l'arbre React affiché : celui d'un rendu
- * précédent chargerait les anciens filtres). Elle part aussitôt : ses requêtes sont lancées pendant l'appel.
- */
+/** Actualisation de la page (filtres tels qu'ils sont, page gardée) : `refreshAbove`. */
 export function findCollectionRefresh(doc: Document = document): (() => unknown) | undefined {
   const filters = findCollectionFilters(doc);
-  if (!filters) return undefined;
-  for (const fiber of currentFiberAncestors(filters.row)) {
-    const props = fiber.memoizedProps;
-    if (isRecord(props) && typeof props.onRefresh === 'function') {
-      const refresh = props.onRefresh as () => unknown;
-      return () => refresh();
-    }
-  }
-  return undefined;
+  return filters && refreshAbove(filters.row);
 }
+
+/** Liste de la page et ses compteurs (recherche retenue, délai, mémoire des filtres). */
+export const collectionList: ListSource<CollectionQuery> = {
+  id: 'collection',
+  isList: isCollectionList,
+  isCompanion: isCollectionStats,
+  readQuery: readCollectionQuery,
+  sameChoice: sameCollectionChoice,
+  field: () => findCollectionSearchField(),
+  typingDelay: SITE_TYPING_DELAY,
+};

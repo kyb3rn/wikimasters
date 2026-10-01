@@ -1,6 +1,7 @@
 import type { Feature } from '@/core/runtime';
-import { COLLECTION_ROUTE, findSelectionMode } from '@/site/collection';
+import { findSelectionMode } from '@/site/collection';
 import { topSiteModal } from '@/site/modals';
+import { COLLECTION_ROUTE } from '@/site/routes';
 import { isModalOpen } from '@/ui/modal';
 import { createCtrlTap } from './tap';
 

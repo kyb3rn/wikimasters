@@ -1,39 +1,26 @@
 import { h } from 'preact';
-import { childController } from '@/core/async';
-import { injectStyle, setClass, watchDom } from '@/core/dom';
+import { later } from '@/core/async';
+import { setHidden, unhideAll, watchDom, whenBody } from '@/core/dom';
 import type { Logger } from '@/core/log';
 import { net, type NetRequest } from '@/core/net';
+import type { StateHook } from '@/core/react';
+import { textOf } from '@/core/text';
+import type { ListQuery, ListSource } from '@/site/list-query';
+import { parsePageLabel, type PageLabel, type SitePaginationBar } from '@/site/pagination';
 import { Pagination, type PaginationControl } from '@/ui/controls';
 import { lockReason } from '@/ui/lock';
-import { mountUi, type MountedUi } from '@/ui/mount';
+import { createSlots } from '@/ui/mount';
 import { toast } from '@/ui/toast';
 
-/** Barre de pagination du site : « ← Précédent », son libellé (« Page x / y »…), « Suivant → ». */
-export interface SitePaginationBar {
-  readonly bar: HTMLElement;
-  readonly previous: HTMLButtonElement;
-  readonly label: HTMLElement;
-  readonly next: HTMLButtonElement;
-}
-
-export interface PageLabel {
-  /** À partir de 1. */
-  readonly page: number;
-  readonly total?: number;
-  /** Sans total : y a-t-il une page suivante. */
-  readonly hasNext?: boolean;
-}
+/** Saut de page : de quoi aller directement à la page `index` depuis `from` (à partir de 0), comme la page le ferait. */
+export type PageJump = (bar: SitePaginationBar, from: number, index: number) => (() => void) | undefined;
 
 export interface SitePaginationSource {
+  /** Liste de la page : ses requêtes disent la page chargée (`page`, à partir de 0). */
+  readonly list: ListSource<ListQuery>;
   findBars(): SitePaginationBar[];
-  /** Libellé de la barre ; rien s'il ne donne pas la page (chargement). */
-  readLabel(text: string): PageLabel | undefined;
   isLoading(bars: readonly SitePaginationBar[]): boolean;
-  isList(request: NetRequest): boolean;
-  /** Page d'une requête de la liste, à partir de 0. */
-  readPage(url: URL): number | undefined;
-  /** De quoi aller directement à la page `index` depuis `from` (à partir de 0), comme la page le ferait. */
-  jump(bar: SitePaginationBar, from: number, index: number): (() => void) | undefined;
+  readonly jump: PageJump;
   /**
    * La page peut s'afficher sans requête (gardée par le site) : passé ce délai sans requête, la page visée est
    * tenue pour affichée si la barre la montre, hors chargement.
@@ -44,8 +31,6 @@ export interface SitePaginationSource {
 export interface SitePaginationOptions {
   readonly signal: AbortSignal;
   readonly log: Logger;
-  /** Classe qui cache les barres du site. */
-  readonly hiddenClass: string;
 }
 
 /** Une page demandée dont la liste ne part pas dans ce délai est abandonnée (le site n'a pas suivi). */
@@ -57,8 +42,23 @@ interface Pending {
   /** Barre du site sous laquelle on a cliqué, et quoi : la roue n'est que sur ce bouton. */
   readonly bar: HTMLElement;
   readonly control: PaginationControl;
-  readonly timer: number;
+  readonly cancel: () => void;
   request?: NetRequest;
+}
+
+/**
+ * Saut de page par l'état `page` de la page (à partir de 0, lu à chaque fois : rien s'il ne vaut plus la page
+ * affichée), puis retour en haut de `<main>`, comme le fait la page.
+ */
+export function jumpByPageState(findPage: () => StateHook | undefined): PageJump {
+  return (_bar, from, index) => {
+    const page = findPage();
+    if (page?.value !== from) return undefined;
+    return () => {
+      page.set(index);
+      document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+  };
 }
 
 /**
@@ -66,10 +66,11 @@ interface Pending {
  * Précédente et suivante cliquent les boutons du site ; première, dernière et numéro saisi passent par
  * `jump`. La page visée s'affiche aussitôt ; elle est demandée après un court délai sans autre clic
  * (`Pagination`), puis tout est désactivé jusqu'à la fin de la requête de la liste. Un verrou posé sur les
- * boutons du site (recherche en attente) désactive la nôtre. Idempotent, retiré à l'interruption de `signal`.
+ * boutons du site (recherche en attente) désactive la nôtre. Posée dès `<body>`, retirée à l'interruption de `signal`.
  */
-export function replaceSitePagination(source: SitePaginationSource, { signal, log, hiddenClass }: SitePaginationOptions): void {
-  const placed = new Map<HTMLElement, { readonly ui: MountedUi; readonly controller: AbortController }>();
+export function replaceSitePagination(source: SitePaginationSource, { signal, log }: SitePaginationOptions): void {
+  const owner = `site-pagination-${source.list.id}`;
+  const slots = createSlots<HTMLElement>(signal);
   /** Dernier libellé lisible du site : il peut le remplacer par « Chargement… » pendant un chargement. */
   let shown: PageLabel | undefined;
   let pending: Pending | undefined;
@@ -80,19 +81,18 @@ export function replaceSitePagination(source: SitePaginationSource, { signal, lo
     'abort',
     () => {
       observer.disconnect();
-      if (pending) clearTimeout(pending.timer);
-      for (const site of source.findBars()) setClass(site.bar, hiddenClass, false);
+      unhideAll(owner);
     },
     { once: true },
   );
 
   net.track(
-    (request) => !request.own && source.isList(request),
+    (request) => !request.own && source.list.isList(request),
     (request) => {
       const current = pending;
-      if (!current || current.request || source.readPage(request.url) !== current.index) return undefined;
+      if (!current || current.request || source.list.readQuery(request.url).page !== current.index) return undefined;
       current.request = request;
-      clearTimeout(current.timer);
+      current.cancel();
       return () => {
         if (pending !== current) return;
         pending = undefined;
@@ -113,16 +113,25 @@ export function replaceSitePagination(source: SitePaginationSource, { signal, lo
       toast.error("Impossible d'aller à cette page. Rechargez la page.", { title: 'Pagination' });
       return;
     }
-    const timer = window.setTimeout(() => {
-      if (pending?.timer !== timer || pending.request) return;
-      const bars = source.findBars();
-      const label = bars.map((bar) => source.readLabel(bar.label.textContent ?? '')).find(Boolean);
-      const settled = source.settleWithoutRequest !== undefined && label?.page === page && !source.isLoading(bars);
-      if (!settled) log.warn('la page demandée n’a pas été chargée', page);
-      pending = undefined;
-      sync();
-    }, source.settleWithoutRequest ?? START_TIMEOUT);
-    pending = { index, bar: site.bar, control, timer };
+    const target: Pending = {
+      index,
+      bar: site.bar,
+      control,
+      cancel: later(
+        () => {
+          if (pending !== target || target.request) return;
+          const bars = source.findBars();
+          const label = bars.map((bar) => parsePageLabel(textOf(bar.label))).find(Boolean);
+          const settled = source.settleWithoutRequest !== undefined && label?.page === page && !source.isLoading(bars);
+          if (!settled) log.warn('la page demandée n’a pas été chargée', page);
+          pending = undefined;
+          sync();
+        },
+        source.settleWithoutRequest ?? START_TIMEOUT,
+        signal,
+      ),
+    };
+    pending = target;
     move();
     sync();
   }
@@ -144,13 +153,9 @@ export function replaceSitePagination(source: SitePaginationSource, { signal, lo
   function sync(): void {
     if (signal.aborted || !document.body) return;
     const bars = source.findBars();
-    for (const [bar, entry] of placed) {
-      if (bars.some((site) => site.bar === bar)) continue;
-      entry.controller.abort();
-      placed.delete(bar);
-    }
+    slots.prune((bar) => bars.some((site) => site.bar === bar));
     observe(bars.map((site) => site.bar));
-    for (const site of bars) shown = source.readLabel(site.label.textContent ?? '') ?? shown;
+    for (const site of bars) shown = parsePageLabel(textOf(site.label)) ?? shown;
     // Pas encore de numéro lu : la barre du site reste.
     if (!shown) return;
     const loading = source.isLoading(bars);
@@ -158,7 +163,9 @@ export function replaceSitePagination(source: SitePaginationSource, { signal, lo
   }
 
   function place(site: SitePaginationBar, page: PageLabel, loading: boolean): void {
-    setClass(site.bar, hiddenClass, true);
+    const parent = site.bar.parentElement;
+    if (!parent) return;
+    setHidden(site.bar, owner, true);
     const vnode = h(Pagination, {
       page: pending ? pending.index + 1 : page.page,
       total: page.total,
@@ -167,18 +174,10 @@ export function replaceSitePagination(source: SitePaginationSource, { signal, lo
       lockedReason: lockReason(site.previous) ?? lockReason(site.next),
       onChange: (target, control) => go(site, target, control),
     });
-    const entry = placed.get(site.bar);
-    if (entry?.ui.element.previousElementSibling === site.bar) {
-      entry.ui.update(vnode);
-      return;
-    }
-    entry?.controller.abort();
-    const parent = site.bar.parentElement;
-    if (!parent) return;
-    const controller = childController(signal);
-    placed.set(site.bar, { ui: mountUi(vnode, { parent, before: site.bar.nextSibling, signal: controller.signal }), controller });
+    slots.render(site.bar, vnode, { parent, after: site.bar });
   }
 
-  injectStyle(`pagination-${hiddenClass}`, `.${hiddenClass} { display: none !important; }`);
-  watchDom(sync, { signal });
+  void whenBody(signal).then((body) => {
+    if (body) watchDom(sync, { signal });
+  });
 }

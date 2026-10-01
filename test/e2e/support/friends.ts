@@ -24,7 +24,7 @@ const friend = (id: string, userId: string, username: string): FakeFriendship =>
   addressee: { id: userId, username },
 });
 
-export const FRIENDSHIPS: readonly FakeFriendship[] = [
+const FRIENDSHIPS: readonly FakeFriendship[] = [
   friend('f1', 'u1', 'aelonka'),
   { id: 'f2', status: 'accepted', requester_id: 'u2', addressee_id: 'me', requester: { id: 'u2', username: 'Poloz30' } },
   friend('f3', 'u3', 'Norband'),
@@ -54,7 +54,7 @@ const PAGE = `
     </div>
   </div>
   <div id="incoming-section" class="space-y-3 animate-fade-in-up">
-    <div class="flex items-center justify-between gap-3"><h2 class="text-sm font-semibold uppercase tracking-wide">Demandes reçues (0)</h2><button type="button">Tout accepter</button></div>
+    <div class="flex items-center justify-between gap-3"><h2 class="text-sm font-semibold uppercase tracking-wide">Demandes reçues (0)</h2><button id="site-accept-all" type="button" class="site-accept-all"><svg class="lucide lucide-check-check size-3.5"></svg>Tout accepter</button></div>
   </div>
   <div id="friends-section" class="space-y-3 animate-fade-in-up">
     <h2 class="text-sm font-semibold uppercase tracking-wide">Amis (0)</h2>
@@ -109,6 +109,13 @@ document.getElementById('site-invite').addEventListener('click', (event) => {
 });
 document.getElementById('site-add').addEventListener('click', () => { state.clicks.add++; });
 
+// « Ajouter » de la fenêtre « Rechercher un joueur » : recherche, demande, puis relecture sans lire la réponse.
+state.sendRequest = async (query, userId) => {
+  await fetch('/api/friends/search?q=' + encodeURIComponent(query));
+  await fetch('/api/friends', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ addressee_id: userId }) });
+  await load();
+};
+
 function friendRow(f) {
   const user = other(f);
   const row = document.createElement('div');
@@ -134,14 +141,36 @@ function friendRow(f) {
   return row;
 }
 
+// Accepter / Refuser : la requête, puis la relecture, sans état « en cours » ni lecture de la réponse (comme le site).
 function incomingRow(f) {
   const row = document.createElement('div');
-  row.className = 'flex items-center gap-3 p-3 rounded-xl';
+  row.className = 'flex items-center gap-3 p-3 rounded-xl incoming-row';
   row.dataset.incoming = f.requester.username;
   row.innerHTML = '<div class="w-10 h-10"><span>' + f.requester.username.slice(0, 2).toUpperCase() + '</span></div><p class="flex-1">' +
-    f.requester.username + '</p><div class="flex gap-2"><button>Accepter</button><button>Refuser</button></div>';
+    f.requester.username + '</p><div class="flex gap-2">' +
+    '<button class="site-accept"><span class="inline-flex items-center gap-1"><svg class="lucide lucide-check size-3.5"></svg>Accepter</span></button>' +
+    '<button class="site-decline"><span class="inline-flex items-center gap-1"><svg class="lucide lucide-x size-3.5"></svg>Refuser</span></button></div>';
+  const answer = (action) => async () => {
+    await fetch('/api/friends/' + f.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) });
+    await load();
+  };
+  row.querySelector('.site-accept').addEventListener('click', answer('accept'));
+  row.querySelector('.site-decline').addEventListener('click', answer('decline'));
   return row;
 }
+
+const acceptAll = document.getElementById('site-accept-all');
+acceptAll.addEventListener('click', async () => {
+  acceptAll.disabled = true;
+  acceptAll.lastChild.textContent = 'Acceptation…';
+  try {
+    await fetch('/api/friends/accept-all', { method: 'POST' });
+    await load();
+  } finally {
+    acceptAll.disabled = false;
+    acceptAll.lastChild.textContent = 'Tout accepter';
+  }
+});
 
 function sentRow(f) {
   const row = document.createElement('div');
@@ -163,11 +192,13 @@ function render() {
   received.querySelector('h2').textContent = 'Demandes reçues (' + state.counts.incoming + ')';
   const shown = new Set();
   for (const f of state.friendships) {
-    shown.add(f.id);
-    if (rows.has(f.id)) continue;
+    // Une demande acceptée change de section : nouvelle ligne.
+    const key = f.id + ':' + f.status;
+    shown.add(key);
+    if (rows.has(key)) continue;
     const row = f.status === 'accepted' ? friendRow(f) : incoming(f) ? incomingRow(f) : sentRow(f);
     (f.status === 'accepted' ? section : incoming(f) ? received : sent).append(row);
-    rows.set(f.id, row);
+    rows.set(key, row);
   }
   for (const [id, row] of rows) {
     if (shown.has(id)) continue;
@@ -184,17 +215,31 @@ export interface FriendsServer {
   readonly friendships: FakeFriendship[];
   /** Requêtes `DELETE /api/friends/<id>` reçues (ids). */
   readonly deleted: string[];
+  /** Réponses aux demandes reçues (`PATCH /api/friends/<id>`), dans l'ordre. */
+  readonly answered: { readonly id: string; readonly action: string }[];
+  /** Nombre de `GET /api/friends` reçus (la page a ses amitiés dès le départ, sans les lire). */
+  listed: number;
 }
 
+/** Joueurs trouvés par la recherche (`GET /api/friends/search`). */
+const PLAYERS = [{ id: 'u20', username: 'Zorglub', avatar_url: null, avatar_pos_x: 50, avatar_pos_y: 50 }];
+
+type Handler = (route: Route, id: string) => Promise<void>;
+
 /**
- * Ouvre la page Amis. `remove` répond à la place du serveur à `DELETE /api/friends/<id>` (par défaut : retrait,
- * `{ success: true }`).
+ * Ouvre la page Amis. Réponses à la place du serveur : `remove` à `DELETE /api/friends/<id>` (par défaut : retrait,
+ * `{ success: true }`), `answer` à `PATCH /api/friends/<id>` (par défaut : acceptée ou retirée), `acceptAll` à
+ * `POST /api/friends/accept-all` (par défaut : toutes acceptées), `send` à `POST /api/friends` (par défaut : 201,
+ * l'amitié créée). La page n'a pas de fenêtre « Rechercher un joueur » : `__friends.sendRequest(q, id)` fait ce
+ * que fait son « Ajouter ».
  */
 export async function openFriendsPage(
   page: Page,
-  options: { remove?: (route: Route, id: string) => Promise<void> } = {},
+  options: { remove?: Handler; answer?: Handler; acceptAll?: (route: Route) => Promise<void>; send?: (route: Route) => Promise<void> } = {},
 ): Promise<FriendsServer> {
-  const server: FriendsServer = { friendships: [...FRIENDSHIPS], deleted: [] };
+  const server: FriendsServer = { friendships: [...FRIENDSHIPS], deleted: [], answered: [], listed: 0 };
+  const incoming = (f: FakeFriendship) => f.status === 'pending' && f.addressee_id === 'me';
+  const accept = (f: FakeFriendship): FakeFriendship => ({ ...f, status: 'accepted' });
   await openSite(page, '/friends', {
     html: sitePage(PAGE, SCRIPT.replace('__INITIAL__', JSON.stringify(FRIENDSHIPS))),
     handle: async (route, url) => {
@@ -209,11 +254,46 @@ export async function openFriendsPage(
         await route.fulfill({ json: { success: true } });
         return true;
       }
+      if (url.pathname === '/api/friends/accept-all' && method === 'POST') {
+        if (options.acceptAll) return options.acceptAll(route).then(() => true);
+        server.friendships.splice(0, Infinity, ...server.friendships.map((f) => (incoming(f) ? accept(f) : f)));
+        await route.fulfill({ json: { success: true } });
+        return true;
+      }
+      if (url.pathname === '/api/friends/search' && method === 'GET') {
+        await route.fulfill({ json: { users: PLAYERS } });
+        return true;
+      }
+      // Comme le site : l'amitié créée, sans les joueurs.
+      if (url.pathname === '/api/friends' && method === 'POST') {
+        if (options.send) return options.send(route).then(() => true);
+        const body: unknown = route.request().postDataJSON();
+        const addressee = typeof body === 'object' && body !== null && 'addressee_id' in body ? String(body.addressee_id) : '';
+        const created = { id: `s-${addressee}`, status: 'pending' as const, requester_id: 'me', addressee_id: addressee };
+        const player = PLAYERS.find((p) => p.id === addressee);
+        server.friendships.push({ ...created, ...(player && { addressee: player }) });
+        await route.fulfill({ status: 201, json: { friendship: created } });
+        return true;
+      }
+      if (match && method === 'PATCH') {
+        const id = match[1] ?? '';
+        const body: unknown = route.request().postDataJSON();
+        const action = typeof body === 'object' && body !== null && 'action' in body ? String(body.action) : '';
+        server.answered.push({ id, action });
+        if (options.answer) return options.answer(route, id).then(() => true);
+        const index = server.friendships.findIndex((f) => f.id === id);
+        const found = server.friendships[index];
+        if (found && action === 'accept') server.friendships[index] = accept(found);
+        else if (found) server.friendships.splice(index, 1);
+        await route.fulfill({ json: { status: action === 'accept' ? 'accepted' : 'declined' } });
+        return true;
+      }
       if (url.pathname === '/api/friends' && method === 'GET') {
+        server.listed++;
         const count = (test: (f: FakeFriendship) => boolean) => server.friendships.filter(test).length;
         const counts = {
           accepted: count((f) => f.status === 'accepted'),
-          incoming: count((f) => f.status === 'pending' && f.addressee_id === 'me'),
+          incoming: count(incoming),
           outgoing: count((f) => f.status === 'pending' && f.requester_id === 'me'),
         };
         await route.fulfill({ json: { friendships: server.friendships, counts } });

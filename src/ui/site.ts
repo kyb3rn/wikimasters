@@ -10,6 +10,10 @@ export const siteClass = {
   /** Cadre de ses panneaux (modales, fiche de carte), avec leur marge intérieure. */
   panel: 'card-frame p-6',
 
+  // Page introuvable (« Profil introuvable ») : grande icône pâle, lien de retour en accent.
+  notFoundIcon: 'size-12 text-[var(--color-foreground)]/30',
+  notFoundLink: 'text-[var(--color-accent)] text-sm hover:underline',
+
   // Cadre des paquets disponibles (/pulls) : compteur, légende, temps restant.
   frame: 'card-frame px-6 py-3',
   counterValue: 'text-lg font-bold',
@@ -75,6 +79,8 @@ export const siteClass = {
   /** Trait entre deux options. */
   segmentSeparator: 'border-l border-[var(--color-border)]',
   fieldSegmentIdle: 'text-[var(--color-foreground)]/60 hover:text-[var(--color-foreground)] hover:bg-[var(--color-border)]',
+  /** Option estompée quand elle est désactivée (croix « Réinitialiser » de ses pastilles de rareté). */
+  fadedWhenDisabled: 'disabled:opacity-40',
 
   // Mise de départ de la mise aux enchères : − · pièce · valeur · +.
   fieldLabel: 'text-xs font-semibold text-[var(--color-foreground)]/70 uppercase tracking-wide',
@@ -125,9 +131,10 @@ export const siteClass = {
   cardModalActions: 'mt-3 space-y-2',
   cardModalActionsRow: 'flex flex-col sm:flex-row gap-2',
 
-  // En-tête de son profil : photo (fond d'accent léger, initiales), pseudo, ligne sous le pseudo, chiffre et
-  // légende de sa carte « Cartes uniques », étiquettes (couleurs en style), interrupteur de visibilité (piste et
-  // bouton, allumé ou non).
+  // En-tête de son profil : cadre (celui du site, sans marge : notre fond va de bord à bord), photo (fond d'accent
+  // léger, initiales), pseudo, ligne sous le pseudo, chiffre et légende de sa carte « Cartes uniques », étiquettes
+  // (couleurs en style), interrupteur de visibilité (piste et bouton, allumé ou non).
+  profileHeaderFrame: 'card-frame overflow-hidden animate-fade-in-up',
   profileAvatar: 'rounded-full bg-[var(--color-accent)]/20 flex items-center justify-center overflow-hidden',
   profileAvatarInitials: 'font-bold text-[var(--color-accent)]',
   profileAvatarImage: 'w-full h-full object-cover',
@@ -164,13 +171,144 @@ export const siteClass = {
   confirmText: 'text-sm text-[var(--color-foreground)]/70 mb-4',
   confirmActions: 'flex gap-2',
 
+  // Sa liste déroulante (Collection, Toutes les cartes ; code du 30/09/2026) : bouton à hauteur de champ, valeur,
+  // chevron ; menu (en `position: fixed`, dans `body`), option, option choisie ou survolée ; étiquette en pastille
+  // (couleurs en style, voir `tagChipStyle`).
+  listbox: 'relative',
+  listboxButton:
+    'flex w-full min-h-[42px] min-w-0 items-center justify-between gap-2 rounded-lg border border-[var(--color-border)] ' +
+    'bg-[var(--color-surface-light)] py-2 pl-3 pr-2 text-left text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] ' +
+    'transition-[border-color,box-shadow] hover:border-[var(--color-foreground)]/12 focus:outline-none focus:ring-2 ' +
+    'focus:ring-[var(--color-accent)]/35',
+  listboxValue: 'flex min-w-0 flex-1 items-center justify-start',
+  listboxText: 'block min-w-0 truncate text-left font-medium leading-none text-[var(--color-foreground)]',
+  listboxChip: 'inline-flex max-w-full min-w-0 items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold leading-none',
+  listboxChipText: 'min-w-0 truncate',
+  listboxChevron: 'size-4 shrink-0 text-[var(--color-foreground)]/40 transition-transform duration-200',
+  listboxChevronOpen: 'rotate-180',
+  listboxMenu:
+    'max-h-52 overflow-y-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] py-1 shadow-xl ' +
+    'ring-1 ring-black/25',
+  listboxOption: 'flex w-full cursor-pointer items-center justify-start px-3 py-2 text-left text-sm transition-colors',
+  listboxOptionActive: 'bg-[var(--color-accent)]/12',
+  listboxOptionIdle: 'hover:bg-[var(--color-surface-light)]',
+
+  // Mode sélection de la Collection (code du 30/09/2026), sur chaque case (`group`) : voile (anneau accent pour une carte cochée,
+  // qui dépasse de la case), case à cocher dans le coin (cochée, vide, impossible).
+  /** Case d'une carte en sélection (celle de la Collection), dont le survol fait grandir le voile. */
+  selectionCell: 'group',
+  // Le voile grandit avec la face au survol de la case (`group`).
+  selectionVeil: 'pointer-events-none absolute inset-0 z-10 rounded-2xl transition-all duration-300 group-hover:scale-105',
+  selectionVeilChecked: 'ring-4 ring-[var(--color-accent)] shadow-[0_0_0_2px_rgba(0,0,0,0.35)]',
+  selectionVeilIdle: 'bg-black/0 hover:bg-black/10',
+  selectionBox:
+    'pointer-events-none absolute top-1.5 right-1.5 z-30 flex size-6 items-center justify-center rounded-md border-2 ' +
+    'text-white shadow',
+  selectionBoxChecked: 'bg-[var(--color-accent)] border-[var(--color-accent)]',
+  selectionBoxIdle: 'bg-black/60 border-white/70',
+  selectionBoxLocked: 'bg-black/60 border-white/30',
+
+  // « Choisir un ami » des échanges (code du 30/09/2026) : ligne d'un ami, sa photo (initiales en accent), son pseudo ;
+  // statut « en attente » de sa liste d'échanges.
+  friendRow:
+    'flex items-center gap-3 p-3 rounded-xl bg-[var(--color-surface-light)] hover:bg-[var(--color-accent)]/10 ' +
+    'transition-colors cursor-pointer text-left',
+  friendAvatar:
+    'w-10 h-10 rounded-full bg-[var(--color-accent)]/20 flex items-center justify-center flex-shrink-0 overflow-hidden ' +
+    'text-sm font-bold text-[var(--color-accent)]',
+  friendAvatarImage: 'w-full h-full object-cover',
+  friendName: 'font-medium text-sm flex-1',
+  tradePending: 'text-xs font-semibold text-amber-400',
+
+  // Onglets soulignés (marché, profil, échanges ; code du 30/09/2026) : onglet, les autres, le choisi.
+  underlineTab: 'px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors cursor-pointer',
+  underlineTabIdle: 'text-[var(--color-foreground)]/50 hover:text-[var(--color-foreground)]',
+  underlineTabActive: 'text-[var(--color-accent)] border-b-2 border-[var(--color-accent)]',
+
+  // Vignette d'annonce du marché (captures du 29/09/2026) : grille, cadre (le lien), colonne, bandeau « Vous menez »,
+  // boîte de la face, rangée prix · durée (libellés, montant, pièce, marteau, durée : normale, ambre sous 5 min,
+  // terminée), « Vendu par ».
+  tileGrid: 'flex flex-wrap justify-center gap-4 md:gap-5',
+  tile: 'card-frame block p-3 w-[172px] md:w-[184px] hover:border-[var(--color-accent)]/50 transition-colors cursor-pointer',
+  tileBody: 'flex flex-col items-center gap-2.5',
+  tileLeading:
+    'w-full text-center rounded-lg px-2 py-1 text-[10px] font-semibold uppercase tracking-wide bg-emerald-500/15 ' +
+    'text-emerald-700 dark:text-emerald-400',
+  tileFaceBox: 'overflow-hidden rounded-2xl',
+  tileInfo: 'w-full flex items-center justify-between gap-2 text-xs',
+  tilePrice: 'flex flex-col min-w-0',
+  tileLabel: 'text-[10px] uppercase tracking-wide text-[var(--color-foreground)]/40',
+  tileAmount: 'inline-flex items-center gap-1 font-semibold text-[var(--color-accent)]',
+  tileCoin: 'size-3.5 shrink-0',
+  tileDuration: 'flex flex-col items-end',
+  tileGavel: 'inline size-3 -mt-0.5 mr-0.5',
+  tileTime: 'tabular-nums font-medium text-xs',
+  tileTimeSoon: 'tabular-nums font-medium text-amber-600 dark:text-amber-400 text-xs',
+  tileTimeEnded: 'tabular-nums font-medium text-[var(--color-foreground)]/40 text-xs',
+  tileSeller: 'w-full text-[10px] text-[var(--color-foreground)]/40 truncate',
+
+  // Face `sm` d'une carte (grilles ; halo `glow-<rareté>` à part) : fond de rareté, voile, bandeau de l'image, badge,
+  // texte (titre, description, ATK · DEF). Shiny : fond onyx et ses couches, badge « L✦ », texte blanc.
+  face:
+    'w-[clamp(8.4rem,43vw,10rem)] h-[clamp(11.8rem,60vw,14rem)] relative rounded-2xl overflow-hidden cursor-pointer ' +
+    'hover:z-10 transition-all duration-300 hover:scale-105',
+  faceShiny:
+    'w-[clamp(8.4rem,43vw,10rem)] h-[clamp(11.8rem,60vw,14rem)] glow-shiny shiny-card isolate relative rounded-2xl ' +
+    'overflow-hidden cursor-pointer hover:z-10',
+  faceBackground: 'object-cover scale-[1.8]',
+  faceBackgroundShiny: 'object-cover',
+  faceShade: 'absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-transparent pointer-events-none z-10',
+  faceImageBand: 'absolute top-0 left-0 right-0 h-[45%] z-20 bg-black/20',
+  faceImageBox: 'relative h-full w-full min-h-0',
+  // Image de la face selon son cadrage (choisi au chargement) : rognée au centre, portrait (rognée, haut gardé :
+  // `object-position: center 28%` en style), entière (transparence, `scale(0.9)` en style).
+  faceImageCover: 'object-cover object-center',
+  faceImagePortrait: 'object-cover',
+  faceImageContain: 'object-contain object-center',
+  faceImageFade: 'absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-black/50 to-transparent',
+  faceBadge: 'absolute top-2 left-2 px-2 py-0.5 rounded-md text-xs font-bold z-30',
+  faceBadgeShiny: 'shiny-badge absolute top-2 left-2 px-2 py-0.5 rounded-md text-xs font-bold z-30 inline-flex items-center gap-0.5',
+  faceBadgeStar: 'text-[0.85em] leading-none',
+  faceText: 'absolute top-[45%] left-0 right-0 bottom-0 flex min-h-0 flex-col p-3 z-20',
+  faceTextShiny: 'absolute top-[45%] left-0 right-0 bottom-0 flex min-h-0 flex-col p-3 z-20 shiny-text',
+  faceTitle: 'text-xs shrink-0 font-bold leading-tight line-clamp-2 text-black drop-shadow-none',
+  faceTitleShiny: 'text-xs shrink-0 font-bold leading-tight line-clamp-2 text-white drop-shadow-none',
+  faceCategory: 'min-h-0 leading-snug text-neutral-900/90 overflow-hidden line-clamp-3 text-[9px] shrink-0',
+  faceCategoryShiny: 'min-h-0 leading-snug text-white/90 overflow-hidden line-clamp-3 text-[9px] shrink-0',
+  faceStatsBox: 'mt-auto flex min-h-0 w-full flex-col items-start gap-0.5 pt-1',
+  faceStats: 'flex w-full shrink-0 items-center justify-between border-t border-black/20 pt-1 py-1',
+  faceStatsShiny: 'flex w-full shrink-0 items-center justify-between border-t border-[#e9c15a]/35 pt-1 py-1',
+  faceStat: 'text-[10px] flex items-center gap-1',
+  faceAtkIcon: 'size-[1em] shrink-0 text-red-800',
+  faceDefIcon: 'size-[1em] shrink-0 text-blue-800',
+  faceAtkIconShiny: 'size-[1em] shrink-0 text-red-400',
+  faceDefIconShiny: 'size-[1em] shrink-0 text-blue-300',
+  faceStatValue: 'font-bold text-black/90',
+  faceStatValueShiny: 'font-bold text-white',
+  shinyTint: 'shiny-onyx-tint absolute inset-0 z-[5] pointer-events-none',
+  shinyShade: 'shiny-onyx-shade absolute inset-0 z-[6] pointer-events-none',
+  shinyLines: 'shiny-onyx-lines absolute inset-0 z-10 pointer-events-none',
+  shinyLightAtRest: 'shiny-onyx-light shiny-at-rest absolute inset-0 z-[11] pointer-events-none',
+  shinyLightOnHover: 'shiny-onyx-light shiny-on-hover absolute inset-0 z-[11] pointer-events-none',
+  shinyWash: 'shiny-onyx-wash absolute inset-0 -z-10 pointer-events-none',
+  shinyGlareAtRest: 'shiny-onyx-glare shiny-at-rest absolute inset-0 z-[38] pointer-events-none',
+  shinyGlareOnHover: 'shiny-onyx-glare shiny-on-hover absolute inset-0 z-[38] pointer-events-none',
+
+  // Liste vide du marché (« Aucune enchère active pour l'instant. », code du 30/09/2026) : cadre, grande icône,
+  // texte ; aussi pour une liste qui n'a pas pu se charger.
+  emptyFrame: 'card-frame p-10 text-center space-y-3',
+  emptyIcon: 'mx-auto size-8 text-zinc-400',
+  emptyText: 'text-[var(--color-foreground)]/40 text-sm',
+
   /** Champ de texte d'une ligne (recherche de la Collection, des amis), sans sa largeur. */
   textField:
     'rounded-lg bg-[var(--color-surface-light)] border border-[var(--color-border)] px-4 py-2.5 text-sm ' +
     'text-[var(--color-foreground)] placeholder:text-[var(--color-foreground)]/30 focus:outline-none focus:ring-2 ' +
     'focus:ring-[var(--color-accent)]/50',
 
-  // Formulaire « Créer une guilde » : libellé, champ, zone de texte, compteur de caractères, message d'erreur.
+  // Formulaire « Créer une guilde » : champ avec son libellé (bloc), libellé, champ, zone de texte, compteur de
+  // caractères, message d'erreur.
+  formField: 'block',
   formLabel: 'text-xs font-medium text-[var(--color-foreground)]/50 uppercase tracking-wide',
   formInput:
     'w-full mt-1 px-3 py-2 rounded-xl bg-[var(--color-surface-light)] border border-[var(--color-border)] text-sm ' +
@@ -183,4 +321,87 @@ export const siteClass = {
 
   /** Texte d'un bouton masqué sur mobile, icône seule (« Message », « Échanger » de la page Amis). */
   wideOnly: 'hidden sm:inline',
+  /** Texte à sa place sur mobile (« Échanger » de « Proposer un échange », /trades). */
+  narrowOnly: 'sm:hidden',
+
+  // Liste de sa cloche (code du 30/09/2026) : cadre, en-tête, lignes (non lue : teinte et point accent), icône du
+  // type, libellé, texte (long pour un contrôle anti-triche), date ; pastille rouge du nombre de non lues.
+  notificationsPanel: 'card-frame fixed z-[100] shadow-xl animate-fade-in-up overflow-hidden flex flex-col',
+  notificationsHead: 'flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]',
+  notificationsTitle: 'text-sm font-semibold',
+  notificationsList: 'min-h-0 flex-1 overflow-y-auto',
+  notificationsEmpty: 'text-center text-sm text-[var(--color-foreground)]/40 py-8',
+  notificationRow:
+    'w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-[var(--color-surface-light)] transition-colors ' +
+    'cursor-pointer border-b border-[var(--color-border)]/50 last:border-0',
+  notificationUnread: 'bg-[var(--color-accent)]/5',
+  notificationIcon: 'w-5 h-5 shrink-0 mt-0.5 text-[var(--color-foreground)]/80',
+  notificationBody: 'flex-1 min-w-0',
+  notificationLabel: 'text-xs font-semibold text-[var(--color-foreground)]/60 uppercase tracking-wide',
+  notificationText: 'text-[var(--color-foreground)] mt-0.5 text-sm',
+  notificationLongText: 'text-[var(--color-foreground)] mt-0.5 text-xs leading-relaxed max-h-32 overflow-y-auto pr-1',
+  notificationDate: 'text-[10px] text-[var(--color-foreground)]/30 mt-1',
+  notificationDot: 'w-2 h-2 rounded-full bg-[var(--color-accent)] flex-shrink-0 mt-2',
+  notificationCount:
+    'absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold ' +
+    'flex items-center justify-center px-1',
+  // Conversation (code du site : /dms du 29/09/2026, chat de guilde du 01/10/2026) : fond, cadre, en-tête, liste,
+  // roue, liste vide, séparateur du jour, annonce de la guilde, message (pseudo au-dessus, cale de la photo, rangée,
+  // photo, bulle de soi ou d'un autre, heure au survol), barre du message.
+  chatOverlay: 'fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4',
+  chatFrame:
+    'w-full sm:max-w-md h-[85vh] sm:h-[600px] flex flex-col card-frame animate-fade-in-up rounded-t-2xl sm:rounded-2xl overflow-hidden',
+  chatHeader: 'flex items-center gap-3 px-4 py-3 border-b border-[var(--color-border)] flex-shrink-0',
+  chatHeaderAvatar:
+    'w-9 h-9 rounded-full bg-[var(--color-accent)]/20 flex items-center justify-center text-sm font-bold ' +
+    'text-[var(--color-accent)] flex-shrink-0 overflow-hidden',
+  chatHeaderText: 'flex-1 min-w-0',
+  chatHeaderName: 'font-semibold text-sm truncate',
+  chatList: 'flex-1 overflow-y-auto px-4 py-3 space-y-1',
+  chatCenter: 'flex items-center justify-center h-full',
+  chatEmpty: 'flex flex-col items-center justify-center h-full gap-2 text-center',
+  chatEmptyIcon: 'size-10 text-[var(--color-foreground)]/25',
+  chatEmptyText: 'text-sm text-[var(--color-foreground)]/40',
+  chatDay: 'flex items-center gap-2 my-3',
+  chatDayLine: 'flex-1 h-px bg-[var(--color-border)]',
+  chatDayLabel: 'text-[10px] text-[var(--color-foreground)]/30 font-medium px-2',
+  chatNotice: 'flex justify-center my-2',
+  chatNoticeText: 'text-xs text-[var(--color-foreground)]/40 bg-[var(--color-accent)]/5 px-3 py-1 rounded-full',
+  chatMessage: 'group mb-1.5',
+  chatName: 'mb-0.5 flex gap-2',
+  chatNameText: 'text-[10px] font-medium text-[var(--color-foreground)]/40 px-1',
+  chatSpacer: 'h-8 w-8 shrink-0',
+  chatLine: 'flex gap-2 items-end',
+  chatLineOwn: 'flex-row-reverse',
+  chatLineOther: 'flex-row',
+  chatAvatar:
+    'h-8 w-8 shrink-0 rounded-full bg-[var(--color-accent)]/20 flex items-center justify-center text-xs font-bold ' +
+    'text-[var(--color-accent)] overflow-hidden',
+  chatAvatarImage: 'w-full h-full object-cover',
+  chatBubble: 'max-w-[75%] min-w-0 rounded-2xl px-3 py-2 text-sm leading-relaxed break-words',
+  chatBubbleOwn: 'rounded-br-sm bg-[var(--color-accent)] text-[var(--color-accent-foreground)]',
+  chatBubbleOther: 'rounded-bl-sm bg-[var(--color-surface-light)] text-[var(--color-foreground)]',
+  chatTime: 'mt-0.5 flex gap-2',
+  chatTimeOwn: 'justify-end',
+  chatTimeText: 'text-[10px] text-[var(--color-foreground)]/25 px-1 opacity-0 transition-opacity group-hover:opacity-100',
+  chatBar: 'flex items-center gap-2 px-3 py-3 border-t border-[var(--color-border)] flex-shrink-0',
+  chatInput:
+    'flex-1 px-3 py-2 rounded-xl bg-[var(--color-surface-light)] border border-[var(--color-border)] text-sm ' +
+    'placeholder:text-[var(--color-foreground)]/30 focus:outline-none focus:border-[var(--color-accent)]/50 transition-colors',
+
+  // Ligne d'une conversation de /dms (photo, pseudo, heure, dernier message), surlignée quand elle est affichée.
+  dmsRow: 'w-full flex items-center gap-3 p-3 rounded-xl hover:bg-[var(--color-surface-light)] transition-colors cursor-pointer text-left',
+  dmsRowActive: 'bg-[var(--color-surface-light)]',
+  dmsRowAvatarBox: 'relative flex-shrink-0',
+  dmsRowAvatar:
+    'w-11 h-11 rounded-full bg-[var(--color-accent)]/20 flex items-center justify-center text-sm font-bold ' +
+    'text-[var(--color-accent)] overflow-hidden',
+  dmsRowBody: 'flex-1 min-w-0',
+  dmsRowHead: 'flex items-center justify-between gap-2',
+  dmsRowName: 'font-medium text-sm truncate text-[var(--color-foreground)]/80',
+  dmsRowMeta: 'text-[10px] text-[var(--color-foreground)]/30 flex-shrink-0',
+  dmsRowText: 'text-xs truncate mt-0.5 text-[var(--color-foreground)]/40',
+  dmsSeparator: 'h-px bg-[var(--color-border)] my-2',
+  /** Colonne de droite de /dms sans conversation affichée : un cadre du site. */
+  dmsPanel: 'card-frame',
 } as const;

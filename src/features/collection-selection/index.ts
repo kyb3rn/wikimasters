@@ -1,11 +1,9 @@
 import { h } from 'preact';
-import { childController } from '@/core/async';
-import { injectStyle, setClass, watchDom, whenBody } from '@/core/dom';
-import { isRecord } from '@/core/guards';
-import { net } from '@/core/net';
+import { classMarks, watchDom } from '@/core/dom';
 import type { Feature } from '@/core/runtime';
+import { textOf } from '@/core/text';
+import { autoConfirm, confirmStep } from '@/services/site-confirm';
 import {
-  COLLECTION_ROUTE,
   findBulkDiscardConfirm,
   findCollectionFaces,
   findCollectionFilters,
@@ -17,27 +15,23 @@ import {
   selectionMarkOf,
   type SelectionBar,
 } from '@/site/collection';
-import { mountUi, type MountedUi } from '@/ui/mount';
+import { COLLECTION_ROUTE } from '@/site/routes';
+import { createSlot } from '@/ui/mount';
 import { isStamped } from '@/ui/stamp';
 import { toast } from '@/ui/toast';
-import { CONFIRM_ACTIVE_MS, CONFIRM_DELAY_MS, confirmStage } from './confirm';
 import { SelectionActions, SelectionToggle } from './views';
 
-const HIDDEN = 'wm-selection-hidden';
 const LEVEL = 'wm-selection-level';
 const ACTIONS = 'wm-selection-actions';
 const BAR = 'wm-selection-bar';
-const CONFIRM_HIDDEN = 'wm-selection-confirm-hidden';
 /** Face d'une carte non cochée, en sélection : grisée en entier (la case à cocher, à côté, ne l'est pas). */
 const DIM = 'wm-selection-dim';
-/** Au-delà, une confirmation du site qui s'ouvre n'est plus la suite de notre second clic. */
-const ARM_WINDOW_MS = 2000;
+/** « Défausser tout » : notre bouton, qui confirme en deux clics. */
+const DISCARD_ALL = 'discard-all';
 
 // Mise en page seulement : les boutons sont ceux de `buttonClass`, le compte et les pastilles portent les classes du site.
 const CSS = `
-.${HIDDEN} { display: none !important; }
-.${CONFIRM_HIDDEN} { visibility: hidden !important; }
-/* Côté droit de la ligne des filtres (sa largeur : collection-filter-line), contenu calé à droite. */
+/* Côté droit de la ligne des filtres (sa largeur : collection-filters), contenu calé à droite. */
 .${LEVEL} { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
 .${LEVEL} .wm-selection-count { white-space: nowrap; }
 /* Barre du bas resserrée sur ses boutons (sa marge intérieure de chaque côté), centrée là où le site la
@@ -53,12 +47,6 @@ main ${LIST_LOADING_VEIL} { inset: -12px; }
 .${DIM} { filter: grayscale(1) brightness(0.55); }
 .group:hover .${DIM} { filter: grayscale(1) brightness(0.8); }
 `;
-
-interface Placed {
-  readonly parent: HTMLElement;
-  readonly ui: MountedUi;
-  readonly controller: AbortController;
-}
 
 /**
  * Mode sélection de la Collection (le site reste le moteur : ses boutons, cachés, sont cliqués par les
@@ -78,73 +66,32 @@ export const collectionSelection: Feature = {
   hidden: true,
   async mount(ctx) {
     const { signal, log } = ctx;
-    let toggle: Placed | undefined;
-    let actions: Placed | undefined;
     /** Dernier compte lu (la barre affiche « Actualisation… » pendant un chargement). */
     let count = 0;
-    /** Premier clic sur « Défausser tout ». */
-    let confirmingSince: number | undefined;
-    /** Second clic : la confirmation du site est attendue, puis acceptée (`confirmed`) et la défausse part. */
-    let pending: { readonly at: number; confirmed: boolean } | undefined;
-    /** Défausse refusée : sa confirmation (cachée) est à refermer. */
-    let dismissing = false;
-    const timers = new Set<ReturnType<typeof setTimeout>>();
 
-    const syncIn = (ms: number) => {
-      const timer = setTimeout(() => {
-        timers.delete(timer);
-        sync();
-      }, ms);
-      timers.add(timer);
-    };
-
-    function refused(message: string): void {
-      pending = undefined;
-      dismissing = true;
-      toast.error(message, { title: 'Défausse impossible' });
-      sync();
-    }
-
-    net.observe(
-      (request) => isBulkDiscard(request) && !request.own,
-      async (exchange) => {
-        if (!pending?.confirmed || exchange.ok) return;
-        const body = await exchange.json().catch(() => undefined);
-        const message = isRecord(body) && typeof body.error === 'string' ? body.error : `Erreur ${exchange.status} du site.`;
-        log.warn('défausse de la sélection refusée', exchange.status, message);
-        refused(message);
+    if (!(await ctx.ready())) return;
+    ctx.style(CSS);
+    const marks = classMarks(signal);
+    const toggle = createSlot(signal);
+    const actions = createSlot(signal);
+    /** Barres du bas recalées (variables posées sur elles). */
+    const fitted = new Set<HTMLElement>();
+    const step = confirmStep<typeof DISCARD_ALL>({ onChange: () => sync(), signal });
+    const confirm = autoConfirm({
+      find: findBulkDiscardConfirm,
+      request: isBulkDiscard,
+      onRefused: (message, status) => {
+        log.warn('défausse de la sélection refusée', status ?? 'sans réponse', message);
+        toast.error(message, { title: 'Défausse impossible' });
       },
-      { signal },
-    );
-    net.track(
-      (request) => isBulkDiscard(request) && !request.own,
-      () => (status) => {
-        if (status !== undefined || !pending?.confirmed) return;
-        log.warn('défausse de la sélection sans réponse du site');
-        refused("Le site n'a pas répondu (erreur réseau).");
-      },
-      { signal },
-    );
-
-    await whenBody();
-    if (signal.aborted) return;
-    injectStyle('collection-selection', CSS);
+      onChange: () => sync(),
+      signal,
+    });
 
     function onDiscard(): void {
       const bar = findSelectionBar();
-      if (!bar?.discard || bar.discard.disabled || pending) return;
-      const stage = confirmStage(confirmingSince, Date.now());
-      if (stage === 'waiting') return;
-      if (stage === 'idle') {
-        confirmingSince = Date.now();
-        syncIn(CONFIRM_DELAY_MS + 20);
-        syncIn(CONFIRM_DELAY_MS + CONFIRM_ACTIVE_MS + 20);
-        sync();
-        return;
-      }
-      confirmingSince = undefined;
-      pending = { at: Date.now(), confirmed: false };
-      syncIn(ARM_WINDOW_MS + 20);
+      if (!bar?.discard || bar.discard.disabled || confirm.pending || !step.press(DISCARD_ALL)) return;
+      confirm.arm();
       bar.discard.click();
       sync();
     }
@@ -158,55 +105,39 @@ export const collectionSelection: Feature = {
     function placeToggle(active: boolean | undefined): void {
       const site = findSelectionToggle();
       const line = findCollectionFilters()?.row.parentElement;
-      if (site) setClass(site.button, HIDDEN, true);
+      if (site) ctx.hide(site.button);
       if (active === undefined || !line) {
-        toggle?.controller.abort();
-        toggle = undefined;
+        toggle.clear();
         return;
       }
-      const vnode = h(SelectionToggle, { active, count, onClick: () => findSelectionMode()?.toggle() });
-      if (toggle?.parent !== line || !toggle.ui.element.isConnected) {
-        toggle?.controller.abort();
-        const controller = childController(signal);
-        toggle = { parent: line, ui: mountUi(vnode, { parent: line, className: LEVEL, signal: controller.signal }), controller };
-        return;
-      }
-      if (line.lastElementChild !== toggle.ui.element) line.append(toggle.ui.element);
-      toggle.ui.update(vnode);
+      // Au bout de la ligne des filtres.
+      toggle.render(h(SelectionToggle, { active, count, onClick: () => findSelectionMode()?.toggle() }), {
+        parent: line,
+        before: null,
+        className: LEVEL,
+      });
     }
 
     function placeActions(bar: SelectionBar | undefined): void {
       if (!bar) {
-        actions?.controller.abort();
-        actions = undefined;
+        actions.clear();
         return;
       }
-      setClass(bar.row, HIDDEN, true);
-      if (bar.error) setClass(bar.error, HIDDEN, true);
+      ctx.hide(bar.row);
+      if (bar.error) ctx.hide(bar.error);
       fitBar(bar.root);
-      const site = (button: HTMLButtonElement | undefined) =>
-        button && { label: (button.textContent ?? '').trim(), disabled: button.disabled };
+      const site = (button: HTMLButtonElement | undefined) => button && { label: textOf(button), disabled: button.disabled };
       const vnode = h(SelectionActions, {
         selectPage: bar.selectPage && { disabled: bar.selectPage.disabled, pageSelected: bar.pageSelected },
         tag: site(bar.tag),
         untag: bar.untag && { label: 'Désétiqueter', disabled: bar.untag.disabled },
-        discard: bar.discard && {
-          disabled: bar.discard.disabled,
-          stage: confirmStage(confirmingSince, Date.now()),
-          busy: pending?.confirmed === true,
-        },
+        discard: bar.discard && { disabled: bar.discard.disabled, stage: step.stage(DISCARD_ALL), busy: confirm.confirmed },
         onSelectPage: click((current) => current.selectPage),
         onTag: click((current) => current.tag),
         onUntag: click((current) => current.untag),
         onDiscard,
       });
-      if (actions?.parent !== bar.root || !actions.ui.element.isConnected) {
-        actions?.controller.abort();
-        const controller = childController(signal);
-        actions = { parent: bar.root, ui: mountUi(vnode, { parent: bar.root, before: bar.row, className: ACTIONS, signal: controller.signal }), controller };
-        return;
-      }
-      actions.ui.update(vnode);
+      actions.render(vnode, { parent: bar.root, before: bar.row, className: ACTIONS });
     }
 
     function setVar(element: HTMLElement, name: string, value: string): void {
@@ -219,40 +150,20 @@ export const collectionSelection: Feature = {
       if (!Number.isFinite(left) || !Number.isFinite(width)) return;
       setVar(root, '--wm-bar-center', `${left + width / 2}px`);
       setVar(root, '--wm-bar-width', `${width}px`);
-      setClass(root, BAR, true);
-    }
-
-    function syncDiscard(): void {
-      const now = Date.now();
-      if (confirmStage(confirmingSince, now) === 'idle') confirmingSince = undefined;
-      if (pending && !pending.confirmed && now - pending.at > ARM_WINDOW_MS) pending = undefined;
-      const confirm = findBulkDiscardConfirm();
-      if (confirm && pending && !pending.confirmed) {
-        pending.confirmed = true;
-        confirm.confirmButton.click();
-      }
-      // Confirmation refermée : défausse faite (le site recharge la page), ou refusée puis refermée ici.
-      if (!confirm) {
-        if (pending?.confirmed) pending = undefined;
-        dismissing = false;
-      }
-      if (confirm && dismissing && !confirm.cancelButton.disabled) {
-        dismissing = false;
-        confirm.cancelButton.click();
-      }
-      if (confirm) setClass(confirm.root, CONFIRM_HIDDEN, pending !== undefined || dismissing);
+      marks.set(root, BAR, true);
+      fitted.add(root);
     }
 
     /** Une carte tamponnée (défaussée, en vente) est déjà grisée, son tampon doit rester lisible. */
     function syncDim(active: boolean): void {
       for (const face of findCollectionFaces()) {
         const mark = active ? selectionMarkOf(face) : undefined;
-        setClass(face, DIM, mark !== undefined && !mark.selected && !isStamped(face));
+        marks.set(face, DIM, mark !== undefined && !mark.selected && !isStamped(face));
       }
     }
 
     function sync(): void {
-      syncDiscard();
+      confirm.sync();
       const bar = findSelectionBar();
       if (bar?.count !== undefined) count = bar.count;
       const mode = findSelectionMode();
@@ -269,16 +180,9 @@ export const collectionSelection: Feature = {
     // Le site recale la barre en changeant son style, que watchDom ne suit pas.
     window.addEventListener('resize', () => requestAnimationFrame(sync), { signal });
     ctx.onDispose(() => {
-      for (const root of document.querySelectorAll<HTMLElement>(`.${BAR}`)) {
-        root.classList.remove(BAR);
+      for (const root of fitted) {
         root.style.removeProperty('--wm-bar-center');
         root.style.removeProperty('--wm-bar-width');
-      }
-      for (const timer of timers) clearTimeout(timer);
-      toggle?.controller.abort();
-      actions?.controller.abort();
-      for (const name of [HIDDEN, CONFIRM_HIDDEN, DIM]) {
-        document.querySelectorAll(`.${name}`).forEach((element) => element.classList.remove(name));
       }
     });
   },

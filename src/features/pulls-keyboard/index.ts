@@ -1,7 +1,8 @@
 import type { Feature } from '@/core/runtime';
 import { findPullsGrid } from '@/services/pulls-grid';
-import { isSiteModalOpen } from '@/site/cards';
-import { findCarousel, PULLS_ROUTE } from '@/site/pulls';
+import { isSiteModalOpen } from '@/site/modals';
+import { findCarousel } from '@/site/pulls';
+import { PULLS_ROUTE } from '@/site/routes';
 import { isModalOpen } from '@/ui/modal';
 
 /** Saisie en cours : les flèches servent au texte, pas au carrousel. */

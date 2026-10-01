@@ -1,7 +1,10 @@
-import { ROOT_CLASS } from '@/core/dom';
-import { isRecord } from '@/core/guards';
+import { isRecord, isSet, parseJson } from '@/core/guards';
 import type { NetRequest } from '@/core/net';
-import { currentFiberAncestors, fiberOf, stateHooks, type Fiber } from '@/core/react';
+import { currentFiberAncestors, fiberOf, findPropsAbove, type Fiber } from '@/core/react';
+import { textOf } from '@/core/text';
+import { hasIcon, isOwn } from '@/site/dom';
+import { statesAboveRefresh } from '@/site/list-page';
+import { SITE_OVERLAY } from '@/site/modals';
 import { findCollectionFilters } from './filters';
 
 /**
@@ -19,9 +22,6 @@ import { findCollectionFilters } from './filters';
  *   après un rechargement.
  */
 
-const text = (element: Element | null | undefined) => (element?.textContent ?? '').replace(/\s+/g, ' ').trim();
-const hasIcon = (element: Element, ...names: string[]) => names.some((name) => element.querySelector(`svg.lucide-${name}`));
-
 export interface SelectionToggle {
   readonly button: HTMLButtonElement;
   /** Mode sélection actif (le bouton est « Quitter la sélection »). */
@@ -30,7 +30,7 @@ export interface SelectionToggle {
 
 /** Bouton du site qui entre dans le mode sélection ou en sort. */
 export function findSelectionToggle(doc: Document = document): SelectionToggle | undefined {
-  const heading = [...(doc.querySelector('main')?.querySelectorAll('h1') ?? [])].find((h1) => text(h1) === 'Collection');
+  const heading = [...(doc.querySelector('main')?.querySelectorAll('h1') ?? [])].find((h1) => textOf(h1) === 'Collection');
   const button = heading?.parentElement?.querySelector<HTMLButtonElement>(':scope > button');
   if (!button) return undefined;
   if (hasIcon(button, 'square-check-big')) return { button, active: false };
@@ -67,34 +67,26 @@ export function findSelectionMode(doc: Document = document): SelectionMode | und
   return state && { active: state.active, toggle: () => state.setActive(!state.active) };
 }
 
-const isSet = (value: unknown) => Object.prototype.toString.call(value) === '[object Set]';
-
 /**
  * La page est le premier composant à états au-dessus de son « tirer pour rafraîchir » (props `onRefresh`).
  * Son état « sélection » est le booléen qui précède immédiatement l'ensemble des exemplaires cochés (`Set`) :
  * seul couple de ce genre parmi ses états (code du site, 29/09/2026). Rien si ce n'est pas sans ambiguïté.
  */
 export function selectionStateAmong(ancestors: readonly Fiber[]): SelectionState | undefined {
-  const refresh = ancestors.findIndex((fiber) => isRecord(fiber.memoizedProps) && typeof fiber.memoizedProps.onRefresh === 'function');
-  if (refresh < 0) return undefined;
-  for (const fiber of ancestors.slice(refresh + 1)) {
-    const states = stateHooks(fiber);
-    if (states.length === 0) continue;
-    const pairs = states.flatMap((mode, i) => {
-      const selected = states[i + 1];
-      return typeof mode.value === 'boolean' && selected && isSet(selected.value) ? [{ mode, selected }] : [];
-    });
-    const [pair, ...others] = pairs;
-    if (!pair || others.length > 0) return undefined;
-    return {
-      active: pair.mode.value === true,
-      setActive: (active) => {
-        pair.mode.set(active);
-        pair.selected.set(new Set());
-      },
-    };
-  }
-  return undefined;
+  const states = statesAboveRefresh(ancestors) ?? [];
+  const pairs = states.flatMap((mode, i) => {
+    const selected = states[i + 1];
+    return typeof mode.value === 'boolean' && selected && isSet(selected.value) ? [{ mode, selected }] : [];
+  });
+  const [pair, ...others] = pairs;
+  if (!pair || others.length > 0) return undefined;
+  return {
+    active: pair.mode.value === true,
+    setActive: (active) => {
+      pair.mode.set(active);
+      pair.selected.set(new Set());
+    },
+  };
 }
 
 export interface SelectionBar {
@@ -116,13 +108,13 @@ export interface SelectionBar {
 export function findSelectionBar(doc: Document = document): SelectionBar | undefined {
   for (const root of doc.querySelectorAll<HTMLElement>('body > div.fixed.bottom-4.card-frame')) {
     // Nos interfaces peuvent s'y ajouter (`.wm-root`) : la rangée du site est son premier enfant à lui.
-    const row = [...root.children].find((child) => !child.classList.contains(ROOT_CLASS));
-    if (!(row instanceof HTMLElement) || !/sélectionnée|Actualisation/.test(text(row.firstElementChild))) continue;
+    const row = [...root.children].find((child) => !isOwn(child));
+    if (!(row instanceof HTMLElement) || !/sélectionnée|Actualisation/.test(textOf(row.firstElementChild))) continue;
     const buttons = [...row.querySelectorAll<HTMLButtonElement>('button')];
     const selectPage = buttons.find((button) => hasIcon(button, 'square-check-big', 'square'));
     const [tag, untag] = buttons.filter((button) => hasIcon(button, 'tag'));
     const number = row.firstElementChild?.querySelector('span.font-semibold');
-    const count = number ? Number.parseInt(text(number), 10) : Number.NaN;
+    const count = number ? Number.parseInt(textOf(number), 10) : Number.NaN;
     return {
       root,
       row,
@@ -197,10 +189,10 @@ export interface BulkTagModal {
  * « Terminé », et la page s'actualise en entier (message au-dessus de la grille).
  */
 export function findBulkTagModal(doc: Document = document): BulkTagModal | undefined {
-  for (const overlay of doc.querySelectorAll<HTMLElement>('body > div.fixed.inset-0')) {
+  for (const overlay of doc.querySelectorAll<HTMLElement>(`body > ${SITE_OVERLAY}`)) {
     const frame = overlay.firstElementChild;
     if (!(frame instanceof HTMLElement)) continue;
-    const title = text(frame.querySelector('h2'));
+    const title = textOf(frame.querySelector('h2'));
     const mode = title === 'Appliquer une étiquette' ? 'add' : title === 'Retirer une étiquette' ? 'remove' : undefined;
     if (!mode) continue;
     return { overlay, frame, mode, close: frame.querySelector<HTMLButtonElement>(':scope > button[aria-label="Fermer"]') ?? undefined, cardIds: readCardIds(frame), form: readForm(frame) };
@@ -209,12 +201,8 @@ export function findBulkTagModal(doc: Document = document): BulkTagModal | undef
 }
 
 function readCardIds(frame: HTMLElement): string[] {
-  for (const fiber of currentFiberAncestors(frame)) {
-    const props = fiber.memoizedProps;
-    if (!isRecord(props) || typeof props.mode !== 'string' || !Array.isArray(props.cards)) continue;
-    return props.cards.flatMap((card: unknown) => (isRecord(card) && typeof card.id === 'string' ? [card.id] : []));
-  }
-  return [];
+  const cards = findPropsAbove(frame, (props) => typeof props.mode === 'string' && Array.isArray(props.cards))?.props.cards;
+  return Array.isArray(cards) ? cards.flatMap((card: unknown) => (isRecord(card) && typeof card.id === 'string' ? [card.id] : [])) : [];
 }
 
 function readForm(frame: HTMLElement): BulkTagModal['form'] {
@@ -226,7 +214,7 @@ function readForm(frame: HTMLElement): BulkTagModal['form'] {
   for (const button of list.querySelectorAll<HTMLButtonElement>(':scope > button')) {
     const id = fiberOf(button)?.key;
     const chip = button.querySelector('span');
-    if (typeof id === 'string' && chip) options.push({ button, id, name: text(chip), chipStyle: chip.getAttribute('style') ?? '' });
+    if (typeof id === 'string' && chip) options.push({ button, id, name: textOf(chip), chipStyle: chip.getAttribute('style') ?? '' });
   }
   const color = list.querySelector<HTMLInputElement>(':scope > div input[type="color"]');
   const row = color?.closest<HTMLElement>('div');
@@ -241,14 +229,10 @@ export function isBulkDiscard(request: NetRequest): boolean {
 
 /** Exemplaires d'une défausse de la sélection (`card_ids` du corps). */
 export function readBulkDiscard(request: NetRequest): string[] {
-  if (!isBulkDiscard(request) || !request.body) return [];
-  try {
-    const body: unknown = JSON.parse(request.body);
-    const ids = isRecord(body) && Array.isArray(body.card_ids) ? body.card_ids : [];
-    return ids.filter((id): id is string => typeof id === 'string');
-  } catch {
-    return [];
-  }
+  if (!isBulkDiscard(request)) return [];
+  const body = parseJson(request.body ?? '');
+  const ids = isRecord(body) && Array.isArray(body.card_ids) ? body.card_ids : [];
+  return ids.filter((id): id is string => typeof id === 'string');
 }
 
 /**
@@ -281,13 +265,13 @@ export interface BulkDiscardConfirm {
  * page actualisés ; refusée : reste ouverte avec l'erreur. Le fond la ferme, sauf pendant l'envoi.
  */
 export function findBulkDiscardConfirm(doc: Document = document): BulkDiscardConfirm | undefined {
-  for (const root of doc.querySelectorAll<HTMLElement>('body > div.fixed.inset-0')) {
-    if (!/^Défausser \d+ cartes? \?$/.test(text(root.querySelector('h3')))) continue;
+  for (const root of doc.querySelectorAll<HTMLElement>(`body > ${SITE_OVERLAY}`)) {
+    if (!/^Défausser \d+ cartes? \?$/.test(textOf(root.querySelector('h3')))) continue;
     const buttons = [...root.querySelectorAll<HTMLButtonElement>('button')];
-    const cancelButton = buttons.find((button) => text(button) === 'Annuler');
+    const cancelButton = buttons.find((button) => textOf(button) === 'Annuler');
     const confirmButton = buttons.find((button) => button !== cancelButton && button.classList.contains('bg-red-500'));
     if (!cancelButton || !confirmButton) continue;
-    const error = text(root.querySelector('p.text-red-500')) || undefined;
+    const error = textOf(root.querySelector('p.text-red-500')) || undefined;
     return { root, cancelButton, confirmButton, error };
   }
   return undefined;

@@ -1,14 +1,27 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openSite, presetSettings, sitePage } from './support/site';
+import { expectDomIdle, openSettings, openSite, presetSettings, rect, sitePage } from './support/site';
 
 // Grilles relevées dans les captures du 29/09/2026. Le faux site n'a pas Tailwind : tailles et espacements du
 // site en style dans la balise (160 × 224 px, écart de la grille).
 const FACE = (id: string) =>
   `<div data-face="${id}" class="w-[clamp(8.4rem,43vw,10rem)] h-[clamp(11.8rem,60vw,14rem)] glow-c relative rounded-2xl overflow-hidden" ` +
   `style="width:160px;height:224px;flex:none"><h3>Carte ${id}</h3></div>`;
-const row = (classes: string, gap: number, items: string[]) =>
-  `<div id="grid" class="${classes}" style="display:flex;flex-wrap:wrap;justify-content:center;gap:${gap}px">${items.join('')}</div>`;
+const row = (classes: string, gap: number, items: string[], id = 'grid') =>
+  `<div id="${id}" class="${classes}" style="display:flex;flex-wrap:wrap;justify-content:center;gap:${gap}px">${items.join('')}</div>`;
 const ids = ['a', 'b', 'c', 'd', 'e', 'f'];
+
+/** Fenêtre « Échanger avec » (code du site, 30/09/2026) : fond, cadre `max-w-5xl`, titre, zone qui défile. */
+const tradeWindow = (content: string) =>
+  '<div class="fixed inset-0 z-50 flex items-center justify-center p-2 bg-black/70"><div class="w-full max-w-5xl rounded-2xl border">' +
+  `<h2>Échanger avec <span>aelonka</span></h2><div class="overflow-y-auto"><div>${content}</div></div></div></div>`;
+/** Choix des cartes d'un échange : `button` > face, rangée en grille sous 500 px. */
+const tradeGrid = (faces: string[], id = 'grid') =>
+  row(
+    'grid w-full grid-cols-2 gap-1.5 min-[500px]:flex min-[500px]:flex-wrap min-[500px]:justify-center min-[500px]:gap-3',
+    12,
+    faces.map((face) => `<button type="button" class="relative w-full min-w-0 min-[500px]:w-auto rounded-2xl">${face}</button>`),
+    id,
+  );
 
 const PAGES = {
   collection: {
@@ -56,15 +69,22 @@ const PAGES = {
     path: '/trades',
     tab: 'Échanges',
     gap: 12,
-    // Choix des cartes d'un échange : dans la modale « Échanger avec ».
-    html:
-      '<div class="fixed inset-0 z-50 flex items-center justify-center p-2 bg-black/70"><div class="rounded-2xl border">' +
-      row(
-        'grid w-full grid-cols-2 gap-1.5 min-[500px]:flex min-[500px]:flex-wrap min-[500px]:justify-center min-[500px]:gap-3',
-        12,
-        ids.map((id) => `<button type="button" class="relative w-full min-w-0 min-[500px]:w-auto rounded-2xl">${FACE(id)}</button>`),
-      ) +
-      '</div></div>',
+    // Choix des cartes d'un échange : dans la fenêtre « Échanger avec ».
+    html: tradeWindow(tradeGrid(ids.map(FACE))),
+  },
+  guild: {
+    path: '/guild',
+    tab: 'Guilde',
+    gap: 26,
+    // Liste de souhaits de l'Accueil (capture du 01/10/2026) : « Ajouter ma demande » en tête de la rangée.
+    html: row(
+      'flex flex-wrap justify-center gap-3 sm:gap-[22px] md:gap-[26px]',
+      26,
+      [
+        '<button type="button" class="w-[clamp(8.4rem,43vw,10rem)] h-[clamp(11.8rem,60vw,14rem)] border-dashed" style="width:160px;height:224px">Ajouter ma demande</button>',
+        ...ids.map((id) => `<div class="flex flex-col items-center gap-1.5"><div class="relative rounded-xl">${FACE(id)}</div></div>`),
+      ],
+    ),
   },
 } as const;
 
@@ -76,6 +96,7 @@ const featureId = (name: PageName) =>
     globalCollection: 'global-collection-card-display',
     profile: 'profile-card-display',
     trades: 'trades-card-display',
+    guild: 'guild-card-display',
   })[name];
 
 async function openPage(page: Page, name: PageName) {
@@ -85,10 +106,10 @@ async function openPage(page: Page, name: PageName) {
 }
 
 /** Largeur affichée d'une carte et espacement de la grille. */
-async function measure(page: Page) {
-  const face = await page.locator('[data-face="a"]').boundingBox();
-  const gap = await page.locator('#grid').evaluate((grid) => getComputedStyle(grid).columnGap);
-  return { width: Math.round(face?.width ?? 0), gap };
+async function measure(page: Page, face = '[data-face="a"]', grid = '#grid') {
+  const { width } = await rect(page.locator(face));
+  const gap = await page.locator(grid).evaluate((element) => getComputedStyle(element).columnGap);
+  return { width: Math.round(width), gap };
 }
 
 for (const name of Object.keys(PAGES) as PageName[]) {
@@ -96,7 +117,8 @@ for (const name of Object.keys(PAGES) as PageName[]) {
 
   test(`${path} : sans réglage, les cartes et leur espacement sont ceux du site`, async ({ page }) => {
     await openPage(page, name);
-    await expect(page.locator('#grid')).toHaveClass(/wm-card-grid/);
+    // Chaque grille porte la classe du réglage qui la règle.
+    await expect(page.locator('#grid')).toHaveClass(new RegExp(`\\bwm-${featureId(name)}\\b`));
     expect(await measure(page)).toEqual({ width: 160, gap: `${gap}px` });
   });
 
@@ -110,8 +132,39 @@ for (const name of Object.keys(PAGES) as PageName[]) {
 test('chaque page a ses propres réglages', async ({ page }) => {
   await presetSettings(page, { features: {}, values: { 'collection-card-display': { scale: 200, gap: 0 } } });
   await openPage(page, 'marketplace');
-  await expect(page.locator('#grid')).toHaveClass(/wm-card-grid/);
+  await expect(page.locator('#grid')).toHaveClass(/\bwm-marketplace-card-display\b/);
+  await expect(page.locator('#grid')).not.toHaveClass(/wm-collection-card-display/);
   expect(await measure(page)).toEqual({ width: 160, gap: '20px' });
+});
+
+/** Fenêtre d'échange ouverte par-dessus une page : ses cartes `t<id>`, sa grille `#trade-grid`. */
+async function openTradeOver(page: Page, path: string, main: string) {
+  await presetSettings(page, {
+    features: {},
+    values: { 'global-collection-card-display': { scale: 150, gap: 40 }, 'trades-card-display': { scale: 50, gap: 0 } },
+  });
+  await page.setViewportSize({ width: 1400, height: 900 });
+  const trade = tradeGrid(
+    ids.map((id) => FACE(`t${id}`)),
+    'trade-grid',
+  );
+  await openSite(page, path, { html: sitePage(main + tradeWindow(trade)) });
+  await expect(page.locator('[data-face="ta"]')).toBeVisible();
+}
+const measureTrade = (page: Page) => measure(page, '[data-face="ta"]', '#trade-grid');
+
+test('fenêtre d’échange ouverte sur une autre page : réglage « Échanges » ; la page en dessous garde le sien', async ({ page }) => {
+  await openTradeOver(page, '/global-collection', PAGES.globalCollection.html);
+  await expect.poll(() => measure(page)).toEqual({ width: 240, gap: '40px' });
+  await expect.poll(() => measureTrade(page)).toEqual({ width: 80, gap: '0px' });
+  await expect(page.locator('#trade-grid')).toHaveClass(/\bwm-trades-card-display\b/);
+  await expect(page.locator('#trade-grid')).not.toHaveClass(/wm-global-collection-card-display/);
+  await expect(page.locator('#grid')).not.toHaveClass(/wm-trades-card-display/);
+});
+
+test('fenêtre d’échange ouverte là où aucun réglage de page ne s’applique : réglage « Échanges »', async ({ page }) => {
+  await openTradeOver(page, '/friends', '<h1>Amis</h1>');
+  await expect.poll(() => measureTrade(page)).toEqual({ width: 80, gap: '0px' });
 });
 
 test('une grille recréée par le site est réglée elle aussi, la grande carte de la modale jamais', async ({ page }) => {
@@ -134,21 +187,15 @@ test('une grille recréée par le site est réglée elle aussi, la grande carte 
     ),
   );
   await expect(page.locator('#big')).toBeVisible();
-  expect(Math.round((await page.locator('#big').boundingBox())?.width ?? 0)).toBe(288);
+  expect(Math.round((await rect(page.locator('#big'))).width)).toBe(288);
 
   // Au repos, le script ne resynchronise plus la page.
-  await page.waitForTimeout(300);
-  const syncs = () => page.evaluate(() => window.wm?.debug?.domSyncs() ?? -1);
-  const before = await syncs();
-  await page.waitForTimeout(600);
-  expect(await syncs()).toBe(before);
+  await expectDomIdle(page);
 });
 
 test('paramètres : curseur cranté de la taille et espacement, appliqués aussitôt', async ({ page }) => {
   await openPage(page, 'collection');
-  await page.locator('button[aria-label="Paramètres WikiMasters"]:visible').click();
-  const dialog = page.getByRole('dialog', { name: 'Paramètres' });
-  await dialog.getByRole('button', { name: 'Collection' }).click();
+  const dialog = await openSettings(page, 'Collection');
 
   const section = dialog.locator('.wm-settings-section', { hasText: 'Apparence' });
   await expect(section.locator('.wm-settings-heading')).toHaveText('Apparence');
@@ -163,8 +210,7 @@ test('paramètres : curseur cranté de la taille et espacement, appliqués aussi
 
   // Sous son libellé, sur toute la largeur ; chaque cran à la place de sa valeur entre 50 et 200 %.
   await slider.scrollIntoViewIfNeeded();
-  const box = await slider.boundingBox();
-  if (!box) throw new Error('curseur introuvable');
+  const box = await rect(slider);
   expect(box.width).toBeGreaterThan(550);
   const centers = await ticks.evaluateAll((spans) =>
     spans.map((span) => {
@@ -228,8 +274,7 @@ test('paramètres : curseur cranté de la taille et espacement, appliqués aussi
 
 test('paramètres : une section « Apparence » dans l’onglet de chaque page', async ({ page }) => {
   await openPage(page, 'collection');
-  await page.locator('button[aria-label="Paramètres WikiMasters"]:visible').click();
-  const dialog = page.getByRole('dialog', { name: 'Paramètres' });
+  const dialog = await openSettings(page);
   for (const name of Object.keys(PAGES) as PageName[]) {
     await dialog.getByRole('button', { name: PAGES[name].tab, exact: true }).click();
     const section = dialog.locator('.wm-settings-section', { hasText: 'Apparence' });

@@ -2,6 +2,7 @@ import type { ComponentChildren } from 'preact';
 import { buttonClass } from '@/ui/button';
 import { Icon } from '@/ui/icons';
 import { siteClass } from '@/ui/site';
+import { tokens } from '@/ui/theme';
 import { formatCountdown } from './time';
 
 export type ProPackState =
@@ -35,9 +36,16 @@ function describe(state: ProPackState): string {
   }
 }
 
-function Button(props: { disabled?: boolean; onClick?: () => void; label?: string; children: ComponentChildren }) {
+function Button(props: { disabled?: boolean; busy?: boolean; onClick?: () => void; label?: string; children: ComponentChildren }) {
   return (
-    <button type="button" class={buttonClass('wide', { tone: 'pro', fill: 'solid' })} disabled={props.disabled} aria-label={props.label} onClick={props.onClick}>
+    <button
+      type="button"
+      class={buttonClass('wide', { tone: 'pro', fill: 'solid' })}
+      disabled={props.disabled}
+      aria-busy={props.busy}
+      aria-label={props.label}
+      onClick={props.onClick}
+    >
       {props.children}
     </button>
   );
@@ -47,14 +55,14 @@ function Action({ state, onOpen, onRetry, onReload }: ProPackProps) {
   switch (state.kind) {
     case 'loading':
       return (
-        <Button disabled label="Chargement du pack Pro">
-          <Icon name="spinner" size={20} class="wm-spin" />
+        <Button disabled busy label="Chargement du pack Pro">
+          <Icon name="spinner" size={20} />
         </Button>
       );
     case 'available':
       return state.opening ? (
-        <Button disabled>
-          <Icon name="spinner" size={16} class="wm-spin" />
+        <Button disabled busy>
+          <Icon name="spinner" size={16} />
           Ouverture…
         </Button>
       ) : (
@@ -82,7 +90,7 @@ export function ProPack(props: ProPackProps) {
   return (
     <section class={`${siteClass.proFrame} wm-pro-pack`} aria-label="Pack Pro">
       <div>
-        <h2 class={siteClass.proTitle} style={{ fontFamily: 'var(--font-heading)' }}>
+        <h2 class={siteClass.proTitle} style={{ fontFamily: tokens.heading }}>
           Pack Pro
         </h2>
         <p class={siteClass.proText}>{describe(props.state)}</p>

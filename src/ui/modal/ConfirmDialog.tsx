@@ -1,14 +1,12 @@
 import type { ComponentChildren } from 'preact';
-import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { useRef, useState } from 'preact/hooks';
 import { childController } from '@/core/async';
 import { buttonClass } from '@/ui/button';
 import { Icon } from '@/ui/icons';
 import { mountUi } from '@/ui/mount';
 import { siteClass } from '@/ui/site';
-import { tokens } from '@/ui/theme';
-import { useBackdropGuard } from './backdrop';
-import { useSmoothExit } from './exit';
-import { useOpenModal } from './Modal';
+import { layers, tokens } from '@/ui/theme';
+import { useModalBehavior } from './behavior';
 
 export interface ConfirmOptions {
   readonly title: string;
@@ -32,22 +30,7 @@ function ConfirmDialog({ title, message, confirmLabel, onConfirm, onClose }: Dia
   const [busy, setBusy] = useState(false);
   const overlay = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLDivElement>(null);
-  useOpenModal();
-  useSmoothExit(overlay, frame);
-  useBackdropGuard(overlay);
-
-  useEffect(() => frame.current?.focus(), []);
-
-  // Dès l'affichage (un effet ordinaire attend l'image suivante : un Échap tapé aussitôt serait perdu).
-  useLayoutEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      event.stopPropagation();
-      if (!busy) onClose();
-    };
-    document.addEventListener('keydown', onKey, true);
-    return () => document.removeEventListener('keydown', onKey, true);
-  }, [busy, onClose]);
+  useModalBehavior({ overlay, frame, onClose, locked: busy });
 
   const confirm = () => {
     if (busy) return;
@@ -59,14 +42,7 @@ function ConfirmDialog({ title, message, confirmLabel, onConfirm, onClose }: Dia
   };
 
   return (
-    <div
-      ref={overlay}
-      class={siteClass.confirmOverlay}
-      style={{ zIndex: 2147482000 }}
-      onClick={(event) => {
-        if (event.target === event.currentTarget && !busy) onClose();
-      }}
-    >
+    <div ref={overlay} class={siteClass.confirmOverlay} style={{ zIndex: layers.modal }}>
       <div ref={frame} class={siteClass.confirmFrame} role="alertdialog" aria-modal="true" aria-label={title} tabIndex={-1}>
         <h3 class={siteClass.confirmTitle} style={{ fontFamily: tokens.heading }}>
           {title}
@@ -83,7 +59,7 @@ function ConfirmDialog({ title, message, confirmLabel, onConfirm, onClose }: Dia
             aria-busy={busy}
             onClick={confirm}
           >
-            {busy && <Icon name="spinner" size={16} class="wm-spin" />}
+            {busy && <Icon name="spinner" size={16} />}
             {confirmLabel}
           </button>
         </div>

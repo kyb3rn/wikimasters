@@ -1,11 +1,13 @@
 import type { RefObject } from 'preact';
 import { useLayoutEffect } from 'preact/hooks';
-import { GHOST_CLASS, injectStyle, ROOT_CLASS } from '@/core/dom';
+import { GHOST_CLASS, injectStyle, prefersReducedMotion, ROOT_CLASS } from '@/core/dom';
+import { cx } from '@/ui/cx';
+import { ensureBaseStyle, INLINE_CLASS } from '@/ui/theme';
 
 const LEAVING = 'wm-modal-leaving';
 const FRAME = 'wm-modal-leaving-frame';
 /** Durée de la sortie : celle de l'entrée de nos modales (`wm-fade-in`). */
-export const MODAL_EXIT_MS = 180;
+const MODAL_EXIT_MS = 180;
 
 /*
  * L'entrée à l'envers : le tout s'efface, le cadre redescend de 6 px. Les autres animations de la copie
@@ -13,7 +15,6 @@ export const MODAL_EXIT_MS = 180;
  * le début. Sélecteurs doublés de la copie : ils passent devant `animation: none !important` de card-modal-stay.
  */
 const CSS = `
-.${GHOST_CLASS}.wm-inline { display: contents; }
 .${GHOST_CLASS} .${LEAVING} { pointer-events: none !important;
   animation: wm-modal-out ${MODAL_EXIT_MS}ms ease-in forwards !important; }
 .${GHOST_CLASS} .${LEAVING} *:not(.${FRAME}) { animation: none !important; transition: none !important; }
@@ -26,7 +27,7 @@ const CSS = `
 const scrolls = new WeakMap<Element, { readonly top: number; readonly left: number }>();
 
 /** Retient les défilements de la page, pour rendre aux copies celui des modales que le site retire. */
-export function trackScrolls(signal: AbortSignal): void {
+export function trackScrolls({ signal }: { readonly signal: AbortSignal }): void {
   document.addEventListener(
     'scroll',
     (event) => {
@@ -36,8 +37,6 @@ export function trackScrolls(signal: AbortSignal): void {
     { capture: true, passive: true, signal },
   );
 }
-
-const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /** Ce que `cloneNode` ne recopie pas : dessin des canevas, saisies, chargement différé des images. */
 function copyLiveState(source: Element, copy: Element): void {
@@ -79,15 +78,14 @@ export interface LeaveOptions {
 /**
  * Fait disparaître une modale en fondu alors qu'elle est déjà (ou va être) retirée de la page : une copie
  * inerte prend sa place le temps de la sortie, puis s'en va. Rien si la modale était cachée (moteur caché d'une
- * fonctionnalité) ou si l'utilisateur a demandé moins d'animations.
+ * fonctionnalité) ou si l'utilisateur a demandé moins d'animations. La modale elle-même n'est pas touchée.
  */
 export function leaveSmoothly(overlay: HTMLElement, { parent, before = null, frame, own = false }: LeaveOptions): void {
-  if (!parent.isConnected || reducedMotion()) return;
+  if (!parent.isConnected || prefersReducedMotion()) return;
+  ensureBaseStyle();
   injectStyle('ui-modal-exit', CSS);
 
-  frame?.classList.add(FRAME);
   const clone = overlay.cloneNode(true) as HTMLElement;
-  frame?.classList.remove(FRAME);
   clone.classList.add(LEAVING);
   clone.inert = true;
   clone.setAttribute('aria-hidden', 'true');
@@ -97,9 +95,11 @@ export function leaveSmoothly(overlay: HTMLElement, { parent, before = null, fra
     const copy = copies[index];
     if (copy) copyLiveState(source, copy);
   });
+  // Le cadre est marqué sur sa copie : le vrai, encore à React (ou au site), ne reçoit aucune classe.
+  if (frame) copies[sources.indexOf(frame)]?.classList.add(FRAME);
 
   const ghost = document.createElement('div');
-  ghost.className = own ? `${ROOT_CLASS} ${GHOST_CLASS}` : `${ROOT_CLASS} ${GHOST_CLASS} wm-inline`;
+  ghost.className = cx(ROOT_CLASS, GHOST_CLASS, !own && INLINE_CLASS);
   ghost.append(clone);
   parent.insertBefore(ghost, before?.parentNode === parent ? before : null);
   if (!clone.checkVisibility({ opacityProperty: true, visibilityProperty: true })) {

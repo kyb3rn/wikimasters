@@ -1,6 +1,8 @@
+import { createListeners } from '@/core/listeners';
 import { createLogger } from '@/core/log';
 import { net, type NetRequest } from '@/core/net';
-import { readDiscard, readStarChange, readTagAdded, readTagRemoved } from '@/site/cards';
+import { readDiscard } from '@/site/api';
+import { readStarChange, readTagAdded, readTagRemoved } from '@/site/cards';
 import {
   copiesByCard,
   findCarousel,
@@ -20,6 +22,14 @@ export interface PackCopy {
   readonly tags: number;
 }
 
+/** Action en cours sur une carte du paquet (défausse, ouverture de la mise aux enchères) : les autres attendent. */
+export interface CardBusy {
+  /** Qui la mène (id de la fonctionnalité). */
+  readonly owner: string;
+  /** Ce qui se passe, pour l'info-bulle des boutons des autres (« Défausse en cours… »). */
+  readonly label: string;
+}
+
 /** Paquet ouvert sur /pulls, lu dans les réponses du site. */
 export interface OpenPack {
   readonly cards: readonly PackCard[];
@@ -29,8 +39,8 @@ export interface OpenPack {
   readonly chosen: ReadonlyMap<string, string> | undefined;
   /** Positions dans le paquet des cartes défaussées. */
   readonly discarded: ReadonlySet<number>;
-  /** Positions dont la défausse (la nôtre) attend la réponse du site. */
-  readonly discarding: ReadonlySet<number>;
+  /** Positions des cartes sur lesquelles une de nos actions est en cours. */
+  readonly busy: ReadonlyMap<number, CardBusy>;
 }
 
 interface MutableCopy {
@@ -44,23 +54,13 @@ interface State {
   copies: Map<string, MutableCopy> | undefined;
   chosen: Map<string, string> | undefined;
   readonly discarded: Set<number>;
-  readonly discarding: Set<number>;
+  readonly busy: Map<number, CardBusy>;
 }
 
 const log = createLogger('paquet');
-const listeners = new Set<() => void>();
+const changes = createListeners(log);
 let pack: State | undefined;
 let started = false;
-
-function notify(): void {
-  for (const listener of [...listeners]) {
-    try {
-      listener();
-    } catch (error) {
-      log.error('abonné en échec', error);
-    }
-  }
-}
 
 function withCopies(state: State, copies: readonly OwnedCopy[]): void {
   state.copies = new Map(copies.map((copy) => [copy.id, { cardId: copy.cardId, starred: copy.starred, tags: copy.tags }]));
@@ -81,7 +81,7 @@ function onAction<T>(read: (request: NetRequest) => T | undefined, apply: (value
       const value = read(exchange.request);
       if (!exchange.ok || value === undefined || !pack) return;
       apply(value, pack);
-      notify();
+      changes.emit();
     },
   );
 }
@@ -101,16 +101,10 @@ export function trackPack(): void {
       log.warn("réponse d'ouverture de paquet illisible", exchange.request.url.pathname);
       return;
     }
-    const state: State = {
-      cards: parsed.cards,
-      copies: undefined,
-      chosen: undefined,
-      discarded: new Set(),
-      discarding: new Set(),
-    };
+    const state: State = { cards: parsed.cards, copies: undefined, chosen: undefined, discarded: new Set(), busy: new Map() };
     if (parsed.copies) withCopies(state, parsed.copies);
     pack = state;
-    notify();
+    changes.emit();
   });
   // Paquet PRO : pas d'exemplaires dans la réponse, le site les demande à Supabase juste après.
   net.observe(isCopiesQuery, async (exchange) => {
@@ -121,7 +115,7 @@ export function trackPack(): void {
     const copies = parseCopies(await exchange.json());
     if (!copies) return;
     withCopies(current, copies);
-    notify();
+    changes.emit();
   });
   // Favori, étiquettes et défausses, faits dans la modale du site ou par nous.
   onAction(readStarChange, ({ cardId, starred }, state) => {
@@ -149,15 +143,19 @@ export function currentPack(): OpenPack | undefined {
 export function markDiscarded(userCardId: string): void {
   if (!pack) return;
   discard(pack, userCardId);
-  notify();
+  changes.emit();
 }
 
-/** Défausse de la carte `index` partie (`on`) ou revenue : les autres actions sur cette carte attendent. */
-export function markDiscarding(target: OpenPack, index: number, on: boolean): void {
+/**
+ * Action de `owner` partie sur la carte `index` du paquet `target` (`label` : ce qu'elle fait), ou finie (`label`
+ * absent) : les actions des autres sur cette carte attendent. Sans effet si un autre paquet a été ouvert entre-temps.
+ */
+export function markBusy(target: OpenPack, index: number, owner: string, label: string | undefined): void {
   if (!pack || pack !== target) return;
-  if (on) pack.discarding.add(index);
-  else pack.discarding.delete(index);
-  notify();
+  if (label !== undefined) pack.busy.set(index, { owner, label });
+  else if (pack.busy.get(index)?.owner === owner) pack.busy.delete(index);
+  else return;
+  changes.emit();
 }
 
 /** Le carrousel de /pulls, s'il montre le paquet suivi. */
@@ -167,9 +165,7 @@ export function packCarousel(): { carousel: Carousel; pack: OpenPack } | undefin
   return { carousel, pack };
 }
 
-/** Prévient à chaque changement du paquet suivi (ouverture, exemplaires chargés, favori, étiquette, défausse). */
+/** Prévient à chaque changement du paquet suivi (ouverture, exemplaires chargés, favori, étiquette, défausse, action en cours). */
 export function onPackChange(listener: () => void, options: { signal: AbortSignal }): void {
-  if (options.signal.aborted) return;
-  listeners.add(listener);
-  options.signal.addEventListener('abort', () => listeners.delete(listener), { once: true });
+  changes.on(listener, options);
 }

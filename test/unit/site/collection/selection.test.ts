@@ -1,15 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { NetRequest } from '@/core/net';
-import type { Fiber } from '@/core/react';
 import { readBulkDiscard, readBulkDiscardFailures, selectionStateAmong } from '@/site/collection';
+import { netRequest, stateComponent } from '../../support';
 
-const request = (body: string | undefined, path = '/api/user-cards/bulk-discard', method = 'POST'): NetRequest => ({
-  url: new URL(`https://www.wiki-masters.com${path}`),
-  method,
-  headers: new Headers(),
-  body,
-  own: false,
-});
+const request = (body: string | undefined, path = '/api/user-cards/bulk-discard') => netRequest(path, { method: 'POST', body });
 
 describe('défausse de la sélection', () => {
   it('exemplaires demandés', () => {
@@ -35,21 +28,10 @@ describe('défausse de la sélection', () => {
   });
 });
 
-/** Composant à états imité : ses hooks d'état, dans l'ordre (valeur, appels reçus). */
-function component(props: unknown, ...values: unknown[]) {
-  const calls: unknown[][] = values.map(() => []);
-  const memoizedState = values.reduceRight<unknown>(
-    (next, value, i) => ({ memoizedState: value, queue: { dispatch: (state: unknown) => calls[i]?.push(state) }, next }),
-    null,
-  );
-  const fiber: Fiber = { memoizedProps: props, return: null, memoizedState };
-  return { fiber, calls };
-}
-
 describe('mode sélection dans l’état de la page', () => {
   // Page : liste, total, raretés (Set), page, carte ouverte, sélection, cochés (Set), modale d'étiquetage.
-  const page = (selecting: boolean) => component({}, [], 0, new Set(), 0, null, selecting, new Set(['u1']), false);
-  const refresh = () => component({ onRefresh: () => {} }, 0).fiber;
+  const page = (selecting: boolean) => stateComponent({}, [], 0, new Set(), 0, null, selecting, new Set(['u1']), false);
+  const refresh = () => stateComponent({ onRefresh: () => {} }, 0).fiber;
 
   it('le booléen juste avant l’ensemble des cochés : lu, et changé avec la sélection vidée', () => {
     const collection = page(false);
@@ -62,8 +44,8 @@ describe('mode sélection dans l’état de la page', () => {
   });
 
   it('ambigu, absent ou sans « tirer pour rafraîchir » : rien', () => {
-    expect(selectionStateAmong([refresh(), component({}, false, new Set(), true, new Set()).fiber])).toBeUndefined();
-    expect(selectionStateAmong([refresh(), component({}, [], 0, null).fiber])).toBeUndefined();
+    expect(selectionStateAmong([refresh(), stateComponent({}, false, new Set(), true, new Set()).fiber])).toBeUndefined();
+    expect(selectionStateAmong([refresh(), stateComponent({}, [], 0, null).fiber])).toBeUndefined();
     expect(selectionStateAmong([page(false).fiber])).toBeUndefined();
   });
 });

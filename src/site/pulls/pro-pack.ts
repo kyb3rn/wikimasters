@@ -1,6 +1,8 @@
-import { isRecord } from '@/core/guards';
+import { isRecord, parseJson } from '@/core/guards';
 import type { NetRequest } from '@/core/net';
 import { currentFiberAncestors, stateHooks, type StateHook } from '@/core/react';
+import { textOf } from '@/core/text';
+import { PRO_DAILY_PATH } from '@/site/api';
 
 /**
  * Cadre du pack PRO du jour, en bas du choix du paquet (comptes PRO, code du site du 30/09/2026) :
@@ -20,15 +22,14 @@ export interface ProPack {
 }
 
 const TITLE = 'Pack PRO du jour';
-const text = (element: Element | null | undefined) => (element?.textContent ?? '').replace(/\s+/g, ' ').trim();
 
 export function findProPack(doc: Document = document): ProPack | undefined {
   for (const title of doc.querySelectorAll('main div > p:first-child')) {
-    if (text(title) !== TITLE) continue;
+    if (textOf(title) !== TITLE) continue;
     const root = title.parentElement;
     if (!(root instanceof HTMLElement)) continue;
     const button = root.querySelector('button');
-    const claimed = [...root.querySelectorAll(':scope > p')].some((line) => text(line).startsWith('Déjà réclamé'));
+    const claimed = [...root.querySelectorAll(':scope > p')].some((line) => textOf(line).startsWith('Déjà réclamé'));
     return { root, button: button ?? undefined, claimed };
   }
   return undefined;
@@ -41,23 +42,25 @@ const CLAIM_KEY = 'wikimasters:pro-daily-claimed';
  * (`{ userId, date }`, écrit dès qu'il le sait réclamé) pour ne pas redemander avant le lendemain.
  */
 export function proClaimDate(): string | undefined {
+  let stored: unknown;
   try {
-    const stored: unknown = JSON.parse(localStorage.getItem(CLAIM_KEY) ?? 'null');
-    const date = isRecord(stored) ? stored.date : undefined;
-    return typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : undefined;
+    stored = parseJson(localStorage.getItem(CLAIM_KEY) ?? 'null');
   } catch {
+    // Stockage refusé par le navigateur.
     return undefined;
   }
+  const date = isRecord(stored) ? stored.date : undefined;
+  return typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : undefined;
 }
 
 /** Le site demande si le pack du jour est disponible (à l'arrivée, et après chaque paquet refermé). */
 export function isProDailyStatus(request: NetRequest): boolean {
-  return request.method === 'GET' && isProDailyRoute(request);
+  return request.method === 'GET' && isProDaily(request);
 }
 
 /** Route du pack du jour : lecture de sa disponibilité (`GET`) ou ouverture (`POST`). */
-export function isProDailyRoute(request: NetRequest): boolean {
-  return request.url.pathname === '/api/packs/pro-daily';
+export function isProDaily(request: NetRequest): boolean {
+  return request.url.pathname === PRO_DAILY_PATH;
 }
 
 /** États de la page /pulls qui décident de ce que montre le cadre : disponible, déjà réclamé. */

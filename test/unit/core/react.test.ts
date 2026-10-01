@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { currentFiberAncestors, stateHooks, type Fiber } from '@/core/react';
+import { currentFiberAncestors, findPropsAbove, stateHooks, type Fiber } from '@/core/react';
 
 interface FakeFiber {
   name: string;
@@ -58,6 +58,26 @@ describe('currentFiberAncestors', () => {
     expect(ancestors[2]?.memoizedProps).toEqual({ onRefresh: 'récent' });
   });
 
+  it('élément rendu en portail (dans body, sous un nœud qui ne le contient pas) : trouvé quand même', () => {
+    const target = { name: 'cible', nodeType: 1, contains: () => false };
+    const main = domNode('main');
+    const root = fiber('racine');
+    root.stateNode = { current: root };
+    const page = fiber('page', { onSelect: 'récent' });
+    const portal = fiber('portail', {}, { containerInfo: {} });
+    const targetFiber = fiber('cible', {}, target);
+    adopt(root, adopt(page, adopt(fiber('main', {}, main), adopt(portal, targetFiber))));
+
+    const stale = adopt(fiber('page périmée', { onSelect: 'ancien' }), fiber('cible périmée', {}, target));
+    const staleRoot = fiber('racine périmée');
+    staleRoot.stateNode = root.stateNode;
+    adopt(staleRoot, stale);
+    Object.assign(target, { __reactFiber$x: stale.child });
+    const ancestors = currentFiberAncestors(target as unknown as Element);
+    expect(names(ancestors)).toEqual(['cible', 'portail', 'main', 'page', 'racine']);
+    expect(ancestors[3]?.memoizedProps).toEqual({ onSelect: 'récent' });
+  });
+
   it('sans racine lisible : les ancêtres notés sur le nœud', () => {
     const target = { nodeType: 1, contains: () => false };
     const parent = fiber('parent');
@@ -65,6 +85,25 @@ describe('currentFiberAncestors', () => {
     adopt(parent, noted);
     Object.assign(target, { __reactFiber$x: noted });
     expect(names(currentFiberAncestors(target as unknown as Element))).toEqual(['noté', 'parent']);
+  });
+});
+
+describe('findPropsAbove', () => {
+  it('rend le premier ancêtre de l’arbre affiché dont les props passent le test', () => {
+    const target = { name: 'cible', nodeType: 1, contains: () => false };
+    const root = fiber('racine');
+    root.stateNode = { current: root };
+    const page = fiber('page', { onRefresh: 'récent', mode: 'liste' });
+    const row = fiber('ligne', { mode: 'ligne' });
+    const targetFiber = fiber('cible', 'texte', target);
+    adopt(root, adopt(page, adopt(row, targetFiber)));
+    Object.assign(target, { __reactFiber$x: targetFiber });
+
+    const found = findPropsAbove(target as unknown as Node, (props) => typeof props.onRefresh === 'string');
+    expect(found?.props).toEqual({ onRefresh: 'récent', mode: 'liste' });
+    expect((found?.fiber as unknown as FakeFiber | undefined)?.name).toBe('page');
+    expect(findPropsAbove(target as unknown as Node, (props) => props.mode === 'ligne')?.props).toEqual({ mode: 'ligne' });
+    expect(findPropsAbove(target as unknown as Node, () => false)).toBeUndefined();
   });
 });
 

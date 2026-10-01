@@ -65,7 +65,7 @@ describe('createRouter', () => {
     expect(seen).toEqual(['/a']);
   });
 
-  it("isole un écouteur en échec : les autres sont appelés, la navigation du site aussi", () => {
+  it('isole un écouteur en échec : les autres sont appelés, la navigation du site aussi', () => {
     const { host } = fakeHost('/');
     const log = memoryLogger();
     const router = createRouter(host, log);

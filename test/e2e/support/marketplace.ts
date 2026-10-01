@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test';
+import { filtersTitle, listServer, type ListServer } from './lists';
 import { openSite, sitePage } from './site';
 
 /**
@@ -8,15 +9,14 @@ import { openSite, sitePage } from './site';
  * jusqu'à ses listes personnelles) se recharge dès que la recherche lancée, le tri ou les raretés changent,
  * sans roue, réponse périmée ignorée ; « Charger la suite » ajoute la page suivante. « Tirer pour
  * rafraîchir » : `onRefresh` dans l'arbre React au-dessus de la ligne (recharge la page 1, listes
- * personnelles comprises).
+ * personnelles comprises). Croix « Effacer la recherche » tant que le champ a du texte : vide le champ et la
+ * recherche lancée. Au retour d'une annonce (`sessionStorage['marketplace_list_v3']`), liste et filtres
+ * remis sans requête de liste, seules les listes personnelles relues (`page=1&limit=1&mine=1`).
  */
 const SCRIPT = `
 (() => {
-  const el = (tag, cls) => { const node = document.createElement(tag); node.className = cls; return node; };
-  const button = (cls, html, onclick) => { const b = el('button', cls); b.type = 'button'; b.innerHTML = html; b.onclick = onclick; return b; };
-  const base = document.createElement('style');
-  base.textContent = '*, ::before, ::after { box-sizing: border-box; } input, select, textarea { font-size: 16px !important; }';
-  document.head.append(base);
+  const { el, button, icon, tailwindBase, rarityPills } = kit;
+  tailwindBase();
 
   let initial = true, list = [], hasMore = false, nextPage = 2, mineLoaded = false, loadingMore = false;
   let input = '', submitted = '', sort = 'recent', rarities = new Set();
@@ -74,7 +74,11 @@ const SCRIPT = `
   field.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); submit.click(); } });
   fieldBox.innerHTML = '<svg class="lucide lucide-search absolute left-3 size-4" style="position:absolute;width:16px;height:16px"></svg>';
   fieldBox.append(field);
-  const submit = button('py-2.5 px-4 rounded-lg text-sm font-semibold', '<span class="inline-flex items-center gap-1.5"><svg class="lucide lucide-search size-4" width="16" height="16"></svg>Rechercher</span>', () => {
+  const clear = button('absolute right-2 p-1 rounded-full', icon('x', 'size-4'), () => {
+    input = ''; field.value = ''; submitted = ''; update();
+  });
+  clear.setAttribute('aria-label', 'Effacer la recherche');
+  const submit = button('py-2.5 px-4 rounded-lg text-sm font-semibold', '<span class="inline-flex items-center gap-1.5">' + icon('search', 'size-4') + 'Rechercher</span>', () => {
     submitted = input.trim(); update();
   });
   const select = el('select', 'sm:w-56 py-2.5 px-3 rounded-lg border text-sm');
@@ -86,21 +90,17 @@ const SCRIPT = `
   }
   select.addEventListener('change', () => { sort = select.value; update(); });
   line.append(fieldBox, submit, select);
-  const pills = el('div', 'flex flex-wrap gap-2');
-  const rarityButtons = ['L', 'UR', 'SR', 'R', 'PC', 'C'].map((rarity) => {
-    const pill = button('px-3 py-1 text-xs rounded-full font-semibold', rarity, () => {
+  const pills = rarityPills({
+    checked: () => rarities,
+    toggle(rarity) {
       const next = new Set(rarities);
       if (next.has(rarity)) next.delete(rarity); else next.add(rarity);
       rarities = next; update();
-    });
-    pill.setAttribute('style', 'background-color: var(--color-rarity-' + rarity.toLowerCase() + ')30; color: var(--color-rarity-' + rarity.toLowerCase() + ');');
-    return pill;
+    },
+    reset() { rarities = new Set(); update(); },
+    resetLabel: 'Réinitialiser',
   });
-  const reset = button('px-3 py-1 text-xs rounded-full', '<span class="inline-flex items-center gap-1"><svg class="lucide lucide-x size-3.5" width="14" height="14"></svg>Réinitialiser</span>', () => {
-    rarities = new Set(); update();
-  });
-  pills.append(...rarityButtons);
-  area.append(line, pills);
+  area.append(line, pills.row);
   const results = el('div', 'animate-fade-in-up');
   const grid = el('div', 'flex flex-wrap justify-center gap-4 md:gap-5');
   grid.id = 'grid';
@@ -122,10 +122,8 @@ const SCRIPT = `
     if (initial) return;
     if (spinner.isConnected) { spinner.remove(); main.append(root); }
     submit.disabled = input.trim() === submitted;
-    rarityButtons.forEach((pill) => {
-      pill.className = 'px-3 py-1 text-xs rounded-full font-semibold ' + (rarities.has(pill.textContent) ? 'ring-2 ring-white/30' : 'opacity-50');
-    });
-    if (rarities.size > 0) pills.append(reset); else reset.remove();
+    if (input) fieldBox.append(clear); else clear.remove();
+    pills.render();
     grid.replaceChildren(...list.map((auction) => {
       const item = el('div', '');
       item.id = 'marketplace-auction-' + auction.id;
@@ -136,45 +134,38 @@ const SCRIPT = `
     more.disabled = loadingMore;
     if (hasMore) results.append(moreRow); else moreRow.remove();
   }
-  effect();
+  let kept = null;
+  try { kept = JSON.parse(sessionStorage.getItem('marketplace_list_v3') ?? 'null'); } catch {}
+  if (kept) {
+    sessionStorage.removeItem('marketplace_list_v3');
+    list = kept.browse; hasMore = kept.browseHasMore; nextPage = kept.nextBrowsePage;
+    input = kept.search; field.value = input; submitted = kept.submittedSearch; sort = kept.sort; select.value = sort;
+    rarities = new Set(kept.rarityFilter);
+    key = submitted + '|' + sort + '|' + [...rarities].sort().join(',');
+    initial = false;
+    render();
+    void fetch('/api/marketplace?page=1&limit=1&mine=1').then(() => { mineLoaded = true; });
+  } else {
+    effect();
+  }
 })();
 `;
 
-export const MARKETPLACE_HTML = sitePage('', SCRIPT);
-
-/** Titre de l'annonce renvoyée par le serveur imité : il dit les filtres et la page de la requête. */
-export function auctionTitle(params: URLSearchParams): string {
-  const rarities = params.getAll('rarity').sort().join('+') || 'toutes';
-  const search = params.get('q') ? ` «${params.get('q')}»` : '';
-  return `${params.get('sort')} ${rarities}${search} p${params.get('page')}`;
-}
+const MARKETPLACE_HTML = sitePage('', SCRIPT);
 
 /**
  * Ouvre l'onglet imité. Serveur : une annonce par page, dont le titre dit les filtres ; une suite jusqu'à la
  * page 3 ; listes personnelles avec `mine=1`. `requests` : paramètres des listes demandées ; `gate` retient
  * les réponses tant qu'il n'est pas résolu.
  */
-export async function openMarketplace(page: Page) {
-  const server = { requests: [] as string[], gate: undefined as Promise<void> | undefined };
-  await openSite(page, '/marketplace', {
-    html: MARKETPLACE_HTML,
-    handle: async (route, url) => {
-      if (url.pathname !== '/api/marketplace') return false;
-      const params = url.searchParams;
-      server.requests.push(params.toString());
-      await server.gate;
-      const mine = params.get('mine') === '1' ? { mine: true, selling: [], bidding: [], won: [], history: [], maxConcurrentAuctions: 5 } : {};
-      await route.fulfill({
-        json: {
-          auctions: [{ id: `a-${server.requests.length}`, card: { id: 'c', wikipedia_title: auctionTitle(params), rarity: 'L' } }],
-          page: Number(params.get('page')),
-          limit: 50,
-          hasMore: Number(params.get('page')) < 3,
-          ...mine,
-        },
-      });
-      return true;
-    },
-  });
+export async function openMarketplace(page: Page): Promise<ListServer> {
+  const { server, handle } = listServer('/api/marketplace', (params, count) => ({
+    auctions: [{ id: `a-${count}`, card: { id: 'c', wikipedia_title: filtersTitle(params), rarity: 'L' } }],
+    page: Number(params.get('page')),
+    limit: 50,
+    hasMore: Number(params.get('page')) < 3,
+    ...(params.get('mine') === '1' && { mine: true, selling: [], bidding: [], won: [], history: [], maxConcurrentAuctions: 5 }),
+  }));
+  await openSite(page, '/marketplace', { html: MARKETPLACE_HTML, handle });
   return server;
 }

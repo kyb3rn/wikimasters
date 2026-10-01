@@ -24,6 +24,6 @@ export function findHumanCheck(doc: Document = document): HTMLElement | undefine
   return undefined;
 }
 
-export function isHumanCheckRequest(request: NetRequest): boolean {
+export function isHumanCheckSubmit(request: NetRequest): boolean {
   return request.method === 'POST' && request.url.pathname === '/api/packs/verify-human';
 }

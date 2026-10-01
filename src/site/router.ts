@@ -1,5 +1,5 @@
 import { isRecord } from '@/core/guards';
-import { fiberAncestors, fiberOf } from '@/core/react';
+import { findPropsAbove } from '@/core/react';
 
 /**
  * Routeur de Next.js (App Router) : l'objet que renvoie `useRouter()` dans le code du site, fourni
@@ -23,11 +23,8 @@ function isRouter(value: unknown): value is NextRouter {
 
 export function findNextRouter(doc: Document = document): NextRouter | undefined {
   for (const element of [doc.querySelector('main'), doc.body, doc.documentElement]) {
-    if (!element) continue;
-    for (const fiber of fiberAncestors(fiberOf(element))) {
-      const props = fiber.memoizedProps;
-      if (isRecord(props) && isRouter(props.value)) return props.value;
-    }
+    const value = element && findPropsAbove(element, (props) => isRouter(props.value))?.props.value;
+    if (isRouter(value)) return value;
   }
   return undefined;
 }

@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { lastMean, median, movingAverage, niceStep, salesStats } from '@/services/market/stats';
-import type { Sale } from '@/site/api';
-
-const DAY = 86_400_000;
-const NOW = Date.parse('2026-09-30T12:00:00Z');
-const sale = (price: number, daysAgo: number, rarity = 'R'): Sale => ({ id: `${price}-${daysAgo}`, price, time: NOW - daysAgo * DAY, rarity });
+import { sale, SALES_NOW } from '../../support';
 
 describe('statistiques des ventes', () => {
   it('médiane d’un nombre pair ou impair de valeurs', () => {
@@ -14,7 +10,7 @@ describe('statistiques des ventes', () => {
   });
 
   it('trie par date, groupe par rareté (de la plus haute), compte la rareté de la carte et les 30 derniers jours', () => {
-    const stats = salesStats([sale(100, 1, 'UR'), sale(10, 60), sale(30, 40), sale(50, 10), sale(5, 2, '')], 'R', NOW);
+    const stats = salesStats([sale(100, 1, 'UR'), sale(10, 60), sale(30, 40), sale(50, 10), sale(5, 2, '')], 'R', SALES_NOW);
     expect(stats.sales.map((s) => s.price)).toEqual([10, 30, 50, 5, 100]);
     expect(stats.last?.price).toBe(100);
     expect(stats.count).toBe(5);
@@ -29,7 +25,7 @@ describe('statistiques des ventes', () => {
   });
 
   it('sans vente : rien à calculer', () => {
-    const stats = salesStats([], 'R', NOW);
+    const stats = salesStats([], 'R', SALES_NOW);
     expect([stats.count, stats.last, stats.median, stats.min]).toEqual([0, undefined, undefined, undefined]);
     expect(stats.byRarity).toEqual([]);
   });
