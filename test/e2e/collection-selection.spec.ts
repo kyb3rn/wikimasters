@@ -75,21 +75,26 @@ test('barre du bas : seulement les boutons, à l’allure des actions de la moda
   await expect(page.locator('.wm-selection-count')).toHaveText('0sélectionnée');
 });
 
-test('en sélection, toute carte non cochée est grisée (face entière), même quand aucune ne l’est', async ({ page }) => {
+/** Cartes grisées par la sélection : tampon sans texte, comme toute carte grisée. */
+const greyed = (page: Page) => page.locator('[data-wm-stamp="collection-selection"]');
+const content = (page: Page, index: number) => faces(page).nth(index).locator(':scope > :not(.wm-stamp)').first();
+
+test('en sélection, toute carte non cochée est grisée (face entière, sans texte), même quand aucune ne l’est', async ({ page }) => {
   await openSelectionPage(page);
-  await expect(page.locator('.wm-selection-dim')).toHaveCount(0);
+  await expect(greyed(page)).toHaveCount(0);
   await toggle(page).click();
-  await expect(faces(page).nth(0)).toHaveClass(/wm-selection-dim/);
-  await expect(faces(page).nth(1)).toHaveClass(/wm-selection-dim/);
-  await expect(faces(page).nth(2)).toHaveClass(/wm-selection-dim/);
-  // Toute la face (image comprise) : filtre sur la face ; la case à cocher, à côté, ne l'est pas.
-  expect(await faces(page).nth(0).evaluate((face) => getComputedStyle(face).filter)).toContain('grayscale(1)');
+  await expect(greyed(page)).toHaveCount(3);
+  // Le gris des tampons, sur toute la face (image comprise) ; la case à cocher, à côté, ne l'est pas.
+  await expect(content(page, 0)).toHaveCSS('filter', 'grayscale(1) brightness(0.55)');
+  await expect(content(page, 0)).toHaveCSS('opacity', '1');
+  await expect(faces(page).nth(0).locator('.wm-stamp')).toHaveCount(0);
   await faces(page).nth(1).click();
-  await expect(faces(page).nth(0)).toHaveClass(/wm-selection-dim/);
-  await expect(faces(page).nth(1)).not.toHaveClass(/wm-selection-dim/);
-  await expect(faces(page).nth(2)).toHaveClass(/wm-selection-dim/);
+  await expect(faces(page).nth(0)).toHaveAttribute('data-wm-stamp', 'collection-selection');
+  await expect(faces(page).nth(1)).not.toHaveAttribute('data-wm-stamp');
+  await expect(faces(page).nth(2)).toHaveAttribute('data-wm-stamp', 'collection-selection');
+  await expect(content(page, 1)).toHaveCSS('filter', 'none');
   await toggle(page).click();
-  await expect(page.locator('.wm-selection-dim')).toHaveCount(0);
+  await expect(greyed(page)).toHaveCount(0);
 });
 
 test('au survol, la case à cocher suit le coin de la carte agrandie (6 px agrandis du coin)', async ({ page }) => {

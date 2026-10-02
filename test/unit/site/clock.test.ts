@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { onServerSecond, serverOffset } from '@/site/clock';
+import { narrowOffset, onServerSecond, serverOffset } from '@/site/clock';
 
 describe('serverOffset', () => {
   const at = Date.parse('2026-09-29T22:09:36.670Z');
@@ -17,6 +17,40 @@ describe('serverOffset', () => {
   it('sans date, ou réponse sortie d’un cache : rien', () => {
     expect(serverOffset(headers({}), at)).toBeUndefined();
     expect(serverOffset(headers({ date: 'Tue, 29 Sep 2026 22:08:42 GMT', age: '419040' }), at)).toBeUndefined();
+  });
+});
+
+describe('narrowOffset', () => {
+  // Serveur en avance de 1,8 s sur le PC (capture du 02/10/2026).
+  const SKEW = 1800;
+  /** Réponse partie à `start` (heure du PC), reçue `ms` plus tard, écrite par le serveur au milieu du trajet. */
+  const reply = (start: number, ms: number) => {
+    const written = start + ms / 2 + SKEW;
+    return [new Headers({ date: new Date(written - (written % 1000)).toUTCString() }), start, start + ms] as const;
+  };
+
+  it('une réponse : avance entre date − réception et date + 1 s − départ', () => {
+    const [headers, start, end] = reply(Date.parse('2026-10-02T06:23:00.000Z'), 300);
+    expect(narrowOffset(undefined, headers, start, end)).toEqual({ low: 1000 - 300, high: 2000 });
+  });
+
+  it('recoupées sur plusieurs réponses : l’avance à quelques centaines de ms près, écart de moins de 2 s compris', () => {
+    let bounds: ReturnType<typeof narrowOffset>;
+    for (let index = 0; index < 20; index++) bounds = narrowOffset(bounds, ...reply(Date.parse('2026-10-02T06:23:00.000Z') + index * 1370, 250));
+    expect(bounds).toBeDefined();
+    if (!bounds) return;
+    expect(bounds.low).toBeLessThanOrEqual(SKEW);
+    expect(bounds.high).toBeGreaterThanOrEqual(SKEW);
+    expect(bounds.high - bounds.low).toBeLessThan(400);
+  });
+
+  it('sans date ou sortie d’un cache : bornes inchangées ; plus de recouvrement (horloge du PC changée) : la dernière', () => {
+    const bounds = { low: 1700, high: 1900 };
+    expect(narrowOffset(bounds, new Headers(), 0, 100)).toBe(bounds);
+    expect(narrowOffset(bounds, new Headers({ date: 'Fri, 02 Oct 2026 06:23:00 GMT', age: '30' }), 0, 100)).toBe(bounds);
+    // Horloge du PC avancée d'une minute.
+    const [headers, start, end] = reply(Date.parse('2026-10-02T06:23:00.000Z'), 200);
+    expect(narrowOffset(bounds, headers, start + 60_000, end + 60_000)).toEqual({ low: 1000 - 200 - 60_000, high: 2000 - 60_000 });
   });
 });
 

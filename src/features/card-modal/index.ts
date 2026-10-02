@@ -11,7 +11,7 @@ import { onProStatusChange } from '@/site/pro';
 import { lockControl, unlockAll } from '@/ui/lock';
 import { createSlots } from '@/ui/mount';
 import { toast } from '@/ui/toast';
-import { CatalogActions, MarketButton } from './buttons';
+import { MarketButton, ModalActions } from './buttons';
 
 const OWNER = 'card-modal-layout';
 /**
@@ -42,7 +42,7 @@ export const cardModalLayout: Feature = {
   id: 'card-modal-layout',
   name: 'Modale de carte',
   description:
-    "Présentation de la modale de carte : signalement sur l'image, actions Vendre · Marché (historique des ventes) · Défausser (roue pendant la défausse) ; vue catalogue (Toutes les cartes) : liste de souhaits · Marché.",
+    "Présentation de la modale de carte : signalement sur l'image, actions Vendre · Marché (historique des ventes) · Défausser (roue pendant la défausse) ; carte seule (Toutes les cartes) ou d'un ami : Échanger · Liste de souhaits · Marché.",
   category: 'Général',
   routes: 'all',
   required: true,
@@ -131,35 +131,30 @@ export const cardModalLayout: Feature = {
         reports.render(modal.root, siteReportButton(modal.reportButton), { parent: reportHost });
       }
 
-      // Vue catalogue (Toutes les cartes) : pas de rangée d'actions chez le site, la nôtre avec la liste de
-      // souhaits (son bouton, caché, déclenché par le nôtre) et « Marché ».
-      if (modal.catalog && modal.panel) {
-        const wish = modal.wishlistButton;
-        if (modal.wishlistBlock) ctx.hide(modal.wishlistBlock);
-        markets.render(
-          modal.root,
-          h(CatalogActions, {
-            wishlist: wish && {
-              active: modal.wishlisted,
-              label: textOf(wish),
-              hint: modal.wishlistHint,
-              busy: wishing.has(modal.root),
-              onClick: () => wish.click(),
-            },
-            market: { busy: opening.has(modal.root), needsPro: marketNeedsPro(), onClick: () => openMarket(modal) },
-          }),
-          { parent: modal.panel },
-        );
-      }
-
-      // Actions : Vendre · Marché · Défausser.
+      const market = { busy: opening.has(modal.root), needsPro: marketNeedsPro(), onClick: () => openMarket(modal) };
       if (modal.auctionButton) renameText(modal.auctionButton, 'Mettre aux enchères', 'Vendre');
       const discard = modal.discardButton;
       if (discard && modal.actionsRow) {
+        // Un de mes exemplaires : la rangée du site, Vendre · Marché · Défausser.
+        markets.render(modal.root, h(MarketButton, market), { parent: modal.actionsRow, before: discard, inline: true });
+      } else if (modal.panel) {
+        // Sinon, la nôtre : l'échange et la liste de souhaits de la colonne de droite (boutons du site cachés,
+        // déclenchés par les nôtres), et « Marché ».
+        for (const control of modal.sideActions) ctx.hide(control);
+        const { tradeButton: trade, wishlistButton: wish } = modal;
         markets.render(
           modal.root,
-          h(MarketButton, { busy: opening.has(modal.root), needsPro: marketNeedsPro(), onClick: () => openMarket(modal) }),
-          { parent: modal.actionsRow, before: discard, inline: true },
+          h(ModalActions, {
+            trade: trade ? { pending: false, onClick: () => trade.click() } : modal.tradePending ? { pending: true, onClick: () => {} } : undefined,
+            wishlist: wish && {
+              active: modal.wishlisted,
+              title: [textOf(wish), modal.wishlistHint].filter(Boolean).join('\n'),
+              busy: wishing.has(modal.root),
+              onClick: () => wish.click(),
+            },
+            market,
+          }),
+          { parent: modal.panel },
         );
       }
       markDiscarding(modal);

@@ -19,6 +19,7 @@ test('le script démarre et expose ses commandes', async ({ page }) => {
     dev: true,
     features: [
       ['settings', 'mounted'],
+      ['header-bar', 'mounted'],
       ['disabled-cursor', 'mounted'],
       ['page-spinner', 'mounted'],
       ['site-modals', 'mounted'],
@@ -54,11 +55,13 @@ test('le script démarre et expose ses commandes', async ({ page }) => {
       ['collection-selection', 'idle'],
       ['collection-selection-key', 'idle'],
       ['collection-bulk-tags', 'idle'],
+      ['collection-prices', 'idle'],
       ['profile-header', 'idle'],
       ['profile-unfriend', 'idle'],
       ['profile-not-found', 'idle'],
       ['profile-card-picker', 'idle'],
       ['friends-layout', 'idle'],
+      ['player-search', 'idle'],
       ['guild-create-modal', 'idle'],
       ['guild-layout', 'idle'],
       ['dms-layout', 'idle'],
@@ -81,9 +84,15 @@ test('le script démarre et expose ses commandes', async ({ page }) => {
       ['market', 'mounted'],
       ['auction-market', 'mounted'],
       ['auction-report', 'idle'],
+      ['auction-result', 'idle'],
       ['auction-not-found', 'idle'],
       ['marketplace-tiles', 'idle'],
+      ['marketplace-prices', 'idle'],
+      ['auction-live', 'idle'],
+      // Éteinte par défaut.
+      ['sales-limit', 'off'],
       ['player-links', 'mounted'],
+      ['owned-badge', 'idle'],
       ['marketplace-card-display', 'idle'],
       ['profile-collection-search', 'idle'],
       ['profile-collection-search-delay', 'idle'],
@@ -95,6 +104,7 @@ test('le script démarre et expose ses commandes', async ({ page }) => {
       ['global-collection-search-delay', 'idle'],
       ['global-collection-pagination', 'idle'],
       ['global-collection-filters', 'idle'],
+      ['global-collection-friends', 'idle'],
       ['global-collection-card-display', 'idle'],
       ['guild-card-display', 'idle'],
       ['notifications', 'mounted'],
@@ -105,7 +115,7 @@ test('le script démarre et expose ses commandes', async ({ page }) => {
   });
   expect(logs).toContainEqual({
     type: 'info',
-    text: `[WM] v${VERSION} (dev) · actives ici : settings, disabled-cursor, page-spinner, site-modals, site-fields, site-buttons, site-tabs, card-faces, card-modal-layout, quick-discard, pulls-grid, pulls-sound, pulls-discard-next, pulls-auction, card-modal-stats, card-modal-stay, card-modal-discard, pulls-keyboard, pulls-remaining, pulls-center, pulls-human-check, pulls-open-label, pulls-bar, pulls-pro, auction-modal-layout, auction-stay, dms-groups, trades-card-display, trade-filters, trade-wikibidous, trade-cards-error, trade-summary, trade-selection, market, auction-market, player-links, notifications, debug`,
+    text: `[WM] v${VERSION} (dev) · actives ici : settings, header-bar, disabled-cursor, page-spinner, site-modals, site-fields, site-buttons, site-tabs, card-faces, card-modal-layout, quick-discard, pulls-grid, pulls-sound, pulls-discard-next, pulls-auction, card-modal-stats, card-modal-stay, card-modal-discard, pulls-keyboard, pulls-remaining, pulls-center, pulls-human-check, pulls-open-label, pulls-bar, pulls-pro, auction-modal-layout, auction-stay, dms-groups, trades-card-display, trade-filters, trade-wikibidous, trade-cards-error, trade-summary, trade-selection, market, auction-market, player-links, notifications, debug`,
   });
   expect(logs.filter((l) => l.type === 'error')).toEqual([]);
 });

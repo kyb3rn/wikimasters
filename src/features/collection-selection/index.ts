@@ -17,15 +17,15 @@ import {
 } from '@/site/collection';
 import { COLLECTION_ROUTE } from '@/site/routes';
 import { createSlot } from '@/ui/mount';
-import { isStamped } from '@/ui/stamp';
+import { STAMPS, syncStamps, unstampAll } from '@/ui/stamp';
 import { toast } from '@/ui/toast';
 import { SelectionActions, SelectionToggle } from './views';
 
 const LEVEL = 'wm-selection-level';
 const ACTIONS = 'wm-selection-actions';
 const BAR = 'wm-selection-bar';
-/** Face d'une carte non cochée, en sélection : grisée en entier (la case à cocher, à côté, ne l'est pas). */
-const DIM = 'wm-selection-dim';
+/** Propriétaire du gris des cartes non cochées (la case à cocher, à côté de la face, ne l'est pas). */
+const OWNER = 'collection-selection';
 /** « Défausser tout » : notre bouton, qui confirme en deux clics. */
 const DISCARD_ALL = 'discard-all';
 
@@ -44,8 +44,6 @@ const CSS = `
 /* Voile de chargement du site sur la grille : l'anneau d'une carte cochée dépasse de sa case (4 px, plus
    l'agrandissement au survol) et sortirait du voile au bord de la grille. */
 main ${LIST_LOADING_VEIL} { inset: -12px; }
-.${DIM} { filter: grayscale(1) brightness(0.55); }
-.group:hover .${DIM} { filter: grayscale(1) brightness(0.8); }
 `;
 
 /**
@@ -154,12 +152,15 @@ export const collectionSelection: Feature = {
       fitted.add(root);
     }
 
-    /** Une carte tamponnée (défaussée, en vente) est déjà grisée, son tampon doit rester lisible. */
+    /** Une carte déjà tamponnée (défaussée, en vente) garde son tampon (`stampFace`). */
     function syncDim(active: boolean): void {
-      for (const face of findCollectionFaces()) {
-        const mark = active ? selectionMarkOf(face) : undefined;
-        marks.set(face, DIM, mark !== undefined && !mark.selected && !isStamped(face));
-      }
+      const unchecked = active
+        ? findCollectionFaces().filter((face) => {
+            const mark = selectionMarkOf(face);
+            return mark !== undefined && !mark.selected;
+          })
+        : [];
+      syncStamps(OWNER, unchecked.map((face) => [face, STAMPS.greyed] as const));
     }
 
     function sync(): void {
@@ -180,6 +181,7 @@ export const collectionSelection: Feature = {
     // Le site recale la barre en changeant son style, que watchDom ne suit pas.
     window.addEventListener('resize', () => requestAnimationFrame(sync), { signal });
     ctx.onDispose(() => {
+      unstampAll(OWNER);
       for (const root of fitted) {
         root.style.removeProperty('--wm-bar-center');
         root.style.removeProperty('--wm-bar-width');

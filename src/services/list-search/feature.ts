@@ -10,7 +10,7 @@ import { SearchButton } from './SearchButton';
 import type { ListQuery, ListSource } from './types';
 
 /** Options de la recherche retenue propres à une page. */
-export type ListSearchHoldOptions<Q extends ListQuery> = Pick<ListHoldOptions<Q>, 'currentChoice' | 'heldReply' | 'onHeld' | 'onShown'>;
+export type ListSearchHoldOptions<Q extends ListQuery> = Pick<ListHoldOptions<Q>, 'currentChoice' | 'heldReply' | 'toShown' | 'onHeld' | 'onShown'>;
 
 export interface ListSearchConfig<Q extends ListQuery> {
   readonly id: string;

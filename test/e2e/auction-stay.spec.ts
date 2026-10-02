@@ -42,9 +42,31 @@ test('après la mise en vente : pas de redirection, retour à la carte, bouton g
   await expect(sell).toHaveCSS('cursor', 'not-allowed');
 
   // Le lien de la notification mène à l'enchère (navigation du site).
-  await notification.getByRole('button', { name: "Voir l'enchère" }).click();
+  const link = notification.getByRole('link', { name: "Voir l'enchère" });
+  await expect(link).toHaveAttribute('href', `/marketplace/${AUCTION_ID}`);
+  await link.click();
   await expect.poll(() => new URL(page.url()).pathname).toBe(`/marketplace/${AUCTION_ID}`);
   await expect(page.locator('#stage')).toHaveText(`Fiche /marketplace/${AUCTION_ID}`);
+});
+
+test('Ctrl+clic sur « Voir l’enchère » : autre onglet, la page reste, notification lue et toast fermé', async ({ page }) => {
+  await listCurrentCard(page);
+  const notification = page.getByRole('status').filter({ hasText: 'Enchère publiée' });
+  await expect(notification).toBeVisible();
+  // Un onglet ouvert par Ctrl+clic échappe aux routes du test (il irait au vrai site) : le clic est annulé après
+  // notre code, qui ne doit pas l'avoir annulé lui-même.
+  await page.evaluate(() => {
+    window.addEventListener('click', (event) => {
+      (window as unknown as { __prevented: boolean }).__prevented = event.defaultPrevented;
+      event.preventDefault();
+    });
+  });
+  await notification.getByRole('link', { name: "Voir l'enchère" }).click({ modifiers: ['ControlOrMeta'] });
+  expect(await page.evaluate(() => (window as unknown as { __prevented: boolean }).__prevented)).toBe(false);
+  await expect(notification).toHaveCount(0);
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('wm-notifications-v1') ?? '[]') as { read: boolean }[]);
+  expect(stored.map((n) => n.read)).toEqual([true]);
+  expect(new URL(page.url()).pathname).toBe('/pulls');
 });
 
 test('carte aux enchères : Vendre, Défausser, étiquettes et défaussage rapide verrouillés', async ({ page }) => {

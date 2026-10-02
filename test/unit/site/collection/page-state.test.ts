@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pageStatesAmong, recountTagOptions, retagEntries } from '@/site/collection/page-state';
+import { pageStatesAmong, recountTagOptions, retagEntries, withShownTags } from '@/site/collection/page-state';
 import { stateComponent } from '../../support';
 
 const rare = { id: 't1', name: 'rare', color: '#f472b6' };
@@ -30,6 +30,32 @@ describe('étiquettes posées ou retirées sur les exemplaires affichés', () =>
       { ...fresh, cardCount: 2 },
     ]);
     expect(recountTagOptions(options, entries, { cardIds: ['u1', 'u2', 'u3'], remove: ['t1'] })).toEqual([{ ...rare, cardCount: 3 }]);
+  });
+});
+
+describe('réponse gardée, resservie avec les étiquettes affichées', () => {
+  const shown = { entries: [card('u1', [rare, sport]), card('u2')], tagOptions: [{ ...rare, cardCount: 1 }, { ...sport, cardCount: 1 }] };
+
+  it('liste : étiquettes de chaque exemplaire affiché, le reste tel quel', () => {
+    const body = { collection: [card('u1', [rare]), card('u2', [sport]), card('u9', [rare])], total: null, tagOptions: [] };
+    expect(withShownTags('list', body, shown)).toEqual({
+      collection: [card('u1', [rare, sport]), card('u2'), card('u9', [rare])],
+      total: null,
+      tagOptions: [],
+    });
+  });
+
+  it('compteurs : ceux de la page', () => {
+    expect(withShownTags('stats', { total: 3, rarityCounts: { C: 3 }, tagOptions: [{ ...rare, cardCount: 1 }] }, shown)).toEqual({
+      total: 3,
+      rarityCounts: { C: 3 },
+      tagOptions: shown.tagOptions,
+    });
+  });
+
+  it('forme inattendue : telle quelle', () => {
+    expect(withShownTags('list', { error: 'x' }, shown)).toEqual({ error: 'x' });
+    expect(withShownTags('stats', null, shown)).toBeNull();
   });
 });
 

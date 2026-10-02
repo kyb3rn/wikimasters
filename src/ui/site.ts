@@ -31,7 +31,8 @@ export const siteClass = {
   counterMax: 'relative top-0.5 text-lg',
 
   // Cadre du pack PRO du jour (/pulls) : cadre violet, titre dans le ton de son « Pack PRO du jour », texte.
-  proFrame: 'rounded-xl border border-violet-500/25 bg-violet-950/20 px-4 py-3 flex flex-col gap-3 animate-fade-in-up',
+  // Bas = côtés (pb-4) : le bouton pleine largeur a la même marge autour de lui ; le haut reste serré pour le texte.
+  proFrame: 'rounded-xl border border-violet-500/25 bg-violet-950/20 px-4 pt-3 pb-4 flex flex-col gap-3 animate-fade-in-up',
   proTitle: 'text-lg font-bold text-violet-200/90',
   proText: 'text-xs text-[var(--color-foreground)]/50',
 
@@ -131,7 +132,7 @@ export const siteClass = {
   cardModalActions: 'mt-3 space-y-2',
   cardModalActionsRow: 'flex flex-col sm:flex-row gap-2',
 
-  // En-tête de son profil : cadre (celui du site, sans marge : notre fond va de bord à bord), photo (fond d'accent
+  // En-tête des profils : cadre (celui du site, sans marge : notre fond va de bord à bord), photo (fond d'accent
   // léger, initiales), pseudo, ligne sous le pseudo, chiffre et légende de sa carte « Cartes uniques », étiquettes
   // (couleurs en style), interrupteur de visibilité (piste et bouton, allumé ou non).
   profileHeaderFrame: 'card-frame overflow-hidden animate-fade-in-up',
@@ -140,6 +141,8 @@ export const siteClass = {
   profileAvatarImage: 'w-full h-full object-cover',
   profileName: 'text-2xl font-bold truncate min-w-0',
   profileDetails: 'text-xs text-[var(--color-foreground)]/45',
+  /** « Demande d'ami envoyée », « <pseudo> vous a envoyé une demande d'ami » (profil d'un joueur qui n'est pas un ami). */
+  profileRequestText: 'text-sm text-[var(--color-foreground)]/50',
   statValue: 'text-2xl font-bold text-[var(--color-accent)] whitespace-nowrap',
   statLabel: 'text-xs text-[var(--color-foreground)]/40 mt-1',
   profileTags: 'flex flex-wrap gap-1',
@@ -269,6 +272,8 @@ export const siteClass = {
   faceBadge: 'absolute top-2 left-2 px-2 py-0.5 rounded-md text-xs font-bold z-30',
   faceBadgeShiny: 'shiny-badge absolute top-2 left-2 px-2 py-0.5 rounded-md text-xs font-bold z-30 inline-flex items-center gap-0.5',
   faceBadgeStar: 'text-[0.85em] leading-none',
+  /** Pendant du badge de rareté, dans le coin haut droit (même forme, couleur en style). */
+  faceBadgeEnd: 'absolute top-2 right-2 px-2 py-0.5 rounded-md text-xs font-bold z-30',
   faceText: 'absolute top-[45%] left-0 right-0 bottom-0 flex min-h-0 flex-col p-3 z-20',
   faceTextShiny: 'absolute top-[45%] left-0 right-0 bottom-0 flex min-h-0 flex-col p-3 z-20 shiny-text',
   faceTitle: 'text-xs shrink-0 font-bold leading-tight line-clamp-2 text-black drop-shadow-none',
@@ -276,6 +281,15 @@ export const siteClass = {
   faceCategory: 'min-h-0 leading-snug text-neutral-900/90 overflow-hidden line-clamp-3 text-[9px] shrink-0',
   faceCategoryShiny: 'min-h-0 leading-snug text-white/90 overflow-hidden line-clamp-3 text-[9px] shrink-0',
   faceStatsBox: 'mt-auto flex min-h-0 w-full flex-col items-start gap-0.5 pt-1',
+  // Emplacement du bas de la face (`bottomOverlay`, code du 01/10/2026) et sa pastille « Possédée » (vignettes du
+  // marché, Toutes les cartes, fenêtre d'échange).
+  faceOverlay: 'min-w-0 max-w-full shrink-0',
+  faceOwned: 'w-fit rounded-full bg-emerald-600/90 px-2 py-0.5 text-[9px] font-bold text-white',
+  /** Sur la grande face (page d'une enchère). */
+  faceOwnedLarge: 'w-fit rounded-full bg-emerald-600/90 px-2 py-0.5 text-[10px] font-bold text-white',
+  // Pastille bleue des amis qui ont la carte (Toutes les cartes), en rond, icône seule (lucide `users`).
+  faceFriends: 'inline-flex items-center justify-center rounded-full bg-sky-300/65 p-1 text-black/80',
+  faceFriendsIcon: 'size-2.5 shrink-0 opacity-90',
   faceStats: 'flex w-full shrink-0 items-center justify-between border-t border-black/20 pt-1 py-1',
   faceStatsShiny: 'flex w-full shrink-0 items-center justify-between border-t border-[#e9c15a]/35 pt-1 py-1',
   faceStat: 'text-[10px] flex items-center gap-1',
@@ -306,13 +320,10 @@ export const siteClass = {
     'text-[var(--color-foreground)] placeholder:text-[var(--color-foreground)]/30 focus:outline-none focus:ring-2 ' +
     'focus:ring-[var(--color-accent)]/50',
 
-  // Formulaire « Créer une guilde » : champ avec son libellé (bloc), libellé, champ, zone de texte, compteur de
-  // caractères, message d'erreur.
+  // Formulaire « Créer une guilde », en champs standard (`fieldLabel`, `textField`) : champ avec son libellé (bloc),
+  // champ sur toute la largeur sous son libellé, zone de texte, compteur de caractères, message d'erreur.
   formField: 'block',
-  formLabel: 'text-xs font-medium text-[var(--color-foreground)]/50 uppercase tracking-wide',
-  formInput:
-    'w-full mt-1 px-3 py-2 rounded-xl bg-[var(--color-surface-light)] border border-[var(--color-border)] text-sm ' +
-    'placeholder:text-[var(--color-foreground)]/30 focus:outline-none focus:border-[var(--color-accent)]/50 transition-colors',
+  formControl: 'w-full mt-1',
   formTextarea: 'resize-none',
   formCounter: 'text-[10px] text-[var(--color-foreground)]/30 mt-1',
   formError: 'text-sm text-red-400 bg-red-500/10 px-3 py-2 rounded-lg',
@@ -388,6 +399,9 @@ export const siteClass = {
   chatInput:
     'flex-1 px-3 py-2 rounded-xl bg-[var(--color-surface-light)] border border-[var(--color-border)] text-sm ' +
     'placeholder:text-[var(--color-foreground)]/30 focus:outline-none focus:border-[var(--color-accent)]/50 transition-colors',
+
+  /** Ligne cliquable d'une liste, comme celles de /dms en plus serré (historique des mises en vente). */
+  listRow: 'w-full flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-[var(--color-surface-light)] transition-colors cursor-pointer text-left',
 
   // Ligne d'une conversation de /dms (photo, pseudo, heure, dernier message), surlignée quand elle est affichée.
   dmsRow: 'w-full flex items-center gap-3 p-3 rounded-xl hover:bg-[var(--color-surface-light)] transition-colors cursor-pointer text-left',

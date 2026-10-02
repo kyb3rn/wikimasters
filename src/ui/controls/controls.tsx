@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useLayoutEffect, useState } from 'preact/hooks';
 import { injectStyle } from '@/core/dom';
 import { buttonClass } from '@/ui/button';
 import { cx } from '@/ui/cx';
@@ -101,6 +101,7 @@ export interface NumberFieldProps {
   readonly max: number;
   readonly step?: number;
   readonly unit?: string;
+  readonly disabled?: boolean;
 }
 
 const bound = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
@@ -110,9 +111,10 @@ const bound = (value: number, min: number, max: number) => Math.min(max, Math.ma
  * La saisie au clavier est libre ; elle est bornée et enregistrée à la validation (Entrée ou sortie
  * du champ), une saisie invalide revient à la valeur actuelle.
  */
-export function NumberField({ value, onChange, label, min, max, step = 1, unit }: NumberFieldProps) {
+export function NumberField({ value, onChange, label, min, max, step = 1, unit, disabled = false }: NumberFieldProps) {
   const [draft, setDraft] = useState(String(value));
-  useEffect(() => setDraft(String(value)), [value]);
+  // Pas un effet ordinaire : il attend l'image suivante, et effacerait une saisie tapée aussitôt l'affichage.
+  useLayoutEffect(() => setDraft(String(value)), [value]);
 
   const set = (next: number) => {
     const bounded = bound(Math.round(next * 1000) / 1000, min, max);
@@ -132,7 +134,7 @@ export function NumberField({ value, onChange, label, min, max, step = 1, unit }
         class={`${siteClass.stepperButton} ${siteClass.stepperMinus}`}
         aria-label={`Diminuer : ${label}`}
         tabIndex={-1}
-        disabled={value <= min}
+        disabled={disabled || value <= min}
         onClick={() => set(value - step)}
       >
         <Icon name="minus" size={16} />
@@ -146,6 +148,7 @@ export function NumberField({ value, onChange, label, min, max, step = 1, unit }
         min={min}
         max={max}
         step={step}
+        disabled={disabled}
         onInput={(event) => setDraft(event.currentTarget.value)}
         onBlur={commit}
         onKeyDown={(event) => {
@@ -158,7 +161,7 @@ export function NumberField({ value, onChange, label, min, max, step = 1, unit }
         class={`${siteClass.stepperButton} ${siteClass.stepperPlus}`}
         aria-label={`Augmenter : ${label}`}
         tabIndex={-1}
-        disabled={value >= max}
+        disabled={disabled || value >= max}
         onClick={() => set(value + step)}
       >
         <Icon name="plus" size={16} />

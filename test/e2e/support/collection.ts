@@ -356,6 +356,8 @@ export function collectionScript(selection = ''): string {
         face.append(tags);
       }
       face.onclick = () => (selecting ? toggleEntry(entry) : openModal(entry));
+      // Comme le site : le composant de la face reçoit la carte, juste au-dessus de son élément.
+      face['__reactFiber$test'] = { memoizedProps: { className: face.className }, return: { memoizedProps: { card: entry.card, size: 'sm' }, return: null } };
       item.append(face);
       item.__entry = entry;
       return item;
@@ -369,6 +371,8 @@ export function collectionScript(selection = ''): string {
     closeModal();
     const back = el('div', 'fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm');
     back.id = 'card-modal';
+    // Comme le site : le composant de la modale (props card, userCardId, onClose…) rend lui-même le fond.
+    back['__reactFiber$test'] = { memoizedProps: {}, return: { memoizedProps: { card: entry.card, starred: entry.starred, count: entry.count, onClose: closeModal, userCardId: entry.id, tags: entry.tags }, return: null } };
     const panel = el('div', 'card-frame relative w-full p-6');
     const close = button('absolute top-3 right-3', '×', closeModal);
     close.setAttribute('aria-label', 'Fermer');

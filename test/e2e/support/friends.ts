@@ -2,10 +2,12 @@ import type { Page, Route } from '@playwright/test';
 import { openSite, sitePage } from './site';
 
 /**
- * Page Amis relevée sur le site (captures du 29/09/2026, code du 30/09/2026), données inventées. Le faux site
- * n'a pas Tailwind : un peu de CSS remplace ce qui compte pour la mise en page (cadre de la recherche, croix
- * d'effacement, textes masqués). La page se redessine depuis ses états (amitiés, compteurs), notés comme ceux
- * de React : page (états) > div > section > ligne (props `friendId`, `username`, clé = id de l'amitié) > div.
+ * Page Amis relevée sur le site (captures du 29/09 et du 01/10/2026, code du 30/09 et du 01/10/2026), données
+ * inventées. Le faux site n'a pas Tailwind : un peu de CSS remplace ce qui compte pour la mise en page (cadre de
+ * la recherche, croix d'effacement, textes masqués, fenêtre « Rechercher un joueur »). La page se redessine
+ * depuis ses états (amitiés, compteurs), notés comme ceux de React : page (états) > div > section > ligne (props
+ * `friendId`, `username`, clé = id de l'amitié) > div. Sans ami accepté : cadre « Vous n'avez pas encore d'amis. »
+ * à la place de la recherche.
  */
 export interface FakeFriendship {
   readonly id: string;
@@ -41,6 +43,13 @@ const CSS = `
 .w-full { width: 100%; } .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
 #friend-list-search { box-sizing: border-box; height: 45px; padding: 0 40px 0 16px; }
 @media (min-width: 640px) { .sm\\:inline { display: inline; } }
+.text-center { text-align: center; } .p-8 { padding: 2rem; } .mt-2 { margin-top: .5rem; }
+#site-player-search { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+#site-player-search * { box-sizing: border-box; } #site-player-search svg { width: .875rem; height: .875rem; }
+.max-w-md { max-width: 28rem; } .p-6 { padding: 1.5rem; } .card-frame { background: #222; }
+.h-\\[220px\\] { height: 220px; } .overflow-y-auto { overflow-y: auto; } .mt-4 { margin-top: 1rem; }
+.site-player-row { display: flex; align-items: center; gap: .75rem; padding: .625rem; }
+.site-player-row > span { flex: 1; } .w-9 { width: 2.25rem; height: 2.25rem; flex-shrink: 0; }
 `;
 
 const PAGE = `
@@ -71,6 +80,7 @@ const PAGE = `
 
 const SCRIPT = `
 const state = window.__friends = { friendships: __INITIAL__, counts: null, clicks: { invite: 0, add: 0, message: [], trade: [] } };
+const searchBox = document.getElementById('friend-list-search').parentElement;
 const count = (status) => state.friendships.filter((f) => f.status === status).length;
 const incoming = (f) => f.status === 'pending' && f.addressee_id === 'me';
 const outgoing = (f) => f.status === 'pending' && f.requester_id === 'me';
@@ -104,14 +114,111 @@ document.getElementById('site-invite').addEventListener('click', (event) => {
   button.innerHTML = '<svg class="lucide lucide-check size-4"></svg>Copié !';
   setTimeout(() => { button.innerHTML = '<svg class="lucide lucide-link2 lucide-link-2 size-4"></svg>Inviter'; }, 2000);
 });
-document.getElementById('site-add').addEventListener('click', () => { state.clicks.add++; });
-
 // « Ajouter » de la fenêtre « Rechercher un joueur » : recherche, demande, puis relecture sans lire la réponse.
 state.sendRequest = async (query, userId) => {
   await fetch('/api/friends/search?q=' + encodeURIComponent(query));
   await fetch('/api/friends', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ addressee_id: userId }) });
   await load();
 };
+
+// Fenêtre « Rechercher un joueur », en fin de page : recherche 350 ms après la dernière frappe, dès 2 caractères ;
+// roue au-dessus des anciens résultats pendant la recherche ; « Ajouter » : demande, puis relecture.
+let searchWindow = null;
+function openSearch() {
+  if (searchWindow) return;
+  const overlay = searchWindow = document.createElement('div');
+  overlay.id = 'site-player-search';
+  overlay.className = 'fixed inset-0 z-50 flex items-center justify-center p-4';
+  overlay.innerHTML =
+    '<div class="card-frame w-full max-w-md p-6"><div class="flex items-center justify-between mb-5"><h2 class="text-lg font-bold">Rechercher un joueur</h2>' +
+    '<button type="button" class="p-1" aria-label="Fermer"><svg class="lucide lucide-x size-5"></svg></button></div>' +
+    '<input type="text" placeholder="Nom d’utilisateur..." class="w-full rounded-lg border px-4 py-2.5 text-sm" id="site-player-field">' +
+    '<div class="mt-4 h-[220px] overflow-y-auto space-y-2" id="site-player-results"></div></div>';
+  page.append(overlay);
+  const field = overlay.querySelector('input');
+  const results = overlay.querySelector('#site-player-results');
+  let timer = 0;
+  let loading = false;
+  let users = [];
+  let sending = null;
+  const sent = new Set();
+  const playerRow = (user) => {
+    const row = document.createElement('div');
+    row.className = 'flex items-center gap-3 p-2.5 rounded-lg site-player-row';
+    row.dataset.player = user.username;
+    row.innerHTML = '<div class="w-9 h-9 rounded-full">' + user.username.slice(0, 2).toUpperCase() + '</div><span class="flex-1 text-sm font-medium">' +
+      user.username + '</span><button type="button" class="p-1.5 rounded-lg" title="Signaler ' + user.username + '" aria-label="Signaler ' + user.username +
+      '"><svg class="lucide lucide-flag size-3.5"></svg></button><button class="px-3 py-1 rounded-lg text-xs font-semibold">' +
+      (sending === user.id ? '...' : sent.has(user.id) ? 'Demande envoyée' : 'Ajouter') + '</button>';
+    const add = row.lastElementChild;
+    add.disabled = sent.has(user.id) || sending === user.id;
+    add.addEventListener('click', async () => {
+      sending = user.id;
+      draw();
+      try {
+        await fetch('/api/friends', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ addressee_id: user.id }) });
+        sent.add(user.id);
+        void load();
+      } finally {
+        sending = null;
+        draw();
+      }
+    });
+    return row;
+  };
+  const message = (text) => {
+    const p = document.createElement('p');
+    p.className = 'text-center text-sm py-8';
+    p.textContent = text;
+    return p;
+  };
+  function draw() {
+    const parts = [];
+    if (loading) {
+      const spinner = document.createElement('div');
+      spinner.className = 'flex justify-center py-8 site-player-spinner';
+      spinner.innerHTML = '<div class="w-6 h-6 rounded-full animate-spin"></div>';
+      parts.push(spinner);
+    } else if (field.value.trim().length < 2) parts.push(message('Entrez au moins 2 caractères…'));
+    else if (users.length === 0) parts.push(message('Aucun joueur trouvé'));
+    results.replaceChildren(...parts, ...users.map(playerRow));
+  }
+  field.addEventListener('input', () => {
+    clearTimeout(timer);
+    const query = field.value;
+    if (query.trim().length < 2) users = [];
+    else
+      timer = setTimeout(async () => {
+        loading = true;
+        draw();
+        try {
+          const response = await fetch('/api/friends/search?q=' + encodeURIComponent(query));
+          users = (await response.json()).users ?? [];
+        } finally {
+          loading = false;
+          draw();
+        }
+      }, 350);
+    draw();
+  });
+  overlay.querySelector('[aria-label="Fermer"]').addEventListener('click', () => {
+    clearTimeout(timer);
+    overlay.remove();
+    searchWindow = null;
+  });
+  draw();
+  field.focus();
+}
+document.getElementById('site-add').addEventListener('click', () => {
+  state.clicks.add++;
+  openSearch();
+});
+
+const emptyFrame = document.createElement('div');
+emptyFrame.className = 'card-frame p-8 text-center space-y-3';
+emptyFrame.innerHTML = '<svg class="lucide lucide-users mx-auto size-12"></svg><p class="text-sm">Vous n’avez pas encore d’amis.</p>' +
+  '<button id="site-empty-search" class="mt-2 px-4 py-2 rounded-xl text-sm font-medium">Rechercher des joueurs</button>';
+emptyFrame.querySelector('button').addEventListener('click', openSearch);
 
 function friendRow(f) {
   const user = other(f);
@@ -185,6 +292,13 @@ function sentRow(f) {
 const rows = new Map();
 function render() {
   section.querySelector('h2').textContent = 'Amis (' + state.counts.accepted + ')';
+  if (state.friendships.some((f) => f.status === 'accepted')) {
+    emptyFrame.remove();
+    if (!searchBox.isConnected) section.querySelector('h2').after(searchBox);
+  } else {
+    searchBox.remove();
+    if (!emptyFrame.isConnected) section.append(emptyFrame);
+  }
   sent.querySelector('h2').textContent = 'Demandes envoyées (' + state.counts.outgoing + ')';
   received.querySelector('h2').textContent = 'Demandes reçues (' + state.counts.incoming + ')';
   const shown = new Set();
@@ -216,29 +330,45 @@ export interface FriendsServer {
   readonly answered: { readonly id: string; readonly action: string }[];
   /** Nombre de `GET /api/friends` reçus (la page a ses amitiés dès le départ, sans les lire). */
   listed: number;
+  /** Textes cherchés (`GET /api/friends/search?q=`), dans l'ordre. */
+  readonly searched: string[];
+  /** Réponses de la recherche de joueurs retenues tant qu'elle n'est pas résolue (`hold`). */
+  gate: Promise<void> | undefined;
 }
 
-/** Joueurs trouvés par la recherche (`GET /api/friends/search`). */
-const PLAYERS = [{ id: 'u20', username: 'Zorglub', avatar_url: null, avatar_pos_x: 50, avatar_pos_y: 50 }];
+const player = (id: string, username: string) => ({ id, username, avatar_url: null, avatar_pos_x: 50, avatar_pos_y: 50 });
+
+/** Joueurs du serveur : la recherche (`GET /api/friends/search`) rend ceux dont le pseudo contient le texte. */
+const PLAYERS = [player('u20', 'Zorglub'), ...Array.from({ length: 10 }, (_, i) => player(`p${i}`, `Joueur${i}`))];
 
 type Handler = (route: Route, id: string) => Promise<void>;
+
+export interface FriendsPageOptions {
+  /** Amitiés de départ (par défaut : quatre amis, trois demandes envoyées, deux reçues). */
+  readonly friendships?: readonly FakeFriendship[];
+  readonly remove?: Handler;
+  readonly answer?: Handler;
+  readonly acceptAll?: (route: Route) => Promise<void>;
+  readonly send?: (route: Route) => Promise<void>;
+}
+
+/** Amitiés de départ sans ami accepté : seulement les demandes en attente. */
+export const NO_FRIENDS: readonly FakeFriendship[] = FRIENDSHIPS.filter((f) => f.status === 'pending');
 
 /**
  * Ouvre la page Amis. Réponses à la place du serveur : `remove` à `DELETE /api/friends/<id>` (par défaut : retrait,
  * `{ success: true }`), `answer` à `PATCH /api/friends/<id>` (par défaut : acceptée ou retirée), `acceptAll` à
  * `POST /api/friends/accept-all` (par défaut : toutes acceptées), `send` à `POST /api/friends` (par défaut : 201,
- * l'amitié créée). La page n'a pas de fenêtre « Rechercher un joueur » : `__friends.sendRequest(q, id)` fait ce
- * que fait son « Ajouter ».
+ * l'amitié créée). `__friends.sendRequest(q, id)` fait ce que fait
+ * « Ajouter » de la fenêtre « Rechercher un joueur », sans l'ouvrir.
  */
-export async function openFriendsPage(
-  page: Page,
-  options: { remove?: Handler; answer?: Handler; acceptAll?: (route: Route) => Promise<void>; send?: (route: Route) => Promise<void> } = {},
-): Promise<FriendsServer> {
-  const server: FriendsServer = { friendships: [...FRIENDSHIPS], deleted: [], answered: [], listed: 0 };
+export async function openFriendsPage(page: Page, options: FriendsPageOptions = {}): Promise<FriendsServer> {
+  const initial = options.friendships ?? FRIENDSHIPS;
+  const server: FriendsServer = { friendships: [...initial], deleted: [], answered: [], listed: 0, searched: [], gate: undefined };
   const incoming = (f: FakeFriendship) => f.status === 'pending' && f.addressee_id === 'me';
   const accept = (f: FakeFriendship): FakeFriendship => ({ ...f, status: 'accepted' });
   await openSite(page, '/friends', {
-    html: sitePage(PAGE, SCRIPT.replace('__INITIAL__', JSON.stringify(FRIENDSHIPS))),
+    html: sitePage(PAGE, SCRIPT.replace('__INITIAL__', JSON.stringify(initial))),
     handle: async (route, url) => {
       const method = route.request().method();
       const match = /^\/api\/friends\/([^/]+)$/.exec(url.pathname);
@@ -258,7 +388,11 @@ export async function openFriendsPage(
         return true;
       }
       if (url.pathname === '/api/friends/search' && method === 'GET') {
-        await route.fulfill({ json: { users: PLAYERS } });
+        const query = url.searchParams.get('q') ?? '';
+        server.searched.push(query);
+        await server.gate;
+        const text = query.trim().toLowerCase();
+        await route.fulfill({ json: { users: PLAYERS.filter((p) => p.username.toLowerCase().includes(text)) } });
         return true;
       }
       // Comme le site : l'amitié créée, sans les joueurs.
@@ -267,8 +401,8 @@ export async function openFriendsPage(
         const body: unknown = route.request().postDataJSON();
         const addressee = typeof body === 'object' && body !== null && 'addressee_id' in body ? String(body.addressee_id) : '';
         const created = { id: `s-${addressee}`, status: 'pending' as const, requester_id: 'me', addressee_id: addressee };
-        const player = PLAYERS.find((p) => p.id === addressee);
-        server.friendships.push({ ...created, ...(player && { addressee: player }) });
+        const found = PLAYERS.find((p) => p.id === addressee);
+        server.friendships.push({ ...created, ...(found && { addressee: found }) });
         await route.fulfill({ status: 201, json: { friendship: created } });
         return true;
       }

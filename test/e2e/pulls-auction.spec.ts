@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { CAROUSEL, openPulls as openFakePulls, PACK } from './support/pulls';
-import { expectDomIdle, presetSettings, rect } from './support/site';
+import { expectDomIdle, nextFrame, presetSettings, rect } from './support/site';
 
 const GAVEL = '.wm-auction-quick';
 const TRASH = '.wm-discard-next';
@@ -187,6 +187,7 @@ test('une carte défaussée ne se met pas aux enchères', async ({ page }) => {
 
 test('après un glissement, le site ignore le premier clic sur la carte : la mise en vente s’ouvre quand même', async ({ page }) => {
   await openPulls(page);
+  await nextFrame(page); // zone mesurée une fois la page mise en place par le script
   const area = await rect(page.locator('main .relative').first());
   await page.mouse.move(area.x + area.width - 5, area.y + 20);
   await page.mouse.down();

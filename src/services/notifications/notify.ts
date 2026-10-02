@@ -49,10 +49,12 @@ export function notify(options: NotifyOptions): void {
     ...(href !== undefined && {
       action: {
         label: notification.actionLabel ?? 'Voir',
+        href,
         onClick: () => {
           markLocalRead([notification.id]);
           navigateTo(href);
         },
+        onOpenElsewhere: () => markLocalRead([notification.id]),
       },
     }),
   });

@@ -12,20 +12,23 @@ export type ButtonShape = 'standard' | 'window' | 'wide' | 'square' | 'round';
 export type ButtonTone = 'neutral' | 'danger' | 'info' | 'accent' | 'warning' | 'pro';
 /** Plein, contour, ou `ghost` : la couleur du texte seule, le fond teinté au survol. */
 export type ButtonFill = 'solid' | 'outline' | 'ghost';
-/** Hauteurs communes à toutes les formes : grand 48 px, moyen = champs (≈ 45 px), petit 30 px. */
-export type ButtonSize = 'lg' | 'md' | 'sm';
+/** Hauteurs communes à toutes les formes : grand 48 px, moyen = champs (≈ 45 px), petit 30 px, très petit (« tiny ») 20 px. */
+export type ButtonSize = 'lg' | 'md' | 'sm' | 'xs';
 
 export interface ButtonStyle {
   readonly tone?: ButtonTone;
   readonly fill?: ButtonFill;
   readonly size?: ButtonSize;
+  /** Bords arrondis à 100 % (formes longues : standard, fenêtre, pleine largeur). */
+  readonly pill?: boolean;
 }
 
 export const BUTTON_TONES: readonly ButtonTone[] = ['neutral', 'danger', 'info', 'accent', 'warning', 'pro'];
 export const BUTTON_FILLS: readonly ButtonFill[] = ['solid', 'outline', 'ghost'];
-export const BUTTON_SIZES: readonly ButtonSize[] = ['lg', 'md', 'sm'];
+export const BUTTON_SIZES: readonly ButtonSize[] = ['lg', 'md', 'sm', 'xs'];
 
 const { red, blue, amber, violet, fuchsia } = palette;
+/** Posé depuis le bord extérieur (`border-box` des pleins) : sinon il se répète sous la bordure transparente (liseré fuchsia à gauche). */
 const PRO_GRADIENT = `linear-gradient(to right, ${violet[600]}, ${fuchsia[600]})`;
 
 interface Tone {
@@ -76,12 +79,14 @@ const tones = (): Readonly<Record<ButtonTone, Tone>> => ({
  * Mesures, en rem comme Tailwind. Une taille = une hauteur, pour toutes les formes (carrés et ronds compris) : grand =
  * ses gros boutons (« Continuer » des paquets, px-8 py-3, texte de base) et les flèches du carrousel (w-12) ; moyen =
  * ses champs (son « Défausser », px-4 text-sm, allongé de 3 px pour s'aligner sur eux) ; petit = ses pastilles de
- * durée (px-3 py-1.5 text-xs).
+ * durée (px-3 py-1.5 text-xs) ; très petit = notre « @pseudo » posé sur l'image d'une carte (texte 10 px, arrondi 6 px), qui
+ * ne doit pas la masquer.
  */
 const LG = '3rem';
 const MD = tokens.fieldHeight;
 const SM = 'calc(1.75rem + 2px)';
-const HEIGHTS: Readonly<Record<ButtonSize, string>> = { lg: LG, md: MD, sm: SM };
+const XS = '1.25rem';
+const HEIGHTS: Readonly<Record<ButtonSize, string>> = { lg: LG, md: MD, sm: SM, xs: XS };
 
 const buildCss = () => `
 .wm-button { box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; min-width: 0;
@@ -91,14 +96,17 @@ const buildCss = () => `
 .wm-button:hover:not(:disabled) { color: var(--wm-hot); background: var(--wm-wash); }
 .wm-button:focus-visible { outline: 2px solid ${alpha(tokens.accent, 60)}; outline-offset: 2px; }
 .wm-button:disabled { opacity: ${DISABLED_OPACITY}; cursor: not-allowed; }
-.wm-button.wm-solid { color: var(--wm-on); border-color: transparent; background: var(--wm-fill); font-weight: 600; }
-.wm-button.wm-solid:hover:not(:disabled) { color: var(--wm-on); background: var(--wm-fill-hover); }
+.wm-button.wm-solid { color: var(--wm-on); border-color: transparent; background: var(--wm-fill) border-box; font-weight: 600; }
+.wm-button.wm-solid:hover:not(:disabled) { color: var(--wm-on); background: var(--wm-fill-hover) border-box; }
 .wm-button.wm-tone-pro.wm-solid:hover:not(:disabled) { filter: brightness(1.1); }
 .wm-button.wm-ghost { border-color: transparent; }
+.wm-button.wm-pill { border-radius: 9999px; }
 
 .wm-button-lg { gap: 0.5rem; padding: calc((${LG} - 1.5rem - 2px) / 2) 1.5rem; font-size: 1rem; line-height: 1.5rem; }
 .wm-button-md { gap: 0.5rem; padding: calc((${MD} - 1.25rem - 2px) / 2) 1rem; font-size: 0.875rem; line-height: 1.25rem; }
 .wm-button-sm { gap: 0.375rem; padding: calc((${SM} - 1rem - 2px) / 2) 0.75rem; font-size: 0.75rem; line-height: 1rem; }
+.wm-button-xs { gap: 0.25rem; padding: calc((${XS} - 0.875rem - 2px) / 2) 0.4375rem; font-size: 0.625rem; line-height: 0.875rem;
+  border-radius: 0.375rem; }
 .wm-button:is(.wm-button-standard, .wm-button-window, .wm-button-wide) { height: auto; }
 .wm-button-window { flex: 1 1 0%; }
 .wm-button-wide { width: 100%; }
@@ -123,18 +131,25 @@ function ensureCss(): void {
   injectStyle('ui-button', css);
 }
 
-function tokensOf(shape: ButtonShape, { tone = 'neutral', fill = 'outline', size = 'md' }: ButtonStyle): string[] {
-  return ['wm-button', `wm-button-${shape}`, `wm-button-${size}`, `wm-tone-${tone}`, ...(fill === 'outline' ? [] : [`wm-${fill}`])];
+function tokensOf(shape: ButtonShape, { tone = 'neutral', fill = 'outline', size = 'md', pill = false }: ButtonStyle): string[] {
+  return [
+    'wm-button',
+    `wm-button-${shape}`,
+    `wm-button-${size}`,
+    `wm-tone-${tone}`,
+    ...(fill === 'outline' ? [] : [`wm-${fill}`]),
+    ...(pill ? ['wm-pill'] : []),
+  ];
 }
 
-/** Classes d'un bouton : sa forme, puis sa couleur, son remplissage et sa taille (gris, contour, moyen par défaut). */
+/** Classes d'un bouton : sa forme, puis sa couleur, son remplissage, sa taille (gris, contour, moyen par défaut) et son arrondi. */
 export function buttonClass(shape: ButtonShape, style: ButtonStyle = {}): string {
   ensureCss();
   return tokensOf(shape, style).join(' ');
 }
 
 /** Nos classes de bouton (`buttonClass`), à distinguer de celles du site. */
-const isButtonClass = (name: string): boolean => /^wm-(button|tone-|solid$|ghost$)/.test(name);
+const isButtonClass = (name: string): boolean => /^wm-(button|tone-|solid$|ghost$|pill$)/.test(name);
 
 /**
  * Habille un bouton du site (ou le rhabille) : nos classes voulues posées, les autres retirées. Idempotent : rien

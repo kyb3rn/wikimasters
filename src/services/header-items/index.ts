@@ -5,11 +5,8 @@ import { createSlots } from '@/ui/mount';
 
 const ITEM = 'wm-header-item';
 
-/*
- * La barre du solde sur mobile laisse passer les clics (`pointer-events: none`), sauf sur ses boutons. Un léger écart
- * avec le bouton suivant (un autre des nôtres, ou le solde).
- */
-const CSS = `.${ROOT_CLASS}.${ITEM} > * { pointer-events: auto; margin-right: 6px; }`;
+/* La boîte du solde laisse passer les clics (`pointer-events: none`), sauf sur ses boutons. Écarts : header-bar. */
+const CSS = `.${ROOT_CLASS}.${ITEM} > * { pointer-events: auto; }`;
 
 export interface HeaderItemOptions {
   readonly signal: AbortSignal;

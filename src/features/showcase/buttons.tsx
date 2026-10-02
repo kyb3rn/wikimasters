@@ -34,7 +34,7 @@ interface Variant {
 /** Chaque couleur pleine, en contour, puis en ghost. */
 const variants = (): readonly Variant[] => BUTTON_TONES.flatMap((tone) => BUTTON_FILLS.map((fill) => ({ tone, fill })));
 
-const ICON_SIZES: Readonly<Record<ButtonSize, readonly [text: number, alone: number]>> = { lg: [18, 22], md: [16, 20], sm: [14, 16] };
+const ICON_SIZES: Readonly<Record<ButtonSize, readonly [text: number, alone: number]>> = { lg: [18, 22], md: [16, 20], sm: [14, 16], xs: [12, 12] };
 
 /** Icône d'un bouton à texte, ou seule (carré, rond). */
 const iconSize = (shape: ButtonShape, size: ButtonSize) => ICON_SIZES[size][shape === 'square' || shape === 'round' ? 1 : 0];
@@ -151,8 +151,8 @@ function extras(shape: ButtonShape, { tone, fill }: Variant): ComponentChild[] {
 type Frame = (button: ComponentChild, size: ButtonSize) => ComponentChild;
 
 /** États d'une variante dans une taille : normal (cliquable), icône seule (standard), désactivé, en cours. */
-function states(shape: ButtonShape, variant: Variant, size: ButtonSize, frame: Frame): ComponentChild[] {
-  const className = buttonClass(shape, { ...variant, size });
+function states(shape: ButtonShape, variant: Variant, size: ButtonSize, frame: Frame, pill: boolean): ComponentChild[] {
+  const className = buttonClass(shape, { ...variant, size, pill });
   const sample = { class: className, icon: SAMPLES[variant.tone].icon, iconSize: iconSize(shape, size) };
   const label = shape === 'square' || shape === 'round' ? undefined : SAMPLES[variant.tone].label;
   return [
@@ -163,21 +163,27 @@ function states(shape: ButtonShape, variant: Variant, size: ButtonSize, frame: F
   ];
 }
 
+interface ShapeMatrixProps {
+  readonly shape: ButtonShape;
+  readonly frame?: Frame;
+  /** Bords arrondis à 100 %, sans les boutons réels de la forme d'origine. */
+  readonly pill?: boolean;
+}
+
 /** Une forme dans toutes ses variantes : une rangée par couleur et remplissage, chaque taille en colonnes. */
-function ShapeMatrix({ shape, frame = (button) => button }: { readonly shape: ButtonShape; readonly frame?: Frame }) {
+function ShapeMatrix({ shape, frame = (button) => button, pill = false }: ShapeMatrixProps) {
   return (
     <Matrix
       rows={variants().map((variant) => [
-        ...BUTTON_SIZES.flatMap((size, index) => [...(index > 0 ? [null] : []), ...states(shape, variant, size, frame)]),
-        null,
-        ...extras(shape, variant),
+        ...BUTTON_SIZES.flatMap((size, index) => [...(index > 0 ? [null] : []), ...states(shape, variant, size, frame, pill)]),
+        ...(pill ? [] : [null, ...extras(shape, variant)]),
       ])}
     />
   );
 }
 
-const WINDOW_WIDTH: Readonly<Record<ButtonSize, string>> = { lg: '13rem', md: '11rem', sm: '9rem' };
-const WIDE_WIDTH: Readonly<Record<ButtonSize, string>> = { lg: '17rem', md: '14rem', sm: '11rem' };
+const WINDOW_WIDTH: Readonly<Record<ButtonSize, string>> = { lg: '13rem', md: '11rem', sm: '9rem', xs: '7rem' };
+const WIDE_WIDTH: Readonly<Record<ButtonSize, string>> = { lg: '17rem', md: '14rem', sm: '11rem', xs: '9rem' };
 
 /** Bouton de fenêtre : il y prend la moitié d'une rangée Annuler · action. */
 const windowFrame: Frame = (button, size) => (
@@ -188,18 +194,27 @@ const windowFrame: Frame = (button, size) => (
 
 const wideFrame: Frame = (button, size) => <Specimen width={WIDE_WIDTH[size]}>{button}</Specimen>;
 
-/** Un groupe par forme de bouton ; dans chacun, toutes les couleurs, remplissages et tailles. */
+/** Un groupe par forme de bouton (les longues aussi arrondies) ; dans chacun, toutes les couleurs, remplissages et tailles. */
 export function Buttons() {
   return (
     <>
       <Group title="Standard">
         <ShapeMatrix shape="standard" />
       </Group>
+      <Group title="Standard arrondi">
+        <ShapeMatrix shape="standard" pill />
+      </Group>
       <Group title="Fenêtre">
         <ShapeMatrix shape="window" frame={windowFrame} />
       </Group>
+      <Group title="Fenêtre arrondie">
+        <ShapeMatrix shape="window" frame={windowFrame} pill />
+      </Group>
       <Group title="Pleine largeur">
         <ShapeMatrix shape="wide" frame={wideFrame} />
+      </Group>
+      <Group title="Pleine largeur arrondie">
+        <ShapeMatrix shape="wide" frame={wideFrame} pill />
       </Group>
       <Group title="Carré">
         <ShapeMatrix shape="square" />

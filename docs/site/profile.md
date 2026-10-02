@@ -25,15 +25,37 @@ div.animate-fade-in-up › div.card-frame.p-4.text-center › « 1 416 » (accen
 
 - Étiquettes : celles de ses cartes, avec leur nombre (pastilles `text-[11px]`).
 - Interrupteur : piste `bg-[var(--color-accent)]` ou `bg-[var(--color-surface-light)]`, bouton `translate-x-5` / `translate-x-0` ; il envoie `PATCH /api/profile/<pseudo>` `{ is_public }`.
-- Lecture : `src/site/profile/header.ts` (`findOwnProfileHeader`, `findUniqueCardsStat`, `splitProfileLine`, `isProfileVisibilityChange`).
+- Lecture : `src/site/profile/header.ts` (`findProfileHeader`, `findUniqueCardsStat`, `splitProfileLine`, `isProfileVisibilityChange`).
 
 ## Profil d'un autre joueur
 
-_Relevé : captures du 29/09 ; « Retirer des amis » : code du 30/09._
+_Relevé : captures du 01/10 (un ami, un non-ami) ; code du 01/10._
 
-- Ni photo modifiable, ni étiquettes, ni visibilité, ni « Cartes uniques ». « Signaler » et, pour un ami, « Retirer des amis » en haut à droite ; « · Vu il y a … » dans la ligne sous le pseudo.
+```
+div.flex-1.p-4.md:p-6.space-y-5
+  a « ← Amis » (href /friends)                    selon ?from= : « ← Classement » (/leaderboard), « ← Guilde » (/guild)
+  div.card-frame.p-3.sm:p-4.animate-fade-in-up    même composant que l'en-tête de son profil
+    div.-mt-0.5.mb-1.flex.justify-end
+      button[title="Signaler <pseudo>"] (lucide flag) « Signaler »                     non-ami
+      div.flex.items-center.gap-1 › « Signaler », button[title="Retirer des amis"]     ami
+    div.flex.items-center.gap-3.flex-wrap
+      div.w-12.h-12.rounded-full… › img (style object-position) ou span initiales      pas un bouton
+      div.flex-1.min-w-0 › h1 pseudo, p « 45 583 cartes · Depuis août 2026 · Vu il y a 10 min »
+  ami : div.flex.border-b (onglets Vitrine / Collection)
+  non-ami : div.animate-fade-in-up › button.w-full « + Envoyer une demande d'ami » (« Envoi... » pendant l'envoi),
+            ou div.card-frame.p-4 « Demande d'ami envoyée » / « <pseudo> vous a envoyé une demande d'ami » + Accepter, Refuser
+  vitrine (div.card-frame…)
+```
+
+- Le site ne passe que `cardCount`, `joinedAt` et, pour un ami, `lastSeenAt` : ni photo modifiable, ni étiquettes (toujours vides), ni visibilité, ni « Cartes uniques » (`/api/profile/<pseudo>/stats` ne rend que `{ total }`).
+- « Vu il y a » : « En ligne récemment » sous 5 min, puis `n min`, `n h`, `n j`, `n mois`, « plus d'un an ». Photo sensible (réglage du joueur) : floue (`filter: blur(8px)` et `scale(1.25)` dans son style, `alt` vide).
+- « Signaler » : absent si on n'est pas connecté ou sur son propre pseudo ; ouvre la fenêtre de signalement, rendue hors de l'en-tête.
 - « Retirer des amis » : petit bouton `title="Retirer des amis"` (lucide `user-minus` ; « … » et désactivé pendant le retrait). Confirmation par **`window.confirm`** (« Retirer <pseudo> de votre liste d'amis ? »), puis `DELETE /api/friends/<id de l'amitié>` (refus ignoré, rien à l'écran), puis relecture du profil (403 : profil privé → `/friends`).
-- Lecture : `src/site/profile/unfriend.ts` (`findUnfriendButton`, `parseUnfriendConfirm`).
+- Pas de bouton d'échange (seulement « Proposer un échange » dans la modale d'un exemplaire de l'ami, qui y charge la fenêtre d'échange : [trades.md](trades.md#ouverte-par-le-script)).
+- État de la page (code du 01/10) : `profile` de `GET /api/profile/<pseudo>` (`{ id, username, avatar_url, avatar_pos_x, avatar_pos_y, created_at, … }`), `isFriend`, `friendshipId`, `pendingRequest`, `lastSeenAt`. L'en-tête du site ne reçoit pas l'`id` du joueur : `readProfilePlayer` le lit dans cet état.
+- Compte suspendu (`banned`) : page « Compte suspendu » (icône lucide `ban`) avec le lien de retour.
+- Demande d'ami : « Envoyer » désactivé (« Envoi... ») pendant `POST /api/friends` `{ addressee_id }`, rien d'affiché si refusée ; Accepter / Refuser (`PATCH /api/friends/<id>` `{ action }`) jamais désactivés, et l'état change même si la requête échoue (acceptée : ami, onglets, mais pas de « Vu il y a » avant un rechargement).
+- Lecture : `src/site/profile/header.ts` (`findProfileHeader`, `actions`, `seen`, `readProfilePlayer`), `src/site/profile/friend-request.ts` (`findProfileFriendRequest`), `src/site/profile/unfriend.ts` (`findUnfriendButton`, `parseUnfriendConfirm`).
 
 ## Profil introuvable
 
@@ -57,8 +79,10 @@ _Relevé : code du site, 30/09._
 - Pagination : une barre « ← Précédent · Page x / y · Suivant → », qui fait défiler `<main>` en haut.
 - Revenir sur l'onglet recrée la page, aux filtres par défaut.
 - États de l'onglet, dans l'ordre : exemplaires, total, étiquettes, cartes en échange, chargement, champ, recherche en cours, **tri, raretés (`Set`), étiquette (`null` ou id), page**, exemplaire ouvert, erreur. La liste se charge dans un effet qui dépend de la page, du tri, de la recherche en cours, des raretés et de l'étiquette.
+- Grille `div.flex.flex-wrap.justify-center` : une case `div.relative` par exemplaire (clé React = son `id`) › face (`card`, `tags`, « Échange en attente »). Exemplaires gardés tels que l'API les donne : chacun a `owned_by_viewer` (je possède aussi la carte), que le site n'affiche pas ici (seulement dans la fenêtre d'échange, « Possédée »).
+- Clic sur une carte : modale de carte de l'exemplaire (cas « exemplaire d'un ami » : ses étiquettes en lecture seule, « Proposer un échange »), sans actions ni « Possédée » ([README](README.md#modale-de-carte)).
 - La fenêtre d'échange lit la même route, du même ami : seul le profil affiché est la page.
-- Lecture : `src/site/profile/collection.ts` (`profileCollectionList` ; états : `findProfileCollectionStates`, `findProfileCollectionReload` ; roue : `PROFILE_COLLECTION_SPINNER`).
+- Lecture : `src/site/profile/collection.ts` (`profileCollectionList` ; états : `findProfileCollectionStates`, `findProfileCollectionReload` ; roue : `PROFILE_COLLECTION_SPINNER` ; cartes : `findProfileCollectionFaces`, `readProfileOwnedCards`).
 
 ## « Choisir une carte » de la vitrine
 

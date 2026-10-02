@@ -1,14 +1,15 @@
 import { h, type ComponentChild } from 'preact';
 import { classMarks, watchDom } from '@/core/dom';
 import type { Feature } from '@/core/runtime';
-import { FACE } from '@/site/cards';
+import { FACE, findFaceImage } from '@/site/cards';
 import { findChatList, findChatWindows, readChatDays } from '@/site/dms';
-import { findGuildWishRequesters } from '@/site/guild';
-import { findAuctionPlayers, findMarketplaceSellers, TILE } from '@/site/marketplace';
+import { findGuildWishRequesters, findOwnGuildWishImage } from '@/site/guild';
+import { findAuctionFace, findAuctionPlayers, findMarketplaceSellers, TILE } from '@/site/marketplace';
+import { myUsername, onMeChange } from '@/site/me';
 import { findTradeComposer } from '@/site/trades';
+import { ProfileLink } from '@/services/profile-link';
 import { buttonClass } from '@/ui/button';
 import { createSlots, type Placement } from '@/ui/mount';
-import { ProfileLink } from './ProfileLink';
 
 const SELLER = 'wm-tile-seller';
 const CHAT_AVATAR = 'wm-chat-avatar';
@@ -17,20 +18,19 @@ const WRAP = 'wm-tile-seller-wrap';
 
 /*
  * Vendeur d'une vignette (ou auteur d'une demande de la liste de souhaits de guilde) : bouton plein (fond opaque,
- * lisible sur toute image) en bas à gauche de l'image de la carte, au survol de la vignette (de la carte) seulement ;
- * toujours affiché sur un écran tactile, qui n'a pas de survol. Plus petit que le petit bouton (demande de
+ * lisible sur toute image) en bas à gauche de l'image de la carte, au survol de la vignette (de la carte) seulement,
+ * écran tactile compris (extension pour ordinateur, demande de l'utilisateur). En très petit (« tiny », demande de
  * l'utilisateur) : il ne doit pas masquer l'image. Avec un état (« reçu aujourd'hui »), il passe à la ligne.
  */
 const CSS = `
 .wm-profile-link { cursor: pointer; }
 .wm-profile-link:not(.wm-button):hover { text-decoration: underline; text-underline-offset: 2px; }
 .wm-button.${SELLER} { position: absolute; left: 6px; bottom: 6px; z-index: 35; display: block;
-  max-width: calc(100% - 12px); padding: 2px 7px; border-radius: 6px; font-size: 10px; line-height: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-width: calc(100% - 12px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   box-shadow: 0 1px 4px rgb(0 0 0 / 40%); opacity: 0; pointer-events: none;
   transition: opacity 0.15s, color 0.15s, background-color 0.15s; }
 .wm-button.${WRAP} { white-space: normal; text-align: left; }
 ${TILE}:hover .${SELLER}, ${FACE}:hover .${SELLER}, .${SELLER}:focus-visible { opacity: 1; pointer-events: auto; }
-@media (hover: none) { .wm-button.${SELLER} { opacity: 1; pointer-events: auto; } }
 .wm-chat-name { display: block; width: fit-content; max-width: 100%; }
 .${CHAT_AVATAR} { position: relative; }
 .wm-chat-avatar-link { position: absolute; inset: 0; border-radius: 9999px; }
@@ -46,8 +46,9 @@ type Place = { readonly after: HTMLElement } | { readonly inside: HTMLElement; r
 const siteClasses = (element: Element) => [...element.classList].filter((name) => !name.startsWith('wm-')).join(' ');
 
 /**
- * Pseudos en liens vers le profil du joueur : vendeur des vignettes du marché et auteur des demandes de la liste de
- * souhaits de guilde (« @pseudo » sur l'image de la carte, au survol, à la place de la pastille du site) ; sur la page d'une enchère, « Mis en vente par », « Meneur : », « Remportée par » et
+ * Pseudos en liens vers le profil du joueur : vendeur des vignettes du marché et de la page d'une enchère, auteur
+ * des demandes de la liste de souhaits de guilde (« @pseudo » sur l'image de la carte, au survol ; « Vendu par » et
+ * la pastille du site cachés) ; sur la page d'une enchère, « Mis en vente par », « Meneur : », « Remportée par » et
  * l'historique des mises (pseudo du site caché, le nôtre posé juste après) ; conversation privée de /dms : pseudo
  * et photo de l'interlocuteur (en-tête, et à côté de chacun de ses messages), photo et pseudo de l'auteur de chaque
  * message de la conversation de guilde ; fenêtre d'échange (ouverte depuis les échanges, les amis, le catalogue) : pseudo de
@@ -82,7 +83,7 @@ export const playerLinks: Feature = {
     }
 
     const sellerClass = (wrap = false) =>
-      `${buttonClass('standard', { tone: 'neutral', fill: 'solid', size: 'sm' })} ${SELLER}${wrap ? ` ${WRAP}` : ''}`;
+      `${buttonClass('standard', { tone: 'neutral', fill: 'solid', size: 'xs' })} ${SELLER}${wrap ? ` ${WRAP}` : ''}`;
 
     function sync(): void {
       const seen = new Set<HTMLElement>();
@@ -99,9 +100,22 @@ export const playerLinks: Feature = {
         const label = status ? `@${username} · ${status}` : `@${username}`;
         place(line, { inside: image }, h(ProfileLink, { username, label, className: sellerClass(status !== undefined) }));
       }
-      for (const { name, username } of findAuctionPlayers()) {
+      // Sa propre demande : son pseudo aussi (demande de l'utilisateur), la pastille « Ma demande » du site gardée.
+      const ownWish = findOwnGuildWishImage();
+      const me = ownWish && myUsername();
+      if (ownWish && me) {
+        seen.add(ownWish);
+        place(ownWish, { inside: ownWish, keep: true }, h(ProfileLink, { username: me, label: `@${me}`, className: sellerClass() }));
+      }
+      for (const { name, username, seller } of findAuctionPlayers()) {
         seen.add(name);
         place(name, { after: name }, h(ProfileLink, { username, className: siteClasses(name) }));
+        // Le vendeur aussi sur l'image de la carte, comme sur les vignettes.
+        const auctionFace = seller ? findAuctionFace() : undefined;
+        const image = auctionFace && findFaceImage(auctionFace);
+        if (!image) continue;
+        seen.add(image);
+        place(image, { inside: image, keep: true }, h(ProfileLink, { username, label: `@${username}`, className: sellerClass() }));
       }
       for (const { frame, peer, guild } of findChatWindows()) {
         const { name, username } = peer;
@@ -144,5 +158,6 @@ export const playerLinks: Feature = {
     }
 
     watchDom(sync, { signal });
+    onMeChange(sync, { signal });
   },
 };

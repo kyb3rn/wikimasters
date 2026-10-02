@@ -42,6 +42,15 @@ test('boutons d’action du site : forme, couleur, remplissage et taille standar
   await expect(page.locator('#close')).toHaveCSS('width', '30px');
 });
 
+test('le solde de l’en-tête est arrondi', async ({ page }) => {
+  await openButtons(page);
+  const balance = page.getByRole('button', { name: 'Ouvrir la boutique WikiBidous' });
+  await expect(balance).toHaveClass(/wm-button-standard wm-button-sm wm-tone-accent wm-ghost wm-pill/);
+  await expect(balance).toHaveCSS('border-top-left-radius', '9999px');
+  // Les autres boutons à texte gardent leurs coins.
+  await expect(page.locator('#launch')).not.toHaveClass(/wm-pill/);
+});
+
 test('onglets, pastilles, liens en texte et nos propres boutons gardent leur allure', async ({ page }) => {
   await openButtons(page);
   for (const id of ['pill', 'tab', 'link', 'ours']) await expect(page.locator(`#${id}`)).not.toHaveClass(/wm-button/);

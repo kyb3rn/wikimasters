@@ -15,6 +15,7 @@ import {
   readBulkDiscard,
   readBulkDiscardFailures,
   selectionMarkOf,
+  shownCollectionReply,
   type CollectionEntry,
 } from '@/site/collection';
 import { COLLECTION_ROUTE } from '@/site/routes';
@@ -93,7 +94,7 @@ export const collectionStay: Feature = {
       { signal },
     );
 
-    // Défausse ou mise aux enchères réussie : le rechargement qui suit reçoit la liste déjà affichée.
+    // Défausse ou mise aux enchères réussie : le rechargement qui suit reçoit la liste déjà affichée (étiquettes comprises).
     net.track(
       (request) => !request.own && (readDiscard(request) !== undefined || readAuctionCreation(request) !== undefined),
       (request) => {
@@ -140,10 +141,16 @@ export const collectionStay: Feature = {
         if (!quiet || performance.now() > quiet.until || quiet.served.has(kind)) return undefined;
         const cached = cache.get(request.url.href);
         if (!cached) return undefined;
+        // Avec les étiquettes posées ou retirées depuis ; état de la page illisible : le site recharge.
+        const body = shownCollectionReply(request, cached.body);
+        if (body === undefined) {
+          log.warn('état de la page illisible : liste rechargée');
+          return undefined;
+        }
         quiet.served.add(kind);
         log.debug('rechargement évité', request.url.pathname + request.url.search);
         // Lue sans attendre : le voile de chargement du site n'a pas le temps d'apparaître.
-        return replayResponse(cached);
+        return replayResponse({ ...cached, body });
       },
       { signal },
     );

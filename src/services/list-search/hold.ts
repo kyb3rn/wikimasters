@@ -18,6 +18,11 @@ export interface ListHoldOptions<Q extends ListQuery> {
    * n'attend pas cette réponse pour se servir de ses contrôles.
    */
   readonly heldReply?: 'replay' | 'none';
+  /**
+   * Réponse resservie (liste ou compagne), ramenée à ce que la page affiche : ce qu'elle a changé sur place depuis
+   * son chargement n'y est pas (étiquettes de la Collection). Rien : resservie telle quelle.
+   */
+  readonly toShown?: (request: NetRequest, body: string) => string | undefined;
   /** Changement de l'état de la recherche (bouton à redessiner, verrous). */
   readonly onChange: () => void;
   /** Requête de la liste retenue : elle reçoit la liste affichée. */
@@ -140,8 +145,9 @@ export function trackListHold<Q extends ListQuery>(options: ListHoldOptions<Q>):
       if (!reply) return undefined;
       log.debug('changement retenu', request.url.pathname + request.url.search);
       if (reply === 'none') return new Promise<Response>(() => undefined);
+      const body = options.toShown?.(request, reply.body) ?? reply.body;
       // Lue sans délai : l'état « chargement » de la page n'a pas le temps d'être dessiné.
-      return replayResponse(reply);
+      return replayResponse({ ...reply, body });
     },
     { signal },
   );

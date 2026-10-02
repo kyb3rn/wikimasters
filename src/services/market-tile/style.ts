@@ -60,6 +60,11 @@ ${TILE}:hover .${OWN_TIME}-short { display: none; }
 ${TILE}:hover .${OWN_TIME}-precise { display: inline; }
 `;
 
+/** La vignette affiche « Terminée » : notre temps restant, ou le compte à rebours du site resté affiché. */
+export function showsEnded(tile: Element): boolean {
+  return tile.querySelector(`.${OWN_TIME}[data-state="ended"], .${TILE_ENDED}`) !== null;
+}
+
 /** Feuille de la carte standardisée du marché : vignettes du site comme les nôtres (recherche avancée). */
 export function ensureMarketTileStyle(): void {
   injectStyle('market-tile', css());

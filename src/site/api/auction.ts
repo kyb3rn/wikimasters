@@ -18,12 +18,20 @@ function auctionIdOf(request: NetRequest): string | undefined {
   return id ? decodeURIComponent(id) : undefined;
 }
 
+export interface AuctionCreation {
+  readonly userCardId: string;
+  /** Mise de départ. */
+  readonly price: number | undefined;
+  readonly minutes: number | undefined;
+}
+
 /** Mise aux enchères d'un exemplaire, par le site ou par le script. */
-export function readAuctionCreation(request: NetRequest): { userCardId: string } | undefined {
+export function readAuctionCreation(request: NetRequest): AuctionCreation | undefined {
   if (request.method !== 'POST' || request.url.pathname !== AUCTIONS) return undefined;
   const body = parseJson(request.body ?? '');
-  const userCardId = isRecord(body) ? body.card_id : undefined;
-  return typeof userCardId === 'string' ? { userCardId } : undefined;
+  if (!isRecord(body) || typeof body.card_id !== 'string') return undefined;
+  const number = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : undefined);
+  return { userCardId: body.card_id, price: number(body.base_amount), minutes: number(body.duration_minutes) };
 }
 
 /** Annonce retirée. */
@@ -41,13 +49,26 @@ export function readAuctionRequest(request: NetRequest): string | undefined {
 }
 
 /**
- * La carte (modèle) mise aux enchères, dans la réponse de sa page :
- * `{ auction: { card_id, snapshot_rarity, card: { id, wikipedia_title, rarity, … }, … }, bids }` (capture du 30/09/2026).
+ * La carte (modèle) d'une annonce `{ card_id, snapshot_rarity, card: { id, wikipedia_title, rarity, … }, … }`.
  * Rareté : celle de l'exemplaire mis en vente (`snapshot_rarity`), sinon celle de la carte aujourd'hui.
  */
-export function parseAuctionCard(body: unknown): CardRef | undefined {
-  const auction = isRecord(body) ? body.auction : undefined;
+export function parseListingCard(auction: unknown): CardRef | undefined {
   const card = isRecord(auction) ? parseCardRef(auction.card) : undefined;
   if (!isRecord(auction) || !card) return undefined;
   return { ...card, rarity: parseRarity(auction.snapshot_rarity) ?? card.rarity };
 }
+
+/** La carte mise aux enchères, dans la réponse de sa page : `{ auction, bids }` (capture du 30/09/2026). */
+export function parseAuctionCard(body: unknown): CardRef | undefined {
+  return parseListingCard(isRecord(body) ? body.auction : undefined);
+}
+
+/**
+ * Statut d'une annonce : en cours (`active`, même passé la fin tant qu'elle n'est pas finalisée), vendue, terminée
+ * sans mise, retirée par le vendeur.
+ */
+export type AuctionStatus = 'active' | 'settled_sold' | 'settled_unsold' | 'cancelled';
+
+const STATUSES: readonly string[] = ['active', 'settled_sold', 'settled_unsold', 'cancelled'] satisfies AuctionStatus[];
+
+export const isAuctionStatus = (value: unknown): value is AuctionStatus => typeof value === 'string' && STATUSES.includes(value);

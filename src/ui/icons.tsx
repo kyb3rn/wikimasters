@@ -201,6 +201,14 @@ const PATHS = {
   message: (
     <path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719" />
   ),
+  /** Ouvrir ailleurs (`external-link`) : une enchère dans un autre onglet. */
+  external: (
+    <>
+      <path d="M15 3h6v6" />
+      <path d="M10 14 21 3" />
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+    </>
+  ),
   link: (
     <>
       <path d="M9 17H7A5 5 0 0 1 7 7h2" />
@@ -311,6 +319,15 @@ const PATHS = {
       <line x1="22" x2="16" y1="11" y2="11" />
     </>
   ),
+  /** Envoyer une demande d'ami (lucide `user-plus`, pendant de `user-minus`). */
+  'user-plus': (
+    <>
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <line x1="19" x2="19" y1="8" y2="14" />
+      <line x1="22" x2="16" y1="11" y2="11" />
+    </>
+  ),
   /** Toutes les cartes (lucide `globe`, celle du lien « Toutes les cartes » de la navigation du site). */
   globe: (
     <>
@@ -332,12 +349,29 @@ const PATHS = {
       <path d="M21 3v5h-5" />
     </>
   ),
+  /** En attente (lucide `refresh-cw`, celle de « Échange en attente » du site). */
+  pending: (
+    <>
+      <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+      <path d="M21 3v5h-5" />
+      <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+      <path d="M8 16H3v5" />
+    </>
+  ),
   users: (
     <>
       <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
       <circle cx="9" cy="7" r="4" />
       <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
       <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </>
+  ),
+  wifi: (
+    <>
+      <path d="M12 20h.01" />
+      <path d="M2 8.82a15 15 0 0 1 20 0" />
+      <path d="M5 12.859a10 10 0 0 1 14 0" />
+      <path d="M8.5 16.429a5 5 0 0 1 7 0" />
     </>
   ),
   'wifi-off': (

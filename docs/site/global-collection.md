@@ -32,7 +32,16 @@ _Relevé : code du site, 30/09._
 - Dans l'ordre : cartes, total, suite disponible, compteurs, amis, possédées, liste de souhaits, offres en cours, filtre « Liste de souhaits », erreur, chargement, champ de recherche, **tri, raretés (`Set`), page** (à partir de 0), carte ouverte, recherche en cours.
 - La liste se charge dans un effet qui dépend de la page, de la recherche en cours, des raretés, du tri et du filtre : un nouvel ensemble de raretés (mêmes raretés) la recharge telle quelle.
 - La page est le premier composant à états au-dessus de la ligne des filtres.
+- Amis : `friendOwners` tel quel (`{ <card_id>: [{ id, username }] }`) ; possédées : `Set` de `ownedCardIds` ; liste de souhaits, offres en cours : `Set` (code du 01/10).
 - Lecture : `src/site/global-collection/state.ts` (`findGlobalCollectionStates`, `findGlobalCollectionReload`).
+
+## Pastilles des cartes
+
+_Relevé : code du site, 01/10._
+
+- Chaque face de la grille (la face est la case, clé React = id de la carte) a, dans l'emplacement du bas ([README](README.md#face-de-carte)), `div.flex.w-fit.max-w-full.flex-col.gap-0.5` › « Possédée » (`ownedCardIds`, `bg-emerald-600/90`, `title="Dans ta collection"`), puis les amis qui l'ont (`friendOwners`) : `span.inline-flex…rounded-full.bg-sky-300/65.text-[9px].text-black/80`, lucide `users` (`size-2.5 shrink-0 opacity-90`), « pseudo +n » (le premier ami, puis le nombre des autres), `title` = tous leurs pseudos séparés par « , ».
+- Clic sur la face : modale de carte en vue catalogue (`catalogView`, `friendUsername` du premier ami pour « Proposer un échange »), **sans « Possédée »** (le site ne lui passe pas `ownedCardIds`).
+- Lecture : `src/site/global-collection/owners.ts` (`findFriendOwnersPills`, `readFriendOwners` : au clic, `readCatalogOwnedCards`).
 
 ## Pagination
 

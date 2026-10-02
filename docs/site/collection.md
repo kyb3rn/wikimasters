@@ -7,7 +7,7 @@ Exemplaires possédés, 50 par page. Dates en jj/mm (2026). Commun aux listes fi
 _Relevé : captures et code du site, 29/09._
 
 - `GET /api/my-collection` (liste, `stats=0`) et `GET /api/my-collection/stats` (total, compteurs par rareté et par étiquette) partent ensemble : les compteurs juste avant la liste, et en page 0 seulement.
-- Grille `div.flex.flex-wrap.justify-center` › `div.relative.isolate.group` › face `sm`, dans l'ordre de la liste. Un exemplaire mis aux enchères n'est plus dans la liste.
+- Grille `div.flex.flex-wrap.justify-center` › `div.relative.isolate.group` › face `sm`, dans l'ordre de la liste. Le composant de la face reçoit `{ card, size, onClick, tags, pendingTradeLabel, topRight }` : `card` est la carte (modèle, avec sa rareté), lue par `readFaceCard` (code du site, 01/10). Un exemplaire mis aux enchères n'est plus dans la liste.
 - Premier chargement : rond de page ; le champ, les listes et les pastilles n'apparaissent qu'à la première liste reçue. Ensuite : voile avec roue sur la grille (`div.absolute.inset-0.z-20[aria-busy="true"]`), « Chargement… » dans la pagination, ses boutons désactivés.
 - La fenêtre d'échange lit la même route avec `owned_by=<ami>` : ce n'est pas la page ([trades.md](trades.md#chargement-des-cartes)).
 - Lecture : `src/site/collection/collection.ts` (`isCollectionList`, `isCollectionStats`, `parseCollection`, `findCollectionFaces`, `LIST_LOADING_VEIL`).
@@ -33,7 +33,8 @@ _Relevé : code du site, 29/09._
 - Dans l'ordre : exemplaires affichés, total, compteurs des étiquettes (`tagOptions`), étiquettes de l'utilisateur (lues dans Supabase, `null` avant), échanges en cours (`Set`), chargements, recherche, tri, raretés (`Set`), étiquette, « Sans étiquette », page, carte ouverte, mode sélection, cochés (`Set`)…
 - La page est le premier composant à états au-dessus de son « tirer pour rafraîchir ».
 - Une étiquette changée dans la modale de carte met à jour l'exemplaire dans la liste et ajoute une nouvelle étiquette au catalogue, sans rien recharger (les compteurs restent tels quels).
-- Lecture : `src/site/collection/page-state.ts` (`applyTagChange` : même chose pour plusieurs exemplaires, compteurs compris).
+- Piège : une réponse gardée puis resservie à la page (rechargement évité, changement retenu) date d'avant ces changements faits sur place ; resservie telle quelle, elle efface les étiquettes posées depuis.
+- Lecture : `src/site/collection/page-state.ts` (`applyTagChange` : même chose pour plusieurs exemplaires, compteurs compris ; `shownCollectionReply` : réponse gardée ramenée aux étiquettes affichées).
 
 ## Pagination
 
@@ -97,4 +98,4 @@ _Relevé : code du site, 29/09._
 
 ## Dans le script
 
-`collection-filters`, `collection-search`, `collection-search-delay`, `collection-memory`, `collection-pagination`, `collection-selection`, `collection-selection-key`, `collection-bulk-tags`, `collection-stay`, `tag-manager`, `collection-card-display`. Détail : section « Collection » de [features.md](../features.md).
+`collection-filters`, `collection-search`, `collection-search-delay`, `collection-memory`, `collection-pagination`, `collection-selection`, `collection-selection-key`, `collection-bulk-tags`, `collection-prices`, `collection-stay`, `tag-manager`, `collection-card-display`. Détail : section « Collection » de [features.md](../features.md).

@@ -107,7 +107,7 @@ function About() {
 
 /**
  * Une fonctionnalité : interrupteur et réglages principaux (`primary`) en haut,
- * autres réglages sous un trait.
+ * autres réglages sous un trait. Fonctionnalité éteinte : ses réglages sont estompés et désactivés.
  */
 function FeatureSettings({ entry, catalog }: { entry: FeatureEntry; catalog: FeatureCatalog }) {
   const { feature, enabled, state, error } = entry;
@@ -123,7 +123,14 @@ function FeatureSettings({ entry, catalog }: { entry: FeatureEntry; catalog: Fea
     definitions
       .filter(([, definition]) => (definition.primary === true) === primary)
       .map(([name, definition], index) => (
-        <SettingRow key={name} settings={settings} name={name} definition={definition} asHead={primary && !head && index === 0} />
+        <SettingRow
+          key={name}
+          settings={settings}
+          name={name}
+          definition={definition}
+          asHead={primary && !head && index === 0}
+          disabled={!enabled || (definition.enabledBy !== undefined && settings.get(definition.enabledBy) !== true)}
+        />
       ));
   const secondary = rows(false);
 
@@ -158,11 +165,14 @@ function SettingRow({
   name,
   definition,
   asHead = false,
+  disabled,
 }: {
   settings: Settings;
   name: string;
   definition: SettingDefinition;
   asHead?: boolean;
+  /** Fonctionnalité éteinte, ou réglage dont il dépend éteint : il ne se change plus. */
+  disabled: boolean;
 }) {
   const value = settings.get(name);
   return (
@@ -173,12 +183,13 @@ function SettingRow({
       </div>
       <div class="wm-settings-row-control">
         {definition.type === 'boolean' ? (
-          <Switch checked={value === true} label={definition.label} onChange={(next) => settings.set(name, next)} />
+          <Switch checked={value === true} label={definition.label} disabled={disabled} onChange={(next) => settings.set(name, next)} />
         ) : definition.type === 'choice' && definition.display === 'slider' ? (
           <StepSlider
             value={typeof value === 'number' ? value : definition.default}
             options={definition.options}
             label={definition.label}
+            disabled={disabled}
             onChange={(next) => settings.set(name, next)}
           />
         ) : definition.type === 'choice' ? (
@@ -186,6 +197,7 @@ function SettingRow({
             value={typeof value === 'number' ? value : definition.default}
             options={definition.options}
             label={definition.label}
+            disabled={disabled}
             onChange={(next) => settings.set(name, next)}
           />
         ) : (
@@ -196,6 +208,7 @@ function SettingRow({
             max={definition.max}
             {...(definition.step !== undefined && { step: definition.step })}
             {...(definition.unit !== undefined && { unit: definition.unit })}
+            disabled={disabled}
             onChange={(next) => settings.set(name, next)}
           />
         )}

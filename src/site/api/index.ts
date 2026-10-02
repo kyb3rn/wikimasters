@@ -2,6 +2,7 @@ export { NETWORK_ERROR, SiteApiError, siteErrorMessage, siteErrorText, watchSite
 export { siteRequest } from './request';
 export {
   isMyProfileRpc,
+  readSessionCookie,
   supabaseFetch,
   supabaseRealtimeAccess,
   supabaseRequest,
@@ -12,7 +13,7 @@ export { addTagsToCards, createTags, removeTagsFromCards, type NewTag, type Site
 export { claimDateOf, fetchProDaily, parseProDaily, PRO_DAILY_PATH, type ProDailyStatus } from './pro-daily';
 export { discardUserCard, readDiscard, type DiscardResult } from './user-cards';
 export { fetchCardSales, parseCardSales, parseSale, readSalesRequest, type CardSales, type Sale } from './sales';
-export { isWishlistChange } from './wishlist';
+export { addToWishlist, isWishlistChange, readWishlistChange, removeFromWishlist, type WishlistChange } from './wishlist';
 export {
   fetchFriendships,
   friendOf,
@@ -33,8 +34,18 @@ export {
   type FriendshipAction,
   type Player,
 } from './friends';
-export { parseAuctionCard, readAuctionCancel, readAuctionCreation, readAuctionRequest } from './auction';
+export {
+  isAuctionStatus,
+  parseAuctionCard,
+  parseListingCard,
+  readAuctionCancel,
+  readAuctionCreation,
+  readAuctionRequest,
+  type AuctionCreation,
+  type AuctionStatus,
+} from './auction';
 export { isNotificationsList, markNotificationsRead } from './notifications';
+export { createGuild, GUILD_DESCRIPTION_MAX, GUILD_NAME_MAX, GUILD_NAME_MIN } from './guild';
 export {
   fetchGuildChat,
   fetchGuildSender,

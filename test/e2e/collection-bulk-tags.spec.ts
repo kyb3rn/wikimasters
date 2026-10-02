@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { entry, faces } from './support/collection';
 import { openSelectionPage } from './support/collection-selection';
-import { expectDomIdle, FAKE_JWT, letTimePass } from './support/site';
+import { chooseOption, expectDomIdle, FAKE_JWT, letTimePass } from './support/site';
 
 const modal = (page: Page) => page.locator('#bulk-tags');
 const input = (page: Page) => modal(page).locator('input[type="text"]');
@@ -175,6 +175,46 @@ test('pendant l’envoi, tout est bloqué ; un refus s’affiche en toast, la mo
   await expect(chips(page)).toHaveText(['sport×']);
   await expect(submit(page)).toBeEnabled();
   await expect(input(page)).toBeEnabled();
+});
+
+/** Étiquette « sport » posée sur la 2e carte (la 1re a déjà « rare ») ; rend les compteurs de la page ensuite. */
+async function tagSecondCard(page: Page) {
+  const rare = { id: 't1', name: 'rare', color: '#f472b6' };
+  await openSelectionPage(page, {
+    entries: [{ ...entry('u1', 'Tour Eiffel'), tags: [rare] }, entry('u2', 'Musée du Louvre', 'R'), entry('u3', 'Mont Blanc', 'SR')],
+  });
+  await openBulk(page, 'Étiqueter', 1);
+  await option(page, 'sport').click();
+  await submit(page).click();
+  await expect(modal(page)).toHaveCount(0);
+  await expect(faceTags(page, 1)).toHaveText(['sport']);
+  return (await pageState(page)).tagOptions;
+}
+
+// Le serveur imité ne garde pas les étiquettes posées : ses réponses, comme celles gardées par le script, ne les ont pas.
+test('les étiquettes posées restent après une mise aux enchères (liste resservie sans rechargement)', async ({ page }) => {
+  const tagOptions = await tagSecondCard(page);
+  await page.locator('.wm-selection-toggle').click();
+  const before = await counter(page, 'loads');
+  await faces(page).nth(2).click();
+  await page.locator('#card-modal').getByRole('button', { name: 'Vendre' }).click();
+  await expect.poll(() => counter(page, 'loads')).toBe(before + 1);
+
+  await expect(faces(page).nth(2).locator('.wm-stamp')).toHaveText('En vente');
+  await expect(faceTags(page, 0)).toHaveText(['rare']);
+  await expect(faceTags(page, 1)).toHaveText(['sport']);
+  expect((await pageState(page)).tagOptions).toEqual(tagOptions);
+});
+
+test('les étiquettes posées restent quand un changement de tri est retenu', async ({ page }) => {
+  const tagOptions = await tagSecondCard(page);
+  const before = await counter(page, 'loads');
+  await chooseOption(page, 'Trier la collection', 'Nom');
+  await expect.poll(() => counter(page, 'loads')).toBe(before + 1);
+
+  await expect(faceTags(page, 0)).toHaveText(['rare']);
+  await expect(faceTags(page, 1)).toHaveText(['sport']);
+  expect((await pageState(page)).tagOptions).toEqual(tagOptions);
 });
 
 test('au repos, la sélection et la modale ne resynchronisent plus la page', async ({ page }) => {

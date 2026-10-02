@@ -66,6 +66,40 @@ test('après une mise aux enchères : la carte reste, marquée « En vente »', 
   expect([...server.requests].sort()).toEqual(['compteurs', 'liste 0']);
 });
 
+test('enchère finie sans vente : l’exemplaire revenu n’est plus « en vente » dans sa modale', async ({ page }) => {
+  // Comme le site (capture du 02/10) : l'exemplaire invendu revient dans la collection sous un nouvel identifiant.
+  let shown = [entry('u1', 'Tour Eiffel'), entry('u2', 'Mont Blanc')];
+  await openFakeCollection(page, {
+    list: (params) => (params.get('page') === '0' ? shown : [entry('u9', 'Lyon')]),
+    total: 51,
+    handle: async (route, url) => {
+      if (url.pathname !== '/api/marketplace' || route.request().method() !== 'POST') return false;
+      shown = shown.filter((e) => e.id !== 'u1');
+      await route.fulfill({ status: 201, json: { auction_id: 'a1b2c3d4-0000-4000-8000-000000000001' } });
+      return true;
+    },
+  });
+  await faces(page).nth(0).click();
+  await modal(page).getByRole('button', { name: 'Vendre' }).click();
+  await expect(modal(page).getByRole('button', { name: 'Vendre' })).toBeDisabled();
+  await expect(modal(page).locator('.wm-stamp')).toHaveText('En vente');
+  await modal(page).getByRole('button', { name: 'Fermer' }).click();
+
+  shown = [entry('u7', 'Tour Eiffel'), entry('u2', 'Mont Blanc')];
+  await page.getByRole('button', { name: 'Page suivante' }).first().click();
+  await expect(titles(page)).toHaveText(['Lyon']);
+  await page.getByRole('button', { name: 'Page précédente' }).first().click();
+  await expect(titles(page)).toHaveText(['Tour Eiffel', 'Mont Blanc']);
+  await expect(page.locator('#stage .wm-stamp')).toHaveCount(0);
+
+  await faces(page).nth(0).click();
+  for (const control of [modal(page).getByRole('button', { name: 'Vendre' }), modal(page).getByRole('button', { name: /Défausser/ })]) {
+    await expect(control).toBeEnabled();
+  }
+  await expect(modal(page).getByPlaceholder('Ajouter une étiquette…')).toBeEnabled();
+  await expect(modal(page).locator('.wm-stamp')).toHaveCount(0);
+});
+
 test('le chargement suivant de la liste vient du site : la carte défaussée n’y est plus', async ({ page }) => {
   const server = await openCollection(page);
   await discardAt(page, 1);

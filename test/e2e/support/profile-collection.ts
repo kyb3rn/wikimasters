@@ -11,10 +11,12 @@ import { openSite, sitePage } from './site';
  * (identité du `Set`) et de l'étiquette ; **aucune requête interrompue, toute réponse affichée** (une erreur
  * vide la grille et affiche son message). Pendant un chargement : roue au-dessus de la grille, ou à la place
  * de tout l'onglet si la grille est vide. États dans les hooks, dans l'ordre du site ; pagination « Page x / y ».
+ * Un clic sur une face ouvre la modale de carte de l'exemplaire (`kit.cardModal` : `friendUsername`, étiquettes en
+ * lecture seule, « Échange en attente » si son identifiant est dans `pendingTradeCardIds`).
  */
 const SCRIPT = `
 (() => {
-  const { el, button, tailwindBase, hooks, listbox, rarityPills } = kit;
+  const { el, button, tailwindBase, hooks, listbox, rarityPills, cardModal } = kit;
   tailwindBase();
 
   const main = document.querySelector('main');
@@ -76,6 +78,7 @@ const SCRIPT = `
         error = null;
         const body = await response.json();
         cards = body.collection ?? [];
+        pending = new Set(body.pendingTradeCardIds ?? []);
         if (page === 0) { if (typeof body.total === 'number') total = body.total; tagOptions = body.tagOptions ?? []; }
       } finally {
         loading = false;
@@ -156,10 +159,18 @@ const SCRIPT = `
       errorText.textContent = error ?? '';
       if (error) area.append(errorText); else errorText.remove();
       count.textContent = total + ' cartes dans la collection de aelonka';
+      // Case de clé React = id de l'exemplaire, face dedans (texte, bas de la face, ATK · DEF).
       grid.replaceChildren(...cards.map((card) => {
+        const cell = el('div', 'relative');
+        cell['__reactFiber$test'] = { key: card.id, memoizedProps: {}, stateNode: cell, return: pageFiber };
         const face = el('div', 'glow-' + card.card.rarity.toLowerCase() + ' relative rounded-2xl');
-        face.innerHTML = '<h3>' + card.card.wikipedia_title + '</h3>';
-        return face;
+        face.innerHTML = '<div class="absolute top-[45%] left-0 right-0 bottom-0 flex min-h-0 flex-col p-3 z-20"><h3>' +
+          card.card.wikipedia_title + '</h3><div class="mt-auto flex min-h-0 w-full flex-col items-start gap-0.5 pt-1">' +
+          '<div class="flex w-full shrink-0 items-center justify-between border-t border-black/20 pt-1 py-1"><span>9 000</span><span>9 371</span></div>' +
+          '</div></div>';
+        face.onclick = () => openCopy(card);
+        cell.append(face);
+        return cell;
       }));
       empty.textContent = total === 0 ? 'Collection vide.' : 'Aucune carte avec ces filtres.';
       const pages = Math.ceil(total / 50);
@@ -174,9 +185,19 @@ const SCRIPT = `
       while (root.children.length > children.length) root.lastElementChild.remove();
       if (root.parentElement !== container) container.replaceChildren(root);
     }
+    let modal;
+    const closeCopy = () => { modal?.back.remove(); modal = undefined; };
+    function openCopy(copy) {
+      closeCopy();
+      modal = cardModal({
+        card: copy.card, userCardId: copy.id, starred: false, count: 1, tags: copy.tags ?? [], tagsReadOnly: true,
+        friendUsername: 'aelonka', friendProfileId: 'p-aelonka', friendOfferPending: pending.has(copy.id), onClose: closeCopy,
+      }, pageFiber);
+    }
+
     render();
     effect();
-    return () => { alive = false; clearTimeout(typing); };
+    return () => { alive = false; clearTimeout(typing); closeCopy(); };
   }
 
   show('collection');
@@ -187,17 +208,22 @@ const PROFILE_COLLECTION_HTML = sitePage('', SCRIPT);
 
 /**
  * Ouvre le profil imité, sur l'onglet Collection. Serveur : une carte par page, dont le titre dit les filtres ;
- * 120 cartes (3 pages), aucune pour la recherche « zzz » ; une étiquette « rouge » (`t1`) si `tags`.
+ * 120 cartes (3 pages), aucune pour la recherche « zzz » ; une étiquette « rouge » (`t1`) si `tags`. `collection` :
+ * d'autres exemplaires à la place ; `pending` : exemplaires déjà dans une offre d'échange.
  */
-export async function openFriendCollection(page: Page, { tags = true } = {}): Promise<ListServer> {
+export async function openFriendCollection(
+  page: Page,
+  { tags = true, collection, pending = [] }: { tags?: boolean; collection?: (count: number) => object[]; pending?: string[] } = {},
+): Promise<ListServer> {
   const { server, handle } = listServer('/api/profile/aelonka/collection', (params, count) => {
     const none = params.get('q') === 'zzz';
+    const copy = { id: `u-${count}`, card_id: 'c1', card: { id: 'c1', wikipedia_title: filtersTitle(params), rarity: 'L' }, tags: [], owned_by_viewer: false };
     return {
-      collection: none ? [] : [{ id: `u-${count}`, card: { id: 'c1', wikipedia_title: filtersTitle(params), rarity: 'L' }, tags: [] }],
+      collection: none ? [] : (collection?.(count) ?? [copy]),
       total: params.get('stats') === '1' ? (none ? 0 : 120) : undefined,
       rarityCounts: {},
       tagOptions: tags ? [{ id: 't1', name: 'rouge', color: '#ef4444' }] : [],
-      pendingTradeCardIds: [],
+      pendingTradeCardIds: pending,
       profileId: 'p-aelonka',
     };
   });

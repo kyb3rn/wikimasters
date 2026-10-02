@@ -1,7 +1,7 @@
 # Publie une version : un tag `v<version de package.json>` poussé construit le script et crée la
 # release GitHub avec `wikimasters.user.js` joint. Le lien d'installation (et de mise à jour)
 # pointe toujours vers le fichier de la dernière release.
-# Les tests Edge ne tournent pas ici : `npm run check` passe en local avant le tag.
+# Les tests navigateur ne tournent pas ici : `npm run check` passe en local avant le tag.
 name: Release
 
 on:

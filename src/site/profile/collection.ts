@@ -1,6 +1,7 @@
-import { isSet } from '@/core/guards';
+import { isRecord, isSet } from '@/core/guards';
 import type { NetRequest } from '@/core/net';
-import { currentFiberAncestors, type Fiber, type StateHook } from '@/core/react';
+import { currentFiberAncestors, fiberOf, stateHooks, type Fiber, type StateHook } from '@/core/react';
+import { FACE } from '@/site/cards';
 import { findListbox } from '@/site/listbox';
 import { renewSet, uniqueStateRun } from '@/site/list-page';
 import { checkedRarities, readBaseListQuery, SITE_TYPING_DELAY, type BaseListQuery, type ListSource } from '@/site/list-query';
@@ -144,6 +145,55 @@ export function findProfileCollectionStates(doc: Document = document): ProfileCo
 export function findProfileCollectionReload(doc: Document = document): (() => void) | undefined {
   const states = findProfileCollectionStates(doc);
   return states && (() => renewSet(states.rarities));
+}
+
+export interface ProfileCollectionFace {
+  readonly face: HTMLElement;
+  /** Je possède aussi la carte (`owned_by_viewer` de l'exemplaire ; le site ne l'affiche pas). */
+  readonly owned: boolean;
+}
+
+/**
+ * Cartes de la grille (`div.flex-wrap.justify-center > div.relative`, clé React = id de l'exemplaire, › face), lues
+ * dans l'état de l'onglet (ses exemplaires, tels que l'API les donne).
+ */
+export function findProfileCollectionFaces(doc: Document = document): ProfileCollectionFace[] {
+  const filters = findProfileCollectionFilters(doc);
+  const grid = filters?.root.querySelector(':scope > div.flex-wrap.justify-center');
+  const copies = grid && filters && viewedCopies(filters);
+  if (!grid || !copies) return [];
+  const owned = new Map(copies.map((copy) => [copy.id, copy.owned_by_viewer]));
+  return [...grid.children].flatMap((cell) => {
+    const face = cell.querySelector<HTMLElement>(`:scope > ${FACE}`);
+    const key = fiberOf(cell)?.key;
+    const isOwned = typeof key === 'string' ? owned.get(key) : undefined;
+    return face && isOwned !== undefined ? [{ face, owned: isOwned }] : [];
+  });
+}
+
+/** Cartes de l'onglet que je possède aussi (ids de cartes) : pour la modale d'un de ses exemplaires. */
+export function readProfileOwnedCards(doc: Document = document): ReadonlySet<string> | undefined {
+  const filters = findProfileCollectionFilters(doc);
+  const copies = filters && viewedCopies(filters);
+  return copies && new Set(copies.flatMap((copy) => (copy.owned_by_viewer && typeof copy.card_id === 'string' ? [copy.card_id] : [])));
+}
+
+interface ViewedCopy {
+  readonly id: string;
+  readonly card_id?: unknown;
+  readonly owned_by_viewer: boolean;
+}
+
+const isViewedCopy = (value: unknown): value is ViewedCopy =>
+  isRecord(value) && typeof value.id === 'string' && typeof value.owned_by_viewer === 'boolean';
+
+/** Exemplaires de l'onglet (premier composant à états au-dessus des filtres), tels que l'API les donne. */
+function viewedCopies(filters: ProfileCollectionFilters): ViewedCopy[] | undefined {
+  const states = currentFiberAncestors(filters.line)
+    .map((fiber) => stateHooks(fiber))
+    .find((list) => list.length > 0);
+  const copies = states?.find(({ value }) => Array.isArray(value) && value.length > 0 && value.every(isViewedCopy))?.value;
+  return Array.isArray(copies) ? copies.filter(isViewedCopy) : undefined;
 }
 
 /** Barre de pagination sous la grille. */

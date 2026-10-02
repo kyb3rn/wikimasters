@@ -63,6 +63,8 @@ export const DISABLED_OPACITY = 0.5;
  * dessous) : nos modales passent devant les fenêtres des fonctionnalités, menus et toasts devant tout.
  */
 export const layers = {
+  /** Petit encart fixe d'une fonctionnalité (compteur des historiques du marché), sous tout le reste. */
+  widget: 2147479000,
   /** Contenu du site sorti de la page et posé par-dessus (encart de vérification de /pulls) : sous nos fenêtres. */
   pageOverlay: 2147480000,
   /** Fenêtre d'une fonctionnalité d'où s'ouvrent nos modales (mise aux enchères : l'historique des ventes passe dessus). */

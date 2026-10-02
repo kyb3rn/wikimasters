@@ -45,7 +45,7 @@ function start(): void {
 
   const runtime = createRuntime({
     features,
-    isEnabled: (feature) => featureChoice(feature.id) ?? true,
+    isEnabled: (feature) => featureChoice(feature.id) ?? !feature.defaultOff,
     saveEnabled: setFeatureChoice,
     createLogger,
   });

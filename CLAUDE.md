@@ -29,17 +29,17 @@ Avant de toucher à une page : son fichier `docs/site/<page>.md`, sa section de 
 |---|---|
 | `npm run dev` | Reconstruit `dist/wikimasters.dev.js` à chaque sauvegarde (écrit aussi le script de chargement) |
 | `npm run build` | `dist/wikimasters.user.js`, la version à installer (refusée s'il y reste un octet des outils de dev) |
-| `npm run check` | Types, lint, règles d'architecture, tests unitaires, tests Edge, build : tout |
-| `npm run test` / `npm run test:e2e` | Tests unitaires (Vitest) / tests dans Edge (Playwright) |
+| `npm run check` | Types, lint, règles d'architecture, tests unitaires, tests navigateur, build : tout |
+| `npm run test` / `npm run test:e2e` | Tests unitaires (Vitest) / tests dans un navigateur (Playwright) |
 | `npm run deps` | Règles d'architecture seules |
 | `npm run site:classes` | Vérifie que les classes de `ui/site.ts` existent dans le balisage du site (captures) |
 | `npm run captures:sanitize` | Réapplique le masquage aux captures existantes |
 
-`WM_DEV_BUNDLE=dist/<nom>.dev.js` (build `--dev` et specs) : version de dev écrite et lue ailleurs, pour plusieurs séries de tests Edge en parallèle. Si `node` est introuvable (installé après le lancement de la session) : `$env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User')`.
+`WM_DEV_BUNDLE=dist/<nom>.dev.js` (build `--dev` et specs) : version de dev écrite et lue ailleurs, pour plusieurs séries de tests navigateur en parallèle. Si `node` est introuvable (installé après le lancement de la session) : `$env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User')`.
 
 **Installation dans Tampermonkey.** Développement : installer une fois `dist/wikimasters.loader.user.js` (il charge `dist/wikimasters.dev.js` par `@require file:///…`, option « Autoriser l'accès aux URL de fichier » requise) ; un F5 sur le site prend la dernière version. Production : `dist/wikimasters.user.js`. Jamais les deux ensemble (la seconde copie ne démarre pas et le signale).
 
-**Publier une version.** Lien partagé : `https://github.com/kyb3rn/wikimasters/releases/latest/download/wikimasters.user.js` (`@updateURL` / `@downloadURL`, `build.mjs`) ; Tampermonkey n'installe une mise à jour que si `@version` augmente. Monter `version` dans `package.json`, `npm run check`, commit, push, puis `git tag v<version>` et `git push origin v<version>` : `.github/workflows/release.yml` vérifie le tag, construit depuis le commit tagué (jamais le disque) et crée la release avec le fichier joint (les tests Edge ne tournent qu'en local).
+**Publier une version.** Lien partagé : `https://github.com/kyb3rn/wikimasters/releases/latest/download/wikimasters.user.js` (`@updateURL` / `@downloadURL`, `build.mjs`) ; Tampermonkey n'installe une mise à jour que si `@version` augmente. Monter `version` dans `package.json`, `npm run check`, commit, push, puis `git tag v<version>` et `git push origin v<version>` : `.github/workflows/release.yml` vérifie le tag, construit depuis le commit tagué (jamais le disque) et crée la release avec le fichier joint (les tests navigateur ne tournent qu'en local).
 
 ## Architecture
 
@@ -52,7 +52,7 @@ Avant de toucher à une page : son fichier `docs/site/<page>.md`, sa section de 
 - un module-dossier ne s'importe de l'extérieur que par son `index.ts`, sa façade publique ;
 - pas de module Node ni de dépendance de dev dans `src/` ; pas de cycle.
 
-**Une fonctionnalité** (`core/runtime/types.ts`) : `id` stable en kebab-case, `name`, `description`, `toggleLabel?`, `category` (onglet des paramètres), `routes` (constantes de `site/routes.ts`, ou `'all'`), `settings?`, `required?` (toujours active, sans interrupteur), `hidden?` (absente des paramètres), `mount(ctx)`. Montée quand la page correspond, démontée ailleurs ; remontée quand les **paramètres de route** changent (autre annonce, autre profil) ; un changement de réglage ne remonte rien (`settings.get` relit). `mount` part dès `document-start`, avant le DOM : `if (!(await ctx.ready())) return;`. Tout ce qu'elle pose est lié à `ctx.signal` ou `ctx.onDispose` ; `ctx.style(css)` et `ctx.hide(el)` se défont seuls au démontage. Une erreur de démarrage est isolée (journalisée, démontée, nouvel essai à la page suivante). Ajouter une fonctionnalité : `src/features/<id>/index.ts` exporte la `Feature`, l'ajouter à `features/index.ts` (l'ordre compte : mémoire des filtres, puis recherche, puis délai et pagination), tests dans `test/unit/features/<id>/` et `test/e2e/`, section dans `docs/features.md`.
+**Une fonctionnalité** (`core/runtime/types.ts`) : `id` stable en kebab-case, `name`, `description`, `toggleLabel?`, `category` (onglet des paramètres), `routes` (constantes de `site/routes.ts`, ou `'all'`), `settings?`, `required?` (toujours active, sans interrupteur), `hidden?` (absente des paramètres), `defaultOff?` (éteinte tant que l'utilisateur ne l'a pas activée), `mount(ctx)`. Montée quand la page correspond, démontée ailleurs ; remontée quand les **paramètres de route** changent (autre annonce, autre profil) ; un changement de réglage ne remonte rien (`settings.get` relit). `mount` part dès `document-start`, avant le DOM : `if (!(await ctx.ready())) return;`. Tout ce qu'elle pose est lié à `ctx.signal` ou `ctx.onDispose` ; `ctx.style(css)` et `ctx.hide(el)` se défont seuls au démontage. Une erreur de démarrage est isolée (journalisée, démontée, nouvel essai à la page suivante). Ajouter une fonctionnalité : `src/features/<id>/index.ts` exporte la `Feature`, l'ajouter à `features/index.ts` (l'ordre compte : mémoire des filtres, puis recherche, puis délai et pagination), tests dans `test/unit/features/<id>/` et `test/e2e/`, section dans `docs/features.md`.
 
 **Réglages** : `defineSettings('<id>', { clé: { type: 'boolean' | 'number' | 'choice', label, … } })` passé en `settings` de la `Feature` : la fenêtre de paramètres les affiche d'elle-même. Tout est dans `wm-settings-v1` (activation et valeurs, synchronisé entre onglets ; import / export demandé plus tard).
 
@@ -77,8 +77,8 @@ Une règle marquée (ESLint) est vérifiée par `eslint.config.js`.
 - **Dans un rappel de `watchDom`, n'écrire dans le DOM que si ça change** (`setClass`, comparer avant d'affecter `title`, `disabled`…) : sinon boucle de synchronisation à chaque image. Les tests de repos le vérifient (`expectDomIdle`).
 - État durable de la page : `toggleStyle` ou `ctx.style`, jamais une classe sur `<html>` ou `<body>` (React l'efface ; ESLint). Feuille de style : `ctx.style` ou `injectStyle` (ESLint).
 - **Bouton d'action qui lance une requête** (demande de l'utilisateur, partout) : roue à la place de son icône ou devant son texte (`Icon busy`) et `disabled` pendant toute la requête, donc curseur « interdit » ; jamais un état « en cours » cliquable ni un curseur d'attente ; opacité 50 % pour tout bouton désactivé. Bouton du site : `lockControl({ busy })`.
-- Griser un contrôle du site : `lockControl` (plusieurs propriétaires possibles), jamais à la main. Marquer une carte : `stampFace` / `syncStamps`.
-- Boutons (demande de l'utilisateur) : grand 48 px, moyen = hauteur des champs, petit 30 px ; une taille = une hauteur pour toutes les formes.
+- Griser un contrôle du site : `lockControl` (plusieurs propriétaires possibles), jamais à la main. Marquer ou griser une carte : `stampFace` / `syncStamps` (même teinte et même fondu partout, jamais un filtre à part ni de transparence sur la carte).
+- Boutons (demande de l'utilisateur) : grand 48 px, moyen = hauteur des champs, petit 30 px, très petit (« tiny ») 20 px ; une taille = une hauteur pour toutes les formes.
 - Encarts : fond uni, jamais de dégradé interne ni de bordure latérale colorée (encarts teintés du site) ; icône seule, en haut.
 - Listes : jamais de recherche automatique par défaut (Entrée ou le bouton ; après la frappe : option). Taille des cartes réglée par conteneur, pas par page.
 - Code de dev (`__DEV__`, `debug`, `showcase`, `market-search`) : rien de non pur au niveau de leurs modules ; le build de production échoue s'il en reste un octet.
@@ -87,7 +87,7 @@ Une règle marquée (ESLint) est vérifiée par `eslint.config.js`.
 
 Détail : [`docs/testing.md`](docs/testing.md).
 - **Unitaires** (Vitest, `test/unit/` en miroir de `src/`) : la logique sans navigateur ; la garder séparée du DOM pour la tester ici.
-- **Edge** (Playwright, `channel: 'msedge'`) : `openSite(page, chemin, { html, api, handle })` sert la page et les réponses sans contacter le site et injecte la version de dev au `document-start` ; faux sites des pages dans `test/e2e/support/`, sans Tailwind (on vérifie rôles et classes, pas l'aspect). Toute fonctionnalité qui écrit dans le DOM a un test de repos (`expectDomIdle`).
+- **Navigateur** (Playwright, Chromium headless ; jamais `channel: 'msedge'`, voir `playwright.config.js`) : `openSite(page, chemin, { html, api, handle })` sert la page et les réponses sans contacter le site et injecte la version de dev au `document-start` ; faux sites des pages dans `test/e2e/support/`, sans Tailwind (on vérifie rôles et classes, pas l'aspect). Toute fonctionnalité qui écrit dans le DOM a un test de repos (`expectDomIdle`). À 60 images/s, une action lancée aussitôt après un changement de la page précède la passe du script : `nextFrame(page)` d'abord (voir `docs/testing.md`).
 - **Ne jamais automatiser le vrai site** (actions irréversibles, garde `automation_limit`). Un onglet ouvert par Ctrl+clic échappe aux routes du test et irait au vrai site : annuler le clic dans la page après notre code.
 - **Captures** (Alt+Maj+C en dev) : déposées dans `test/fixtures/captures/`, **ignoré par git** (pseudo, collection, dépôt public) ; un test n'embarque que l'extrait utile, réduit et anonymisé. Une capture vieillit avec le site : en redemander une avant de travailler sur une page.
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { notificationLabel, notificationPath, notificationText, parseNotificationList } from '@/site/notifications';
+import { notificationLabel, notificationPath, notificationText, parseNotificationList, wishlistCardOf } from '@/site/notifications';
 
 const notification = (type: string, data: Record<string, unknown> = {}) => ({
   id: 'n1',
@@ -46,5 +46,11 @@ describe('notifications du site', () => {
     expect(notificationPath(notification('custom', { duel_id: 'd1' }))).toBe('/battle/duels/d1');
     expect(notificationPath(notification('trade_offer'))).toBe('/trades');
     expect(notificationPath(notification('admin_sanction'))).toBeUndefined();
+  });
+
+  it('donne la carte de ma liste de souhaits mise en vente, rien pour les autres types', () => {
+    expect(wishlistCardOf(notification('marketplace_wishlist_listed', { card_id: 'c1', auction_id: 'a1' }))).toBe('c1');
+    expect(wishlistCardOf(notification('marketplace_wishlist_listed'))).toBeUndefined();
+    expect(wishlistCardOf(notification('marketplace_outbid', { card_id: 'c1' }))).toBeUndefined();
   });
 });

@@ -12,7 +12,7 @@ _Relevé : code du site et réponses, 29 et 30/09._
 - Mise refusée si trop basse (`bid_too_low`, avec le minimum) ou solde insuffisant (`insufficient_balance` : le site ouvre la boutique). Les wikibidous misés sont bloqués, remboursés en cas de surenchère.
 - Une nouvelle mise peut repousser la fin (`end_at` de la diffusion `BID`).
 - Le vendeur peut baisser **une fois** sa mise de départ, passé la moitié de la durée, sans mise reçue (`base_repriced_at`, `listing_base_amount`).
-- Une enchère terminée se finalise (`POST …/settle`) ; une annonce se retire tant qu'elle est active (`DELETE`, l'exemplaire revient dans la collection).
+- Une enchère terminée se finalise (`POST …/settle`) ; invendue, l'exemplaire revient dans la collection sous un nouvel identifiant ([Cartes](README.md#cartes-raretés-identifiants)). Une annonce se retire tant qu'elle est active (`DELETE`, l'exemplaire revient dans la collection).
 - Annonces farfelues possibles (mise de départ à 2 147 483 647, le maximum accepté).
 
 ## Onglets
@@ -23,7 +23,7 @@ _Relevé : captures du 29/09._
 - Tous remplis par la même requête (`mine=1`) : aucun appel au changement d'onglet.
 - **Mes ventes** : mes annonces actives. **Mes enchères** : annonces encore actives où j'ai misé, avec un bandeau au-dessus de la vignette : « Vous menez » (vert, `bg-emerald-500/15`, je suis `current_bidder_id`) ou « Surenchéri » (ambre, `bg-amber-500/15`). **Gagnées** : les 50 dernières enchères remportées. **Historique** : les 50 dernières de mes ventes terminées (vendues, invendues, annulées). Du plus récent au plus ancien ; les compteurs de ces deux derniers plafonnent donc à 50.
 - Listes vides : « Vous n'avez aucune vente en cours. », « Vous n'êtes en lice sur aucune enchère. », « Vous n'avez encore remporté aucune enchère. ».
-- Lecture : `src/site/marketplace/tabs.ts` (`findMarketplaceTabs`).
+- Lecture : `src/site/marketplace/tabs.ts` (`findMarketplaceTabs`, onglet choisi reconnu au début de son texte).
 
 ## Parcourir
 
@@ -58,11 +58,13 @@ div#marketplace-auction-<id>                           case de la grille
       p.w-full.truncate                                 « Vendu par <pseudo> »
 ```
 
-- Pastille « Possédée » sur la face (`owned` de l'annonce, `title="Dans ta collection"`, `bg-emerald-600/90`).
+- Pastille « Possédée » dans l'emplacement du bas de la face (`owned` de l'annonce, `title="Dans ta collection"`, `bg-emerald-600/90`, [README](README.md#face-de-carte)), dans tous les onglets. Même emplacement que la pastille d'auteur de la liste de souhaits de guilde ([guild.md](guild.md#accueil-liste-de-souhaits)).
 - Montant : `current_bid` s'il y a un enchérisseur, sinon `base_amount`. Libellé selon le statut : « Mise actuelle » ou « Mise de départ » (active), « Vendue pour » ou « Achetée pour » (si je suis l'acheteur), « Non vendue », « Annulée ».
 - « Durée » (lucide `gavel`) et compte à rebours calculé sur **l'horloge du PC** (`Date.now()`) : ambre sous 5 min, « Terminée » à zéro ; format `2h 27m`, `9m 38s`, `1j 3h`. La fin (`end_at`) se lit dans les props du composant de la vignette (l'annonce entière, même `id`), au dernier rendu : une mise de dernière minute peut la repousser.
 - « Vendu par <pseudo> » : le vrai pseudo, même pour ses propres ventes (pas de « Vous »), tel quel ; il peut contenir espaces, `!`, émojis (« Production Prod-Prod »).
-- Lecture : `src/site/marketplace/tiles.ts` (`TILE`, `TILE_LINK`, `TILE_FACE`, `findMarketplaceSellers`, `findSiteAuctionTiles`, `findTileDurations`, `readTileEndAt` ; `OWN_TILE`, `OWN_TIME` : vignettes du script au même balisage).
+- L'annonce entière ([forme](../api.md#formes-des-données)) est dans les props du composant de la vignette, au dernier rendu : fin (`end_at`), carte (`card`, rareté de l'exemplaire : `snapshot_rarity`), montant affiché (`effective_bid`), statut. Une mise reçue en temps réel la redessine. Piège (code du site, 01/10) : ce composant (`{ auction, href, bidStatus, owned, onBeforeNavigate, userId }`, rien si l'annonce n'a pas de `card`) est l'**enfant** de la case `div#marketplace-auction-<id>`, pas un ancêtre : les props se lisent sur le fiber enfant de la case.
+- Coin haut droit de la face libre (rareté en haut à gauche, « Possédée » en bas) : le script y pose le gain estimé d'une bonne affaire.
+- Lecture : `src/site/marketplace/tiles.ts` (`TILE`, `TILE_LINK`, `TILE_FACE`, `findMarketplaceSellers`, `findSiteAuctionTiles`, `findTileDurations`, `readTileEndAt`, `readTileAuction` ; `OWN_TILE`, `OWN_TIME` : vignettes du script au même balisage).
 
 ## Page d'une enchère
 
@@ -71,7 +73,7 @@ _Relevé : captures du 29 et du 30/09._
 ```
 main … div.flex.flex-col.md:flex-row.gap-6
   div.flex-shrink-0.flex.flex-col.items-center.gap-2
-    face w-72 h-[420px]
+    face w-72 h-[420px]                                       « Possédée » (`text-[10px]`) en bas si je l'ai
     div.space-y-1.5 > button « Signaler l'image » (lucide flag, parfois désactivé)
   div.flex-1.space-y-4
     h1 titre, bouton carré « Vue du marché » (lucide chart-line)
@@ -82,11 +84,15 @@ div.space-y-3 : h2 « Historique des mises (n) », ul.card-frame > li (span pseu
 ```
 
 - Chargée par `GET /api/marketplace/<id>` (`{ auction, bids }`). Formulaire de mise : `POST /api/marketplace/<id>/bid` ([Règles](#règles-du-marché)) ; les mises des autres arrivent en temps réel.
+- Mise à jour (code du site, 01/10) : canal `auction:<id>` ; `BID` met à jour montant, meneur, fin et historique sans requête ; `UPDATE` et l'abonnement réussi (`SUBSCRIBED`) relisent l'enchère et le solde (`GET /api/marketplace/<id>`, `GET /api/wikibidous`). Rien d'autre : **sans temps réel la page reste figée** (aucune relecture périodique avant la fin), puis rattrape les mises manquées dès que le canal est rejoint ([Temps réel](README.md#temps-réel)).
 - « Meneur : » seulement s'il y a une mise. Le texte de son `span` change sur place à chaque mise reçue en temps réel (`auction:<id>`), sans ajout de nœud.
 - Historique : pseudo en premier `span` (« Joueur » si la mise n'a pas de pseudo), puis date et montant ; une nouvelle mise est ajoutée en tête. Sans mise : `p` « Aucune mise placée pour l'instant. ».
 - « Remportée par » : relevé dans le code du site (30/09).
+- Statut (code du site, 01/10) : « Temps restant » tant que l'annonce est `active` et avant sa fin ; ensuite « Statut » : « Finalisation… » (roue ambre, « Réessayer » relance `POST …/settle`) tant qu'elle reste `active`, puis « Vendue », « Non vendue » ou « Annulée ». La page relit l'enchère (`GET /api/marketplace/<id>`) à la fin du compte à rebours et 2,5 s après, puis toutes les 3 s tant qu'elle est `active` et finie : le statut n'arrive que par ces réponses (la diffusion `BID` ne le porte pas).
+- Libellé du montant : « Mise actuelle » / « Mise de départ », « Vendue pour » (« Achetée pour » si je suis l'acheteur), « Non vendue », « Annulée » (`auctionPriceLabel`, comme les vignettes).
 - Pseudos en simple texte, sans lien.
-- Lecture : `src/site/marketplace/auction-page.ts` (`findAuctionPlayers`, `findAuctionReport`), `readAuctionRequest`, `parseAuctionCard`.
+- Le client Supabase du site est dans une référence (`useRef`) du composant de la page : son temps réel s'y lit et s'y relance ([Temps réel](README.md#temps-réel)).
+- Lecture : `src/site/marketplace/auction-page.ts` (`AUCTION_MARKET_BUTTON`, `auctionChannel`, `findAuctionFace`, `findAuctionPlayers`, `findAuctionReport`, `readAuctionStatus` : l'annonce dans l'état de la page), `readAuctionRequest`, `parseAuctionCard`.
 
 ## Enchère introuvable
 
@@ -108,4 +114,4 @@ _Relevé : captures et code du site, 30/09._
 
 ## Dans le script
 
-`marketplace-filters`, `marketplace-search`, `marketplace-search-delay`, `marketplace-memory`, `marketplace-tiles`, `marketplace-card-display`, `player-links`, `auction-market`, `auction-report`, `auction-not-found`, `auction-stay`, `market`, `market-search` (dev) ; services `market`, `market-tile`, `listings`. Détail : section « Marché » de [features.md](../features.md).
+`marketplace-filters`, `marketplace-search`, `marketplace-search-delay`, `marketplace-memory`, `marketplace-tiles`, `marketplace-prices`, `marketplace-card-display`, `player-links`, `auction-market`, `auction-live`, `auction-report`, `auction-result`, `auction-not-found`, `auction-stay`, `market`, `market-search` (dev) ; services `market`, `market-tile`, `listings`. Détail : section « Marché » de [features.md](../features.md).

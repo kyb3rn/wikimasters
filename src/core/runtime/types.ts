@@ -47,6 +47,8 @@ export interface Feature {
   readonly required?: boolean;
   /** Absente de la fenêtre de paramètres. */
   readonly hidden?: boolean;
+  /** Éteinte tant que l'utilisateur ne l'a pas activée (les autres sont actives par défaut). */
+  readonly defaultOff?: boolean;
   /** Réglages affichés dans la fenêtre de paramètres, sous le nom de la fonctionnalité. */
   readonly settings?: Settings;
   /**

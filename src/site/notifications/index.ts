@@ -6,6 +6,7 @@ export {
   parseNotification,
   parseNotificationList,
   type SiteNotification,
+  wishlistCardOf,
 } from './model';
 export {
   findSiteBells,

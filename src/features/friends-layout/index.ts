@@ -10,11 +10,13 @@ import { FRIENDS_ROUTE } from '@/site/routes';
 import { createSlot, createSlots } from '@/ui/mount';
 import { toast } from '@/ui/toast';
 import { serveFriendsRefresh } from './refresh';
-import { CSS, INCOMING, LIST, REQUESTS, SEARCH } from './style';
-import { AcceptAllButton, AnswerActions, CancelButton, FriendActions, SearchActions, type SiteAction } from './views';
+import { CSS, EMPTY, EMPTY_INVITE, INCOMING, LIST, REQUESTS, SEARCH } from './style';
+import { AcceptAllButton, AnswerActions, CancelButton, FriendActions, InviteButton, SearchActions, type SiteAction } from './views';
 
 const TITLE = 'Amis';
 const SITE_ADD = 'Rechercher un joueur';
+/** Le même bouton dans le cadre de la liste vide. */
+const SITE_EMPTY_ADD = 'Rechercher des joueurs';
 const ADD = 'Ajouter un ami';
 
 /** Action d'une demande en attente : annuler (envoyée), accepter ou refuser (reçue). */
@@ -33,7 +35,7 @@ export const friendsLayout: Feature = {
   id: 'friends-layout',
   name: 'Page Amis',
   description:
-    'Amis et demandes en attente sur trois colonnes au plus ; Inviter et Ajouter un ami à droite de la recherche ; Message (bleu), Échanger (vert) et retirer un ami (rouge, avec confirmation) en boutons standard ; Accepter (vert), Refuser et Annuler une demande (rouge) ; la liste suit chaque action sans être relue.',
+    'Amis et demandes en attente sur trois colonnes au plus ; Inviter et Ajouter un ami à droite de la recherche (sans amis : Inviter à côté du bouton Ajouter un ami) ; Message (bleu), Échanger (vert) et retirer un ami (rouge, avec confirmation) en boutons standard ; Accepter (vert), Refuser et Annuler une demande (rouge) ; la liste suit chaque action sans être relue.',
   category: 'Amis',
   routes: [FRIENDS_ROUTE],
   required: true,
@@ -41,6 +43,7 @@ export const friendsLayout: Feature = {
   async mount(ctx) {
     const { signal } = ctx;
     const search = createSlot(signal);
+    const emptyInvite = createSlot(signal);
     const acceptAll = createSlot(signal);
     /** Actions de chaque ligne (ami, demande reçue, demande envoyée), par ligne. */
     const rows = createSlots<HTMLElement>(signal);
@@ -78,8 +81,9 @@ export const friendsLayout: Feature = {
     if (!(await ctx.ready())) return;
     ctx.style(CSS);
     ctx.onDispose(() => {
-      const add = findFriendsPage()?.header?.add;
-      if (add) renameText(add, ADD, SITE_ADD);
+      const page = findFriendsPage();
+      if (page?.header?.add) renameText(page.header.add, ADD, SITE_ADD);
+      if (page?.list?.empty) renameText(page.list.empty.search, ADD, SITE_EMPTY_ADD);
     });
 
     const action = (site: RowButton | undefined): SiteAction | undefined =>
@@ -124,17 +128,28 @@ export const friendsLayout: Feature = {
       const header = page?.header;
       const list = page?.list;
       if (header?.add) renameText(header.add, SITE_ADD, ADD);
+      if (list?.empty) renameText(list.empty.search, SITE_EMPTY_ADD, ADD);
 
       const { invite, add } = header ?? {};
       const searchFrame = list?.search && header && invite && add ? list.search : undefined;
+      // Sans amis, pas de recherche : « Inviter » rejoint « Ajouter un ami » dans le cadre de la liste vide.
+      const empty = invite ? list?.empty : undefined;
       marks.only(SEARCH, searchFrame ? [searchFrame] : []);
-      // Sans amis, pas de recherche : les boutons restent dans l'en-tête.
-      if (header) ctx.hide(header.actions, searchFrame !== undefined);
+      marks.only(EMPTY, empty ? [empty.frame] : []);
+      // L'en-tête passe sous le cadre du solde : ses boutons ne restent que si les nôtres n'ont pas pu être posés.
+      if (header) ctx.hide(header.actions, searchFrame !== undefined || empty !== undefined);
+      const copied = invite ? hasIcon(invite, 'check') : false;
       if (searchFrame && invite && add) {
-        const vnode = h(SearchActions, { copied: hasIcon(invite, 'check'), onInvite: () => invite.click(), onAdd: () => add.click() });
+        const vnode = h(SearchActions, { copied, onInvite: () => invite.click(), onAdd: () => add.click() });
         search.render(vnode, { parent: searchFrame, before: null, inline: true });
       } else {
         search.clear();
+      }
+      if (empty && invite) {
+        const vnode = h(InviteButton, { copied, onClick: () => invite.click(), class: EMPTY_INVITE });
+        emptyInvite.render(vnode, { parent: empty.frame, before: empty.search, inline: true });
+      } else {
+        emptyInvite.clear();
       }
 
       marks.only(LIST, list ? [list.section] : []);

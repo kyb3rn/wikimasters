@@ -4,6 +4,8 @@ import { isRecord } from '@/core/guards';
 export interface Fiber {
   readonly return: Fiber | null;
   readonly memoizedProps: unknown;
+  /** Composant, balise, ou contexte d'un fournisseur (`<Contexte value>`). */
+  readonly type?: unknown;
   /** Clé de l'élément dans sa liste (`key`), souvent l'id de ce qu'il affiche. */
   readonly key?: string | null;
   readonly child?: Fiber | null;
@@ -68,6 +70,35 @@ export function stateHooks(fiber: Fiber, limit = 500): StateHook[] {
   return states;
 }
 
+/**
+ * Rappels mémorisés d'un composant fonction (`useCallback`), dans l'ordre de ses appels : hooks dont la valeur est
+ * `[fonction, dépendances]`. Ils lisent l'état du composant par ses setters, stables d'un rendu à l'autre.
+ */
+export function callbackHooks(fiber: Fiber, limit = 500): ((...args: unknown[]) => unknown)[] {
+  const callbacks: ((...args: unknown[]) => unknown)[] = [];
+  let hook = fiber.memoizedState;
+  for (let count = 0; isRecord(hook) && count < limit; count++) {
+    const value: unknown = hook.memoizedState;
+    if (Array.isArray(value) && value.length === 2 && typeof value[0] === 'function' && (value[1] === null || Array.isArray(value[1]))) {
+      callbacks.push(value[0] as (...args: unknown[]) => unknown);
+    }
+    hook = hook.next;
+  }
+  return callbacks;
+}
+
+/** Valeurs des références d'un composant fonction (`useRef`), dans l'ordre de ses appels : hooks dont la valeur est `{ current }`. */
+export function refHooks(fiber: Fiber, limit = 500): unknown[] {
+  const refs: unknown[] = [];
+  let hook = fiber.memoizedState;
+  for (let count = 0; isRecord(hook) && count < limit; count++) {
+    const value: unknown = hook.memoizedState;
+    if (isRecord(value) && Object.keys(value).length === 1 && 'current' in value) refs.push(value.current);
+    hook = hook.next;
+  }
+  return refs;
+}
+
 interface DomNodeLike {
   contains(other: unknown): boolean;
 }
@@ -110,6 +141,33 @@ export function findPropsAbove(
     if (isRecord(props) && test(props)) return { fiber, props };
   }
   return undefined;
+}
+
+/** Contexte fourni au-dessus d'un nœud : type de son fournisseur et valeur. */
+export interface ProvidedContext {
+  readonly type: unknown;
+  readonly value: unknown;
+}
+
+/**
+ * React 19 : le fournisseur a pour type le contexte lui-même (`react.context`) ; React 18 : `react.provider` (son
+ * `react.context` est alors un consommateur, sans prop `value`).
+ */
+const PROVIDER_TYPES: readonly unknown[] = [Symbol.for('react.context'), Symbol.for('react.provider')];
+
+/**
+ * Contextes fournis le long de ces ancêtres (du plus proche au plus lointain, comme `currentFiberAncestors`), du
+ * plus lointain au plus proche : de quoi les refournir à un composant rendu dans une autre racine.
+ */
+export function providedContexts(fibers: readonly Fiber[]): ProvidedContext[] {
+  const contexts: ProvidedContext[] = [];
+  for (const fiber of fibers) {
+    const { type, memoizedProps: props } = fiber;
+    if (isRecord(type) && PROVIDER_TYPES.includes(type.$$typeof) && isRecord(props) && 'value' in props) {
+      contexts.push({ type, value: props.value });
+    }
+  }
+  return contexts.reverse();
 }
 
 /**

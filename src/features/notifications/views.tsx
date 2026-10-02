@@ -1,3 +1,4 @@
+import type { ComponentChildren } from 'preact';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { isPlainClick } from '@/core/dom';
 import { formatNotificationDate } from '@/site/notifications';
@@ -7,11 +8,17 @@ import { siteClass } from '@/ui/site';
 import { AGE_REFRESH_MS, notificationAge } from './age';
 import type { Entry } from './entries';
 import { useCenter, type CenterStore } from './store';
+import { wishedIn } from './wishlist';
 
 export const BELL_CLASS = 'wm-notifications-bell';
 export const ROW_CLASS = 'wm-notification-row';
 /** Date et heure après l'âge, montrées au survol de la ligne. */
 export const DATE_CLASS = 'wm-notification-date';
+/** Ligne avec des boutons : son lien (ou bouton) est étalé dessous, sans contenu (`OPENER_CLASS`). */
+export const ACTION_ROW_CLASS = 'wm-notification-action-row';
+export const OPENER_CLASS = 'wm-notification-opener';
+/** Boutons de la ligne, au-dessus de son lien. */
+export const ACTIONS_CLASS = 'wm-notification-actions';
 const WIDTH = 460;
 const HEIGHT = 550;
 /** Écart avec la cloche et marge minimale avec les bords de l'écran, comme la liste du site. */
@@ -37,11 +44,16 @@ export function Bell({ store, onToggle }: { readonly store: CenterStore; readonl
   );
 }
 
-interface PanelProps {
-  readonly store: CenterStore;
+interface Handlers {
   readonly onOpen: (entry: Entry) => void;
   /** Ouverte par le navigateur dans un autre onglet (Ctrl, Maj, clic du milieu) : seulement marquée lue. */
   readonly onOpenElsewhere: (entry: Entry) => void;
+  /** Ajoute ou retire la carte de la liste de souhaits, selon son état. */
+  readonly onWish: (cardId: string) => void;
+}
+
+interface PanelProps extends Handlers {
+  readonly store: CenterStore;
   readonly onMarkAll: () => void;
   readonly onClose: () => void;
 }
@@ -62,8 +74,8 @@ function placeUnder(anchor: HTMLElement): Place {
 }
 
 /** Liste des notifications (site et script mêlés), ouverte sous la cloche cliquée. */
-export function Panel({ store, onOpen, onOpenElsewhere, onMarkAll, onClose }: PanelProps) {
-  const { entries, unread, anchor, marking } = useCenter(store);
+export function Panel({ store, onMarkAll, onClose, ...handlers }: PanelProps) {
+  const { entries, unread, anchor, marking, removed, wishing } = useCenter(store);
   const frame = useRef<HTMLDivElement>(null);
   const [place, setPlace] = useState<Place>();
   const [now, setNow] = useState(Date.now);
@@ -136,26 +148,42 @@ export function Panel({ store, onOpen, onOpenElsewhere, onMarkAll, onClose }: Pa
         {entries.length === 0 ? (
           <p class={siteClass.notificationsEmpty}>Aucune notification</p>
         ) : (
-          entries.map((entry) => <Row key={entry.key} entry={entry} now={now} onOpen={onOpen} onOpenElsewhere={onOpenElsewhere} />)
+          entries.map((entry) => {
+            const card = entry.wishlistCard;
+            const wish = card === undefined ? undefined : { wished: wishedIn(removed, card), busy: wishing.has(card) };
+            return <Row key={entry.key} entry={entry} now={now} wish={wish} {...handlers} />;
+          })
         )}
       </div>
     </div>
   );
 }
 
-interface RowProps {
+interface RowProps extends Handlers {
   readonly entry: Entry;
   readonly now: number;
-  readonly onOpen: (entry: Entry) => void;
-  readonly onOpenElsewhere: (entry: Entry) => void;
+  /** Carte de ma liste de souhaits : bouton pour l'en retirer (ou l'y remettre). */
+  readonly wish: { readonly wished: boolean; readonly busy: boolean } | undefined;
 }
 
-/**
- * Une notification. Avec une page, c'est un vrai lien : Ctrl, Maj ou le clic du milieu l'ouvrent dans un autre onglet
- * par le navigateur ; un clic simple garde la navigation du site.
- */
-function Row({ entry, now, onOpen, onOpenElsewhere }: RowProps) {
+/** Une notification. Avec des boutons, son lien est étalé sous la ligne : un bouton ne se met pas dans un lien. */
+function Row({ entry, now, wish, onOpen, onOpenElsewhere, onWish }: RowProps) {
   const className = `${siteClass.notificationRow} ${ROW_CLASS}${entry.read ? '' : ` ${siteClass.notificationUnread}`}`;
+  const card = entry.wishlistCard;
+  const actions = wish && card !== undefined && (
+    <div class={ACTIONS_CLASS}>
+      <button
+        type="button"
+        class={buttonClass('standard', { size: 'sm', tone: 'accent', fill: wish.wished ? 'solid' : 'outline' })}
+        disabled={wish.busy}
+        aria-busy={wish.busy}
+        onClick={() => onWish(card)}
+      >
+        <Icon name="bookmark" size={14} busy={wish.busy} />
+        {wish.wished ? 'Retirer de la liste de souhaits' : 'Ajouter à la liste de souhaits'}
+      </button>
+    </div>
+  );
   const content = (
     <>
       <Icon name={entry.icon} size={20} class={siteClass.notificationIcon} />
@@ -166,14 +194,43 @@ function Row({ entry, now, onOpen, onOpenElsewhere }: RowProps) {
           {notificationAge(entry.time, now)}
           <span class={DATE_CLASS}> ({formatNotificationDate(new Date(entry.time))})</span>
         </p>
+        {actions}
       </div>
       {!entry.read && <div class={siteClass.notificationDot} />}
     </>
   );
+  if (!actions) {
+    return (
+      <Opener entry={entry} class={className} onOpen={onOpen} onOpenElsewhere={onOpenElsewhere}>
+        {content}
+      </Opener>
+    );
+  }
+  return (
+    <div class={`${className} ${ACTION_ROW_CLASS}`}>
+      <Opener entry={entry} class={OPENER_CLASS} label={`${entry.label} : ${entry.text}`} onOpen={onOpen} onOpenElsewhere={onOpenElsewhere} />
+      {content}
+    </div>
+  );
+}
+
+interface OpenerProps extends Pick<Handlers, 'onOpen' | 'onOpenElsewhere'> {
+  readonly entry: Entry;
+  readonly class: string;
+  /** Nom d'un lien sans contenu. */
+  readonly label?: string;
+  readonly children?: ComponentChildren;
+}
+
+/**
+ * Ouvre la notification. Avec une page, c'est un vrai lien : Ctrl, Maj ou le clic du milieu l'ouvrent dans un autre
+ * onglet par le navigateur ; un clic simple garde la navigation du site.
+ */
+function Opener({ entry, class: className, label, children, onOpen, onOpenElsewhere }: OpenerProps) {
   if (entry.href === undefined) {
     return (
-      <button type="button" class={className} onClick={() => onOpen(entry)}>
-        {content}
+      <button type="button" class={className} aria-label={label} onClick={() => onOpen(entry)}>
+        {children}
       </button>
     );
   }
@@ -181,6 +238,7 @@ function Row({ entry, now, onOpen, onOpenElsewhere }: RowProps) {
     <a
       href={entry.href}
       class={className}
+      aria-label={label}
       onClick={(event) => {
         if (!isPlainClick(event)) {
           onOpenElsewhere(entry);
@@ -193,7 +251,7 @@ function Row({ entry, now, onOpen, onOpenElsewhere }: RowProps) {
         if (event.button === 1) onOpenElsewhere(entry);
       }}
     >
-      {content}
+      {children}
     </a>
   );
 }

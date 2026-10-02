@@ -1,6 +1,6 @@
 import { expose } from '@/core/expose';
 import type { Feature } from '@/core/runtime';
-import { cacheInfo, clearCache, closeMarketModal, marketSettings, trackMarket } from '@/services/market';
+import { cacheInfo, clearCache, closeMarketModal, marketSettings, trackMarket, trackSalesRate } from '@/services/market';
 
 interface MarketConsole {
   /** Cartes dont les ventes sont en cache, taille approximative. */
@@ -28,6 +28,8 @@ export const market: Feature = {
   settings: marketSettings,
   mount(ctx) {
     trackMarket();
+    // Compté même compteur caché : affiché en cours de minute, il part du bon nombre.
+    trackSalesRate();
     expose('market', { cache: cacheInfo, clear: clearCache }, ctx.signal);
     ctx.onDispose(closeMarketModal);
   },

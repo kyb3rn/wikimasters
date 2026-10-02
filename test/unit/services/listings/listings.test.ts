@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { net } from '@/core/net';
-import { isTitleListed, listedCardTitle, listingOf, onListingsChange, trackListings } from '@/services/listings';
+import { listedCardTitle, listingOf, onListingsChange, trackListings } from '@/services/listings';
 import { connectFakeSite, flush } from '../../support';
 
 /** Modales de carte ouvertes : seule compte celle qui a « Mettre aux enchères ». */
@@ -18,14 +18,10 @@ beforeAll(() => {
   trackListings();
 });
 
-/** Mise aux enchères de l'exemplaire par le site, la modale de `title` ouverte ; attend ses observateurs. */
-async function list(userCardId: string, title: string): Promise<void> {
-  modals.open = [{ title: 'Autre carte' }, { title, auctionButton: {} }];
+/** Mise aux enchères de l'exemplaire par le site ; attend ses observateurs. */
+async function list(userCardId: string): Promise<void> {
   const body = JSON.stringify({ card_id: userCardId, base_amount: 50, duration_minutes: 10 });
-  const pending = siteFetch('/api/marketplace', { method: 'POST', body });
-  // Le titre est lu au départ de la requête : la modale peut se fermer avant la réponse.
-  modals.open = [];
-  await pending.catch(() => undefined);
+  await siteFetch('/api/marketplace', { method: 'POST', body }).catch(() => undefined);
   await flush();
   await flush();
 }
@@ -40,28 +36,24 @@ describe('listedCardTitle', () => {
 });
 
 describe('exemplaires mis aux enchères', () => {
-  it('mise en vente réussie : exemplaire suivi avec le titre de sa carte et son enchère, abonnés prévenus', async () => {
+  it('mise en vente réussie : exemplaire suivi avec son enchère, abonnés prévenus', async () => {
     let changes = 0;
     const controller = new AbortController();
     onListingsChange(() => changes++, { signal: controller.signal });
     creation = () => Response.json({ auction_id: 'a1' });
-    await list('u1', 'Tour Eiffel');
-    expect(listingOf('u1')).toEqual({ userCardId: 'u1', title: 'Tour Eiffel', auctionId: 'a1' });
-    expect(isTitleListed(' Tour  Eiffel ')).toBe(true);
-    expect(isTitleListed('Paris')).toBe(false);
-    expect(isTitleListed(undefined)).toBe(false);
+    await list('u1');
+    expect(listingOf('u1')).toEqual({ userCardId: 'u1', auctionId: 'a1' });
     expect(changes).toBe(1);
     controller.abort();
   });
 
   it('refusée ou sans réponse : rien de suivi', async () => {
     creation = () => Response.json({ error: 'Carte déjà en vente' }, { status: 409 });
-    await list('u2', 'Paris');
+    await list('u2');
     creation = () => undefined;
-    await list('u3', 'Lyon');
+    await list('u3');
     expect(listingOf('u2')).toBeUndefined();
     expect(listingOf('u3')).toBeUndefined();
-    expect(isTitleListed('Paris')).toBe(false);
   });
 
   it('pas les mises en vente du script', async () => {
@@ -74,11 +66,10 @@ describe('exemplaires mis aux enchères', () => {
 
   it('annonce retirée : l’exemplaire n’est plus en vente', async () => {
     creation = () => Response.json({ auction_id: 'a4' });
-    await list('u4', 'Marseille');
+    await list('u4');
     await siteFetch('/api/marketplace/a4', { method: 'DELETE' });
     await flush();
     expect(listingOf('u4')).toBeUndefined();
-    expect(isTitleListed('Marseille')).toBe(false);
     expect(listingOf('u1')).toBeDefined();
   });
 });

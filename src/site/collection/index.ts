@@ -1,9 +1,11 @@
 export {
+  COLLECTION_CARD_BOX,
   findCollectionFaces,
   isCollectionList,
   isCollectionStats,
   LIST_LOADING_VEIL,
   parseCollection,
+  SELECTION_OVERLAY,
   type CollectionEntry,
 } from './collection';
 export {
@@ -39,6 +41,6 @@ export {
   type SelectionState,
   type SelectionToggle,
 } from './selection';
-export { applyTagChange, type PageTag, type TagChange } from './page-state';
+export { applyTagChange, shownCollectionReply, type PageTag, type TagChange } from './page-state';
 export { findManageTagsOption, findTagManager, tagManagerOpener, type TagManager } from './tag-manager';
 export { normalizeTagName, randomTagColor, TAG_NAME_MAX, TAG_PALETTE, tagChipStyle } from './tags';

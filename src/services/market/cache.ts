@@ -1,5 +1,5 @@
 import { isRecord } from '@/core/guards';
-import { idbStore } from '@/core/idb';
+import { idbStore, type IdbDatabase } from '@/core/idb';
 import { parseSale, type Sale } from '@/site/api';
 
 /** Ventes d'une carte telles que chargées depuis le site, à une date donnée. */
@@ -13,11 +13,14 @@ export interface MarketEntry {
 }
 
 /**
- * Base et forme de l'ancien script (bibliothèque marché) : un utilisateur qui l'avait retrouve son cache.
- * Enregistrement : `{ id, fetchedAt, title, sales: [{ id, final_price, settled_at, rarity }] }` (ventes au
- * format du site). La version 2 de la base a aussi le magasin `listings` de l'ancien script, inutilisé ici.
+ * Base de l'ancien script (bibliothèque marché) : un utilisateur qui l'avait retrouve son cache et ses mises en
+ * vente. Magasins : `sales` (ventes, ici) et `listings` (mises en vente, historique de la mise aux enchères). La
+ * version 3 crée `listings` chez qui n'avait pas l'ancien script (sa version 2 l'avait déjà).
  */
-const store = idbStore({ database: 'wm-market', version: 2, store: 'sales' });
+export const MARKET_DATABASE: IdbDatabase = { name: 'wm-market', version: 3, stores: ['sales', 'listings'] };
+
+/** Enregistrement : `{ id, fetchedAt, title, sales: [{ id, final_price, settled_at, rarity }] }` (ventes au format du site). */
+const store = idbStore({ database: MARKET_DATABASE, store: 'sales' });
 
 export function parseStoredEntry(raw: unknown): MarketEntry | undefined {
   if (!isRecord(raw) || typeof raw.id !== 'string' || typeof raw.fetchedAt !== 'number' || !Array.isArray(raw.sales)) {

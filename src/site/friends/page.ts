@@ -3,7 +3,7 @@ import { textOf } from '@/core/text';
 import { hasIcon, siteButtons } from '@/site/dom';
 
 /**
- * Page Amis (`/friends`, captures du 29/09/2026 et code du site du 30/09/2026) :
+ * Page Amis (`/friends`, captures du 29/09 et du 01/10/2026, code du site du 30/09 et du 01/10/2026) :
  *
  *   main › div.flex-1.p-4.md:p-6.space-y-6
  *     div.flex.items-center.justify-between › h1 « Amis », div.flex.items-center.gap-2
@@ -21,10 +21,12 @@ import { hasIcon, siteButtons } from '@/site/dom';
  *         span (cible tactile) › button[title="Envoyer un message"] (lucide `message-circle`, « Message »),
  *         idem [title="Proposer un échange"] (lucide `handshake`, « Échanger »), [« Défier » : administrateurs]
  *       (les fenêtres Message et Échanger d'une ligne sont rendues juste après elle, en `fixed`)
- *       sinon card-frame « Vous n'avez pas encore d'amis. », ou p « Aucun résultat pour « … » »
+ *       sinon div.card-frame.p-8.text-center.space-y-3 › icône (lucide `users`), p « Vous n'avez pas encore
+ *         d'amis. », button.mt-2 « Rechercher des joueurs » (même fenêtre que celui de l'en-tête) ;
+ *       ou p « Aucun résultat pour « … » »
  *     [div.space-y-3 › h2 « Demandes envoyées (n) », lignes : initiales, p pseudo, « En attente »,
  *       button « Annuler » (`DELETE /api/friends/<id>`, puis relecture `GET /api/friends`)]
- *     [fenêtre « Rechercher un joueur »]
+ *     [fenêtre « Rechercher un joueur » (`player-search.ts`)]
  */
 export interface FriendsPage {
   readonly header: FriendsHeader | undefined;
@@ -47,7 +49,15 @@ export interface FriendsList {
   readonly section: HTMLElement;
   /** Cadre du champ de recherche (absent sans amis). */
   readonly search: HTMLElement | undefined;
+  /** Cadre « Vous n'avez pas encore d'amis. » (sans amis seulement). */
+  readonly empty: EmptyFriends | undefined;
   readonly rows: readonly FriendRow[];
+}
+
+export interface EmptyFriends {
+  readonly frame: HTMLElement;
+  /** « Rechercher des joueurs » : ouvre la fenêtre « Rechercher un joueur », comme le bouton de l'en-tête. */
+  readonly search: HTMLButtonElement;
 }
 
 export interface FriendRow {
@@ -113,7 +123,9 @@ function readList(section: HTMLElement): FriendsList {
     if (!(actions instanceof HTMLElement) || actions.tagName !== 'DIV') continue;
     rows.push({ root, actions, message: rowButton(actions, 'message-circle'), trade: rowButton(actions, 'handshake') });
   }
-  return { section, search, rows };
+  const frame = section.querySelector<HTMLElement>(':scope > .card-frame');
+  const button = frame?.querySelector<HTMLButtonElement>(':scope > button');
+  return { section, search, empty: frame && button ? { frame, search: button } : undefined, rows };
 }
 
 /** Bouton enfant direct de `parent`, reconnu à son icône. */

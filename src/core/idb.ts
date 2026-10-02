@@ -15,9 +15,16 @@ export interface IdbStore {
   clear(): Promise<void>;
 }
 
-export interface IdbStoreOptions {
-  readonly database: string;
+/** Une base et tous ses magasins : la mise à niveau crée ceux qui manquent (un par `idbStore`, même base, même version). */
+export interface IdbDatabase {
+  readonly name: string;
   readonly version: number;
+  readonly stores: readonly string[];
+}
+
+export interface IdbStoreOptions {
+  readonly database: IdbDatabase;
+  /** Un des magasins de la base. */
   readonly store: string;
 }
 
@@ -25,7 +32,8 @@ export interface IdbStoreOptions {
 const BLOCKED_MS = 2000;
 
 export function idbStore(options: IdbStoreOptions): IdbStore {
-  const { database, version, store } = options;
+  const { database, store } = options;
+  const { name, version, stores } = database;
   // Toujours tenue à jour : lue quand la base manque.
   const memory = new Map<string, unknown>();
   let opening: Promise<IDBDatabase | undefined> | undefined;
@@ -40,9 +48,11 @@ export function idbStore(options: IdbStoreOptions): IdbStore {
         resolve(db);
       };
       try {
-        const request = indexedDB.open(database, version);
+        const request = indexedDB.open(name, version);
         request.onupgradeneeded = () => {
-          if (!request.result.objectStoreNames.contains(store)) request.result.createObjectStore(store, { keyPath: 'id' });
+          for (const wanted of stores) {
+            if (!request.result.objectStoreNames.contains(wanted)) request.result.createObjectStore(wanted, { keyPath: 'id' });
+          }
         };
         request.onsuccess = () => {
           const db = request.result;
@@ -60,7 +70,7 @@ export function idbStore(options: IdbStoreOptions): IdbStore {
         };
         request.onerror = () => done(undefined);
         request.onblocked = () => {
-          log.warn(`base ${database} bloquée par un autre onglet du site (à recharger)`);
+          log.warn(`base ${name} bloquée par un autre onglet du site (à recharger)`);
           setTimeout(() => {
             if (settled) return;
             done(undefined);

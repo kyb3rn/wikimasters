@@ -6,7 +6,7 @@
 //   node build.mjs --dev --watch   idem, reconstruit à chaque sauvegarde
 //
 // `WM_DEV_BUNDLE=<fichier> node build.mjs --dev` : version de dev écrite dans ce fichier, script de chargement
-// inchangé (plusieurs séries de tests Edge en parallèle, chacune avec son fichier ; lu par test/e2e/support/site.ts).
+// inchangé (plusieurs séries de tests navigateur en parallèle, chacune avec son fichier ; lu par test/e2e/support/site.ts).
 // Version à installer : rien n'est écrit s'il y reste un octet d'un outil de dev (voir DEV_ONLY).
 
 import * as esbuild from 'esbuild';

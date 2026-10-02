@@ -1,5 +1,5 @@
 import type { ComponentChildren } from 'preact';
-import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { cx } from '@/ui/cx';
 import { Icon } from '@/ui/icons';
 import { mountUi, type MountedUi } from '@/ui/mount';
@@ -77,7 +77,9 @@ export function Listbox({ ariaLabel, value, options, onChange, class: extra }: L
     };
   }, [open]);
 
-  useEffect(() => {
+  // Pas un effet ordinaire : liste fermée, son écouteur resterait jusqu'à l'image suivante et garderait pour lui
+  // un second Échap, qui doit fermer la modale dessous.
+  useLayoutEffect(() => {
     if (!open) return undefined;
     const onPointer = (event: MouseEvent) => {
       const target = event.target as Node;

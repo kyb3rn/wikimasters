@@ -19,9 +19,11 @@ export const css = () => `
 .wm-showcase-line { display: flex; align-items: stretch; gap: 8px; width: 100%; }
 .wm-showcase-line > input { flex: 1; min-width: 0; }
 .wm-showcase-listbox { width: 14rem; }
-.wm-showcase-face { position: relative; display: flex; align-items: flex-end; width: 150px; height: 210px; padding: 12px;
-  border-radius: 12px; border: 1px solid ${tokens.border}; overflow: hidden; font-family: ${tokens.heading}; font-weight: 700;
-  background: linear-gradient(160deg, #3b82f6 0%, #1e1b4b 70%); color: #fff; }
+/* Le fond dans un enfant, comme l'image d'une vraie face : un tampon teinte les enfants de la face. */
+.wm-showcase-face { position: relative; width: 150px; height: 210px; border-radius: 12px; border: 1px solid ${tokens.border};
+  overflow: hidden; font-family: ${tokens.heading}; font-weight: 700; color: #fff; }
+.wm-showcase-face > div:first-child { position: absolute; inset: 0; display: flex; align-items: flex-end; padding: 12px;
+  background: linear-gradient(160deg, #3b82f6 0%, #1e1b4b 70%); }
 .wm-showcase-icons { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; width: 100%; }
 .wm-showcase-icon { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 6px; border-radius: 10px;
   border: 1px solid ${tokens.border}; font-size: 11px; text-align: center; overflow-wrap: anywhere; }

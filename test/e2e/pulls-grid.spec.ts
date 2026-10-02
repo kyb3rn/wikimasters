@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { CAROUSEL, openPulls as openFakePulls, PACK, playedSounds, recordSounds } from './support/pulls';
-import { expectDomIdle, letTimePass, openSettings, presetSettings } from './support/site';
+import { expectDomIdle, letTimePass, nextFrame, openSettings, presetSettings } from './support/site';
 
 const GRID = 'main .wm-pulls-grid';
 /** Rangée de navigation du carrousel du site. */
@@ -157,6 +157,7 @@ test('un clic sur une carte ouvre la modale du site de cette carte, sans son', a
   await face(page, 0).click();
   const modal = page.locator('#card-modal');
   await expect(modal.getByRole('heading', { level: 2 })).toHaveText('Tour Eiffel');
+  await nextFrame(page); // notre croix remplace celle du site
   await modal.getByRole('button', { name: 'Fermer' }).click();
   await face(page, 1).click();
   await expect(modal.getByRole('heading', { level: 2 })).toHaveText('Musée du Louvre');

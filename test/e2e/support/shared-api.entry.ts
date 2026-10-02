@@ -13,3 +13,4 @@ export { placeRarityFilter } from '@/services/list-search/rarity-filter';
 export { placeHeaderItem } from '@/services/header-items';
 export { HEADER_RANKS } from '@/site/header';
 export { soleMainChild } from '@/site/page-spinner';
+export { STAMPS, stampFace } from '@/ui/stamp';

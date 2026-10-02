@@ -105,4 +105,12 @@ describe('réglages', () => {
     // @ts-expect-error clé absente du schéma
     expect(() => settings.get('inconnue')).toThrow('réglage inconnu : demo.inconnue');
   });
+
+  it('un réglage ne dépend que d’un réglage booléen du même module (erreur de programmation)', () => {
+    expect(() => defineSettings('demo', { ...schema, voice: { type: 'boolean', label: 'Voix', default: true, enabledBy: 'sound' } })).not.toThrow();
+    expect(() => defineSettings('demo', { ...schema, voice: { type: 'boolean', label: 'Voix', default: true, enabledBy: 'delayMs' } })).toThrow(
+      "réglage demo.voice : delayMs n'est pas un réglage booléen du même module",
+    );
+    expect(() => defineSettings('demo', { ...schema, voice: { type: 'boolean', label: 'Voix', default: true, enabledBy: 'absent' } })).toThrow();
+  });
 });

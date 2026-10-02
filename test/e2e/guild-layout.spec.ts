@@ -52,22 +52,28 @@ test('Accueil : pas de dégradé en fond du premier cadre', async ({ page }) => 
   await expect(page.locator('#gradient')).toBeHidden();
 });
 
-// Liste de souhaits de l'Accueil (capture du 01/10/2026) : pseudo du membre en pastille sous la description.
-const wish = (id: string, label: string) =>
+// Liste de souhaits de l'Accueil (capture et code du 01/10/2026) : pseudo du membre en pastille sous la description ;
+// sa propre demande, « Ma demande », en couleur d'accent.
+const PILL = {
+  member: 'bg-black/55 text-white',
+  own: 'bg-[var(--color-accent)]/90 text-[var(--color-accent-foreground)]',
+};
+const wish = (id: string, label: string, pill = PILL.member) =>
   `<div class="flex flex-col items-center gap-1.5"><div class="relative rounded-xl">` +
   `<div data-face="${id}" class="w-[clamp(8.4rem,43vw,10rem)] h-[clamp(11.8rem,60vw,14rem)] glow-ur relative rounded-2xl overflow-hidden cursor-pointer" style="position:relative;width:160px;height:224px;overflow:hidden">` +
   '<div class="absolute top-0 left-0 right-0 h-[45%] z-20 bg-black/20" style="position:absolute;top:0;left:0;right:0;height:45%"></div>' +
   '<div class="absolute top-[45%] left-0 right-0 bottom-0 flex min-h-0 flex-col p-3 z-20" style="position:absolute;top:45%;bottom:0">' +
   `<h3>Carte ${id}</h3><p>description</p>` +
   '<div class="mt-auto flex min-h-0 w-full flex-col items-start gap-0.5 pt-1">' +
-  `<div class="min-w-0 max-w-full shrink-0"><span class="inline-block max-w-full truncate rounded-full px-2 py-0.5 text-[9px] font-bold bg-black/55 text-white" title="${label}">${label}</span></div>` +
+  `<div class="min-w-0 max-w-full shrink-0"><span class="inline-block max-w-full truncate rounded-full px-2 py-0.5 text-[9px] font-bold ${pill}" title="${label}">${label}</span></div>` +
   '<div class="flex w-full shrink-0 items-center justify-between border-t border-black/20 pt-1 py-1"><span>9 000</span><span>9 371</span></div>' +
   '</div></div></div></div></div>';
 const WISHLIST =
   '<div class="card-frame p-4 md:p-5 space-y-4"><h3>Liste de souhaits</h3>' +
-  `<div class="flex flex-wrap justify-center gap-3">${wish('a', 'gasgot')}${wish('b', "flashito19 · reçu aujourd'hui")}</div></div>`;
+  `<div class="flex flex-wrap justify-center gap-3">${wish('own', 'Ma demande', PILL.own)}${wish('a', 'gasgot')}${wish('b', "flashito19 · reçu aujourd'hui")}</div></div>`;
 
 test('liste de souhaits : pastille du pseudo retirée, « @pseudo » sur l’image au survol, mène au profil', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('wm-me-v1', JSON.stringify({ id: 'me', username: 'moi' })));
   await openSite(page, '/guild', { html: sitePage(MAIN + WISHLIST, SCRIPT) });
   const face = page.locator('[data-face="a"]');
   const link = face.getByRole('link', { name: '@gasgot', exact: true });
@@ -88,6 +94,12 @@ test('liste de souhaits : pastille du pseudo retirée, « @pseudo » sur l’ima
     'href',
     '/profile/flashito19',
   );
+
+  // Sa propre demande : son pseudo aussi, la pastille « Ma demande » du site gardée.
+  const own = page.locator('[data-face="own"]');
+  await expect(own.locator('.wm-profile-link')).toHaveText(['@moi']);
+  await expect(own.getByRole('link', { name: '@moi', exact: true })).toHaveAttribute('href', '/profile/moi');
+  await expect(own.locator('span.rounded-full')).toBeVisible();
 
   await link.click();
   await expect(page).toHaveURL(/\/profile\/gasgot$/);

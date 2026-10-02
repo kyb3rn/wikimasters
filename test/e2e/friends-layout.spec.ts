@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { openFriendsPage } from './support/friends';
+import { NO_FRIENDS, openFriendsPage } from './support/friends';
 import { expectDomIdle, rect } from './support/site';
 
 const friendRows = (page: Page) => page.locator('#friends-section > [data-friend]');
@@ -70,7 +70,7 @@ test('Inviter et « Ajouter un ami » à droite, la recherche réduite à gauche
   await expect(invite).toBeVisible();
   await expect(add).toBeVisible();
   await expect(page.locator('#site-header-actions')).toBeHidden();
-  // Le bouton du site est renommé lui aussi (il reste dans l'en-tête quand la page n'a pas de recherche).
+  // Le bouton du site est renommé lui aussi (il reviendrait dans l'en-tête si les nôtres ne pouvaient pas être posés).
   await expect(page.locator('#site-add')).toHaveText('+ Ajouter un ami');
 
   // Mesures prises dans la même image : la page peut encore bouger d'un pixel (boutons du site rhabillés au-dessus).
@@ -99,14 +99,64 @@ test('Inviter et « Ajouter un ami » à droite, la recherche réduite à gauche
   expect(clear.x + clear.width).toBeLessThanOrEqual(field.x + field.width);
   expect(clear.x).toBeGreaterThan(field.x + field.width - 40);
 
-  await add.click();
+  // « Ajouter un ami » en dernier : sa fenêtre recouvre la page.
   await invite.click();
+  await add.click();
   expect(await page.evaluate(() => (window as unknown as { __friends: { clicks: object } }).__friends.clicks)).toMatchObject({
     invite: 1,
     add: 1,
   });
+  await expect(page.getByRole('heading', { name: 'Rechercher un joueur' })).toBeVisible();
   await expect(box.getByRole('button', { name: 'Copié !' })).toBeVisible();
   await expect(box.getByRole('button', { name: 'Inviter' })).toBeVisible({ timeout: 4000 });
+});
+
+test('sans amis : boutons de l’en-tête cachés, Inviter à gauche de « Ajouter un ami » (son « Rechercher des joueurs »)', async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await openFriendsPage(page, { friendships: NO_FRIENDS });
+  const frame = page.locator('#friends-section > .card-frame');
+  const invite = frame.getByRole('button', { name: 'Inviter' });
+  const search = page.locator('#site-empty-search');
+  await expect(invite).toBeVisible();
+  await expect(page.locator('#site-header-actions')).toBeHidden();
+  await expect(page.locator('#friends-section > .relative')).toHaveCount(0);
+  await expect(search).toHaveText('Ajouter un ami');
+
+  // Bouton du site rhabillé (une image plus tard) : les mesures sont les définitives.
+  await expect(search).toHaveClass(/wm-button-md/);
+  await expect.poll(async () => (await rect(invite)).y - (await rect(search)).y).toBeCloseTo(0, 0);
+  const [inviteBox, searchBox, frameBox] = [await rect(invite), await rect(search), await rect(frame)];
+  expect(inviteBox.height).toBeCloseTo(searchBox.height, 0);
+  expect(inviteBox.x + inviteBox.width).toBeLessThanOrEqual(searchBox.x - 4);
+  // Les deux boutons centrés ensemble dans le cadre.
+  const center = frameBox.x + frameBox.width / 2;
+  expect((inviteBox.x + searchBox.x + searchBox.width) / 2).toBeCloseTo(center, 0);
+
+  await invite.click();
+  expect(await page.evaluate(() => (window as unknown as { __friends: { clicks: { invite: number } } }).__friends.clicks.invite)).toBe(1);
+  await expect(frame.getByRole('button', { name: 'Copié !' })).toBeVisible();
+  await expect(frame.getByRole('button', { name: 'Inviter' })).toBeVisible({ timeout: 4000 });
+
+  await search.click();
+  await expect(page.getByRole('heading', { name: 'Rechercher un joueur' })).toBeVisible();
+});
+
+test('sans amis, au repos : le script ne resynchronise plus la page', async ({ page }) => {
+  await openFriendsPage(page, { friendships: NO_FRIENDS });
+  await expect(page.locator('#friends-section > .card-frame').getByRole('button', { name: 'Inviter' })).toBeVisible();
+  await expectDomIdle(page);
+});
+
+test('dernier ami retiré : Inviter passe dans le cadre de la liste vide, l’en-tête reste caché', async ({ page }) => {
+  await openFriendsPage(page, {
+    friendships: [{ id: 'f1', status: 'accepted', requester_id: 'me', addressee_id: 'u1', addressee: { id: 'u1', username: 'aelonka' } }, ...NO_FRIENDS],
+  });
+  await expect(page.locator('#site-header-actions')).toBeHidden();
+  await row(page, 'aelonka').getByRole('button', { name: 'Retirer des amis' }).click();
+  await confirmDialog(page).getByRole('button', { name: 'Retirer' }).click();
+  const frame = page.locator('#friends-section > .card-frame');
+  await expect(frame.getByRole('button', { name: 'Inviter' })).toBeVisible();
+  await expect(page.locator('#site-header-actions')).toBeHidden();
 });
 
 test('au repos, le script ne resynchronise plus la page', async ({ page }) => {

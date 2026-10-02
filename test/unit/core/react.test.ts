@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { currentFiberAncestors, findPropsAbove, stateHooks, type Fiber } from '@/core/react';
+import { callbackHooks, currentFiberAncestors, findPropsAbove, providedContexts, refHooks, stateHooks, type Fiber } from '@/core/react';
 
 interface FakeFiber {
   name: string;
@@ -134,5 +134,76 @@ describe('stateHooks', () => {
     expect(stateHooks({ memoizedProps: {}, return: null })).toEqual([]);
     expect(stateHooks({ memoizedProps: {}, return: null, memoizedState: null })).toEqual([]);
     expect(stateHooks({ memoizedProps: {}, return: null, memoizedState: { open: true } })).toEqual([]);
+  });
+});
+
+describe('callbackHooks', () => {
+  /** Hooks chaînés : valeur de chacun (`memoizedState`), dans l'ordre. */
+  const chain = (...values: unknown[]): unknown =>
+    values.reduceRight<unknown>((next, value) => ({ memoizedState: value, queue: null, next }), null);
+
+  it('liste les rappels mémorisés dans l’ordre, sans les états, effets ni références', () => {
+    const load = () => 'load';
+    const send = () => 'send';
+    const component = {
+      memoizedProps: {},
+      return: null,
+      memoizedState: chain([load, []], [], { current: 0 }, { tag: 9, create: () => {}, deps: [] }, [send, null], [() => {}, 'x']),
+    };
+    expect(callbackHooks(component)).toEqual([load, send]);
+  });
+
+  it('composant sans hooks, élément du DOM, composant classe : aucun rappel', () => {
+    expect(callbackHooks({ memoizedProps: {}, return: null })).toEqual([]);
+    expect(callbackHooks({ memoizedProps: {}, return: null, memoizedState: null })).toEqual([]);
+    expect(callbackHooks({ memoizedProps: {}, return: null, memoizedState: { open: true } })).toEqual([]);
+  });
+});
+
+describe('refHooks', () => {
+  const chain = (...values: unknown[]): unknown =>
+    values.reduceRight<unknown>((next, value) => ({ memoizedState: value, queue: null, next }), null);
+
+  it('liste les valeurs des références dans l’ordre, sans les états, effets ni rappels', () => {
+    const client = { realtime: {} };
+    const component = {
+      memoizedProps: {},
+      return: null,
+      memoizedState: chain(false, { current: client }, [() => {}, []], { tag: 9, create: () => {}, deps: [] }, { current: null }),
+    };
+    expect(refHooks(component)).toEqual([client, null]);
+  });
+
+  it('composant sans hooks : aucune référence', () => {
+    expect(refHooks({ memoizedProps: {}, return: null })).toEqual([]);
+    expect(refHooks({ memoizedProps: {}, return: null, memoizedState: { current: 1 } })).toEqual([]);
+  });
+});
+
+describe('providedContexts', () => {
+  const context = (name: string, kind = 'react.context') => ({ $$typeof: Symbol.for(kind), name });
+  const node = (type: unknown, props: unknown = {}): Fiber => ({ type, memoizedProps: props, return: null });
+
+  it('fournisseurs du plus lointain au plus proche, avec leur valeur ; le reste ignoré', () => {
+    const session = context('session');
+    const images = context('images');
+    const ancestors = [
+      node('div', { className: 'x' }),
+      node(images, { value: { hideSensitive: true }, children: null }),
+      node(() => null, { value: 'pas un fournisseur' }),
+      node(session, { value: 'u1' }),
+    ];
+    expect(providedContexts(ancestors)).toEqual([
+      { type: session, value: 'u1' },
+      { type: images, value: { hideSensitive: true } },
+    ]);
+  });
+
+  it('React 18 : son fournisseur (react.provider), pas son consommateur (react.context sans value)', () => {
+    const provider = context('session', 'react.provider');
+    const consumer = context('session');
+    expect(providedContexts([node(consumer, { children: () => null }), node(provider, { value: null })])).toEqual([
+      { type: provider, value: null },
+    ]);
   });
 });

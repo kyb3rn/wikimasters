@@ -1,6 +1,8 @@
-import { isRecord } from '@/core/guards';
+import { isRecord, parseJson } from '@/core/guards';
+import type { NetRequest } from '@/core/net';
 import { currentFiberAncestors, type Fiber, type StateHook } from '@/core/react';
 import { statesAboveRefresh } from '@/site/list-page';
+import { isCollectionList, isCollectionStats } from './collection';
 import { findCollectionFilters } from './filters';
 
 /** Étiquette telle que la page la garde (sur un exemplaire, dans son catalogue, dans ses compteurs). */
@@ -85,14 +87,58 @@ export function pageStatesAmong(ancestors: readonly Fiber[]): PageStates | undef
   return valid ? { list, tagOptions, catalog } : undefined;
 }
 
+function pageStates(doc: Document): PageStates | undefined {
+  const row = findCollectionFilters(doc)?.row;
+  return row && pageStatesAmong(currentFiberAncestors(row));
+}
+
+/** Étiquettes que la page affiche : sur ses exemplaires, dans ses compteurs. */
+export interface ShownTags {
+  readonly entries: readonly unknown[];
+  readonly tagOptions: readonly unknown[];
+}
+
+/**
+ * Réponse de la liste (`collection[]`) ou de ses compteurs (`tagOptions`) avec les étiquettes que la page affiche.
+ * Les autres champs restent ceux de la réponse.
+ */
+export function withShownTags(kind: 'list' | 'stats', body: unknown, shown: ShownTags): unknown {
+  if (!isRecord(body)) return body;
+  if (kind === 'stats') return Array.isArray(body.tagOptions) ? { ...body, tagOptions: shown.tagOptions } : body;
+  if (!Array.isArray(body.collection)) return body;
+  const tags = new Map<string, unknown[]>();
+  for (const entry of shown.entries) {
+    const id = idOf(entry);
+    if (id !== undefined && isRecord(entry) && Array.isArray(entry.tags)) tags.set(id, entry.tags);
+  }
+  const collection = (body.collection as unknown[]).map((row) => {
+    const current = tags.get(idOf(row) ?? '');
+    return current && isRecord(row) ? { ...row, tags: current } : row;
+  });
+  return { ...body, collection };
+}
+
+/**
+ * Réponse gardée de la liste ou de ses compteurs, à resservir : une étiquette posée ou retirée sur place depuis
+ * son chargement (modale de carte, étiquetage groupé) n'y est pas, et la page la perdrait. On y met donc celles
+ * que la page affiche. Rien si l'état de la page n'est pas reconnu ou la réponse illisible.
+ */
+export function shownCollectionReply(request: NetRequest, body: string, doc: Document = document): string | undefined {
+  const kind = isCollectionList(request) ? 'list' : isCollectionStats(request) ? 'stats' : undefined;
+  const states = kind && pageStates(doc);
+  const parsed = parseJson(body);
+  if (!kind || !states || parsed === undefined) return undefined;
+  const shown = { entries: states.list.value as unknown[], tagOptions: states.tagOptions.value as unknown[] };
+  return JSON.stringify(withShownTags(kind, parsed, shown));
+}
+
 /**
  * Pose ou retire des étiquettes sur les exemplaires affichés, sans rien recharger, comme le fait la modale
  * de carte du site (exemplaire mis à jour dans la liste, étiquette nouvelle ajoutée au catalogue), compteurs
  * compris. Faux si l'état de la page n'est pas reconnu (rien n'est alors changé).
  */
 export function applyTagChange(change: TagChange, doc: Document = document): boolean {
-  const row = findCollectionFilters(doc)?.row;
-  const states = row && pageStatesAmong(currentFiberAncestors(row));
+  const states = pageStates(doc);
   if (!states) return false;
   const entries = states.list.value as unknown[];
   const options = states.tagOptions.value as unknown[];

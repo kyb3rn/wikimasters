@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { Entry } from './entries';
+import type { RemovedWishes } from './wishlist';
 
 /** Ce que montrent la cloche et sa liste. */
 export interface CenterState {
@@ -9,6 +10,10 @@ export interface CenterState {
   readonly anchor?: HTMLElement;
   /** « Tout marquer comme lu » attend la réponse du site. */
   readonly marking: boolean;
+  /** Cartes retirées de ma liste de souhaits (`wishedIn`). */
+  readonly removed: RemovedWishes;
+  /** Cartes ajoutées ou retirées de la liste de souhaits, en attente de la réponse du site. */
+  readonly wishing: ReadonlySet<string>;
 }
 
 export interface CenterStore {
@@ -18,7 +23,7 @@ export interface CenterStore {
 }
 
 export function createCenterStore(): CenterStore {
-  let state: CenterState = { entries: [], unread: 0, marking: false };
+  let state: CenterState = { entries: [], unread: 0, marking: false, removed: {}, wishing: new Set() };
   const listeners = new Set<() => void>();
   return {
     get: () => state,

@@ -121,6 +121,59 @@ test('refus du site : son message s’affiche, on peut corriger et réessayer', 
   await expect.poll(() => posted.length).toBe(2);
 });
 
+/** Mise en vente refusée une première fois : le site demande sa « Vérification rapide » (anti-robot). */
+async function openSaleWithHumanCheck(page: Page): Promise<{ posted: unknown[]; checks: unknown[] }> {
+  const server = { posted: [] as unknown[], checks: [] as unknown[] };
+  await openCard(page, {
+    api: { '/api/marketplace/mine': { sellingCount: 2, maxConcurrentAuctions: 10 } },
+    handle: async (route, url) => {
+      const method = route.request().method();
+      if (url.pathname === '/api/human-check' && method === 'POST') {
+        server.checks.push(route.request().postDataJSON());
+        await route.fulfill({ json: { ok: true } });
+        return true;
+      }
+      if (url.pathname !== '/api/marketplace' || method !== 'POST') return false;
+      server.posted.push(route.request().postDataJSON());
+      await route.fulfill(
+        server.posted.length === 1
+          ? { status: 403, json: { error: 'Vérification anti-bot requise.', code: 'human_verification_required' } }
+          : { status: 201, json: { auction_id: 'a1b2c3d4-0000-4000-8000-000000000001' } },
+      );
+      return true;
+    },
+  });
+  await page.locator('#card-modal').getByRole('button', { name: 'Vendre' }).click();
+  await dialog(page).getByRole('button', { name: 'Confirmer' }).click();
+  await expect(page.locator('#human-check')).toBeVisible();
+  return server;
+}
+
+test('vérification anti-robot du site : par-dessus la mise en vente, qui repart une fois faite', async ({ page }) => {
+  const server = await openSaleWithHumanCheck(page);
+  // La nôtre attend : rien ne la ferme, rien ne se change.
+  await expect(dialog(page).getByRole('button', { name: 'Confirmer' })).toBeDisabled();
+  await expect(dialog(page).getByRole('button', { name: 'Annuler' })).toBeDisabled();
+  await expect(dialog(page).getByLabel('Mise de départ')).toBeDisabled();
+  await page.keyboard.press('Escape');
+  await expect(dialog(page)).toBeVisible();
+
+  // Le clic atteint la vérification : elle n'est pas sous notre modale.
+  await page.locator('#human-check').getByRole('button', { name: 'Je suis humain' }).click();
+  await expect(dialog(page)).toHaveCount(0);
+  expect(server.checks).toEqual([{ token: 'jeton' }]);
+  expect(server.posted).toHaveLength(2);
+});
+
+test('vérification anti-robot annulée : la mise en vente reprend la main', async ({ page }) => {
+  const server = await openSaleWithHumanCheck(page);
+  await page.locator('#human-check').getByRole('button', { name: 'Annuler' }).click();
+  await expect(page.locator('#human-check')).toHaveCount(0);
+  await expect(dialog(page).getByRole('button', { name: 'Confirmer' })).toBeEnabled();
+  await expect(dialog(page).getByRole('alert')).toHaveCount(0);
+  expect(server.posted).toHaveLength(1);
+});
+
 test('mise invalide : Confirmer désactivé', async ({ page }) => {
   await openSale(page);
   await dialog(page).getByLabel('Mise de départ').fill('0');
@@ -145,7 +198,7 @@ test('durée par défaut réglée : sélectionnée à l’ouverture et envoyée'
   await expect.poll(() => posted).toEqual([{ card_id: 'u1', base_amount: 10, duration_minutes: 180 }]);
 });
 
-test('paramètres : durée par défaut au choix, sans interrupteur ; un ancien choix « désactivée » est ignoré', async ({ page }) => {
+test('paramètres : durée par défaut au choix, historique, sans interrupteur ; un ancien choix « désactivée » est ignoré', async ({ page }) => {
   await presetSettings(page, { features: { 'auction-modal-layout': false }, values: {} });
   await openPulls(page);
   const settings = await openSettings(page, 'Enchères');
@@ -153,7 +206,19 @@ test('paramètres : durée par défaut au choix, sans interrupteur ; un ancien c
   await expect(settings.locator('.wm-settings-heading')).toHaveText(['Mise aux enchères']);
   const [layout, stay] = [settings.locator('.wm-settings-feature').first(), settings.locator('.wm-settings-feature').nth(1)];
   await expect(settings.locator('.wm-settings-feature')).toHaveCount(2);
-  await expect(layout.getByRole('switch')).toHaveCount(0);
+  // Pas d'interrupteur pour la modale : seulement ceux de l'historique, la reprise grisée quand il est masqué.
+  await expect(layout.getByRole('switch')).toHaveCount(2);
+  const show = layout.getByRole('switch', { name: "Afficher l'historique" });
+  const reuse = layout.getByRole('switch', { name: 'Reprendre la dernière mise en vente' });
+  await expect(show).toBeChecked();
+  await expect(reuse).toBeChecked();
+  await expect(reuse).toBeEnabled();
+  await show.click();
+  await expect(show).not.toBeChecked();
+  await expect(reuse).toBeDisabled();
+  await expect(reuse).toBeChecked();
+  await show.click();
+  await expect(reuse).toBeEnabled();
   await expect(stay.getByRole('switch', { name: 'Mise aux enchères : Rester sur la carte après la mise aux enchères' })).toBeVisible();
   const choice = layout.getByRole('radiogroup', { name: 'Durée par défaut' });
   await expect(choice.getByRole('radio', { name: '10 min' })).toHaveAttribute('aria-checked', 'true');

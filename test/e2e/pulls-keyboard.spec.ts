@@ -1,6 +1,6 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { CAROUSEL, openPulls as openFakePulls, packFaces } from './support/pulls';
-import { openSettings, presetSettings } from './support/site';
+import { nextFrame, openSettings, presetSettings } from './support/site';
 
 // Le carrousel du site, sans « toutes les cartes d'un coup ».
 test.beforeEach(({ page }) => presetSettings(page, CAROUSEL));
@@ -36,6 +36,7 @@ test('les flèches ne font rien avec Alt, pendant une saisie ou quand une modale
 
   // Modale de carte du site ouverte (et saisie dans son champ d'étiquette).
   await packFaces(page).click();
+  await nextFrame(page); // notre croix remplace celle du site
   await page.getByPlaceholder('Ajouter une étiquette…').focus();
   await page.keyboard.press('ArrowRight');
   await page.getByRole('button', { name: 'Fermer' }).click();

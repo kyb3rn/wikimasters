@@ -178,6 +178,16 @@ export function letTimePass(page: Page, ms: number): Promise<void> {
   return page.waitForTimeout(ms);
 }
 
+/**
+ * Attend l'image suivante : la passe du script qui suit un changement de la page (`watchDom`, une par image) est
+ * faite, son rappel ayant été demandé avant celui-ci. Le Chromium des tests tourne à 60 images/s : sans cette attente,
+ * une action lancée aussitôt après un changement de la page (ouverture d'une modale du site…) le précède.
+ * Inutile quand on attend déjà un état posé par le script.
+ */
+export function nextFrame(page: Page): Promise<void> {
+  return page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+}
+
 /** Rectangle d'un élément affiché ; lève s'il manque (une comparaison de positions passerait sur deux absents). */
 export async function rect(locator: Locator): Promise<{ x: number; y: number; width: number; height: number }> {
   const box = await locator.boundingBox();

@@ -1,8 +1,10 @@
 import type { Feature } from '@/core/runtime';
+import { auctionLive } from './auction-live';
 import { auctionMarket } from './auction-market';
 import { auctionNotFound } from './auction-not-found';
 import { auctionModalLayout } from './auction-modal';
 import { auctionReport } from './auction-report';
+import { auctionResult } from './auction-result';
 import { auctionStay } from './auction-stay';
 import { cardFaces } from './card-faces';
 import { cardModalLayout } from './card-modal';
@@ -11,6 +13,7 @@ import { cardModalStats } from './card-modal-stats';
 import { cardModalStay } from './card-modal-stay';
 import { collectionBulkTags } from './collection-bulk-tags';
 import { collectionCardDisplay } from './collection-card-display';
+import { collectionPrices } from './collection-prices';
 import { collectionFilters } from './collection-filters';
 import { collectionPagination } from './collection-pagination';
 import { collectionMemory } from './collection-memory';
@@ -25,12 +28,14 @@ import { dmsLayout } from './dms-layout';
 import { dmsGroups } from './dms-groups';
 import { guildChat } from './guild-chat';
 import { guildChatTab } from './guild-chat-tab';
+import { headerBar } from './header-bar';
 import { friendsLayout } from './friends-layout';
 import { globalCollectionCardDisplay } from './global-collection-card-display';
 import { guildCardDisplay } from './guild-card-display';
 import { guildCreateModal } from './guild-create-modal';
 import { guildLayout } from './guild-layout';
 import { globalCollectionFilters } from './global-collection-filters';
+import { globalCollectionFriends } from './global-collection-friends';
 import { globalCollectionMemory } from './global-collection-memory';
 import { globalCollectionPagination } from './global-collection-pagination';
 import { globalCollectionSearch } from './global-collection-search';
@@ -42,10 +47,13 @@ import { marketplaceFilters } from './marketplace-filters';
 import { marketplaceMemory } from './marketplace-memory';
 import { marketplaceSearch } from './marketplace-search';
 import { marketplaceSearchDelay } from './marketplace-search-delay';
+import { marketplacePrices } from './marketplace-prices';
 import { marketplaceTiles } from './marketplace-tiles';
 import { notifications } from './notifications';
+import { ownedBadge } from './owned-badge';
 import { pageSpinner } from './page-spinner';
 import { playerLinks } from './player-links';
+import { playerSearch } from './player-search';
 import { profileCardDisplay } from './profile-card-display';
 import { profileCardPicker } from './profile-card-picker';
 import { profileCollectionFilters } from './profile-collection-filters';
@@ -67,6 +75,7 @@ import { pullsPro } from './pulls-pro';
 import { pullsRemaining } from './pulls-remaining';
 import { pullsSound } from './pulls-sound';
 import { quickDiscard } from './quick-discard';
+import { salesLimit } from './sales-limit';
 import { settingsPanel } from './settings';
 import { showcase } from './showcase';
 import { siteButtons } from './site-buttons';
@@ -90,6 +99,7 @@ import { tradesTabLine } from './trades-tab-line';
  */
 export const features: readonly Feature[] = [
   settingsPanel,
+  headerBar,
   disabledCursor,
   pageSpinner,
   // Avant card-modal-stay : sa garde du fond passe devant les écouteurs de clic des autres fonctionnalités.
@@ -129,11 +139,13 @@ export const features: readonly Feature[] = [
   collectionSelection,
   collectionSelectionKey,
   collectionBulkTags,
+  collectionPrices,
   profileHeader,
   profileUnfriend,
   profileNotFound,
   profileCardPicker,
   friendsLayout,
+  playerSearch,
   guildCreateModal,
   guildLayout,
   dmsLayout,
@@ -158,9 +170,14 @@ export const features: readonly Feature[] = [
   market,
   auctionMarket,
   auctionReport,
+  auctionResult,
   auctionNotFound,
   marketplaceTiles,
+  marketplacePrices,
+  auctionLive,
+  salesLimit,
   playerLinks,
+  ownedBadge,
   marketplaceCardDisplay,
   // Collection d'un ami, comme la Collection (sans filtres retenus) : la recherche, son délai, puis la pagination.
   profileCollectionSearch,
@@ -174,6 +191,7 @@ export const features: readonly Feature[] = [
   globalCollectionSearchDelay,
   globalCollectionPagination,
   globalCollectionFilters,
+  globalCollectionFriends,
   globalCollectionCardDisplay,
   guildCardDisplay,
   notifications,

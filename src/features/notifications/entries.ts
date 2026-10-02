@@ -1,5 +1,5 @@
 import type { LocalNotification } from '@/services/notifications';
-import { notificationLabel, notificationPath, notificationText, type SiteNotification } from '@/site/notifications';
+import { notificationLabel, notificationPath, notificationText, wishlistCardOf, type SiteNotification } from '@/site/notifications';
 import type { IconName } from '@/ui/icons';
 import type { ToastVariant } from '@/ui/toast';
 
@@ -26,9 +26,11 @@ interface EntryView {
   readonly read: boolean;
   /** Page ouverte par un clic ; aucune pour une sanction (fenêtre du site) ou une notification du script sans lien. */
   readonly href?: string;
+  /** Carte de ma liste de souhaits mise en vente : la ligne propose de l'en retirer. */
+  readonly wishlistCard?: string;
 }
 
-/** Icônes du site par type ; bulle de message pour les autres, comme lui. */
+/** Icônes du site par type (sauf la liste de souhaits : la sienne plutôt que le marteau) ; bulle de message pour les autres, comme lui. */
 const SITE_ICONS: Readonly<Record<string, IconName>> = {
   friend_request: 'user',
   trade_offer: 'handshake',
@@ -46,7 +48,7 @@ const SITE_ICONS: Readonly<Record<string, IconName>> = {
   marketplace_auction_sold: 'coins',
   marketplace_auction_unsold: 'gavel',
   marketplace_auction_midpoint_nudge: 'gavel',
-  marketplace_wishlist_listed: 'gavel',
+  marketplace_wishlist_listed: 'bookmark',
 };
 
 /** Couleur du toast d'une notification du site : bonne nouvelle en vert, à surveiller en ambre, le reste en bleu. */
@@ -67,6 +69,7 @@ export function siteVariant(notification: SiteNotification): ToastVariant {
 export function siteEntry(notification: SiteNotification): Entry {
   const time = Date.parse(notification.created_at);
   const href = notificationPath(notification);
+  const wishlistCard = wishlistCardOf(notification);
   return {
     kind: 'site',
     notification,
@@ -78,6 +81,7 @@ export function siteEntry(notification: SiteNotification): Entry {
     time: Number.isNaN(time) ? 0 : time,
     read: notification.read,
     ...(href !== undefined && { href }),
+    ...(wishlistCard !== undefined && { wishlistCard }),
   };
 }
 

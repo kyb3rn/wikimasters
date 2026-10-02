@@ -19,12 +19,13 @@ Routes et données : [`../api.md`](../api.md). Anciens relevés, plus détaillé
 
 ## Règles pour le script
 
-- **Aucune automatisation d'action** (mise, ouverture, défausse en série, échanges) : une action = un geste de l'utilisateur. Le site a une garde anti-automatisation (`403 automation_limit` au-delà de 50 annonces par page), une vérification humaine des paquets ([pulls.md](pulls.md#vérification-humaine)), et le profil porte `cheat_strikes`, `last_sanction_*`, `activity_blocked_until`.
+- **Aucune automatisation d'action** (mise, ouverture, défausse en série, échanges) : une action = un geste de l'utilisateur. Le site a une garde anti-automatisation (`403 automation_limit` au-delà de 50 annonces par page, ou au-delà de 30 historiques de ventes par minute : [api.md](../api.md#marché)), une vérification humaine des paquets ([pulls.md](pulls.md#vérification-humaine)), et le profil porte `cheat_strikes`, `last_sanction_*`, `activity_blocked_until`.
 - **Site peu fiable, surtout en journée** (constat de l'utilisateur) : 403, 404, 500 fréquents, réponses de 0,3 à 18 s, temps réel coupé plusieurs minutes. Exemple du 29/09 : deux défausses en 500, non appliquées (la même, renvoyée 1 à 2 s plus tard, a réussi), `sales?scope=summary` en 500. Tout code réseau prévoit l'échec, la lenteur et la coupure : ne jamais supposer qu'une requête ou une diffusion arrive.
 - **Une partie des données n'arrive que par le temps réel** (surenchère, solde, notification) : rien dans `fetch` ([Temps réel](#temps-réel)).
 - **Carte ≠ exemplaire**, **rareté par les données**, jamais par les classes CSS ([Cartes](#cartes-raretés-identifiants)).
 - **Horloge du PC parfois décalée** : calculer les temps restants avec l'en-tête `Date` des réponses. Le site, lui, compte sur l'horloge du PC (comptes à rebours du marché, jour du pack PRO).
 - **Navigation Next.js** : la page suivante est chargée (requête RSC) **avant** `pushState`.
+- **Le script peut démarrer après la page** : malgré `document-start`, Tampermonkey l'injecte parfois en retard après un F5 (capture du 01/10 : aucune requête du chargement vue, ni l'ouverture du WebSocket). Ce que la page affiche dès son chargement se lit dans son état React ou son DOM, pas seulement dans ses requêtes.
 - **`<html>` et `<body>` sont rendus par React** : une classe posée dessus est effacée (constaté le 30/09). Un conteneur posé dans `<body>` pendant le chargement est retiré quand React y affiche la page.
 - **Le code JavaScript du site se lit** (chunks `/_next/static/chunks/…?dpl=dpl_…`, minifiés mais clairs, renommés à chaque déploiement) : y chercher les paramètres réels d'une route plutôt que deviner.
 - **Ne jamais toucher à la boutique ni aux paiements.**
@@ -34,7 +35,8 @@ Routes et données : [`../api.md`](../api.md). Anciens relevés, plus détaillé
 _Relevé : 29/09 (`card-frame` : 30/09)._
 
 - **Next.js App Router** (Vercel) : navigation sans rechargement (`history.pushState`), chaque page chargée par `GET /<page>?_rsc=…` avant le changement d'adresse. Le site navigue par `router.push(…)` du routeur de `useRouter()`, trouvé dans l'état React (`src/site/router.ts` : `guardRouterPush`, `navigateTo`).
-- **React** : props et états lisibles par `__reactFiber$…` ; la plupart des données passent aussi par des routes `/api/…` lisibles dans le réseau.
+- **React** (19 : éléments `react.transitional.element`) : props et états lisibles par `__reactFiber$…` ; la plupart des données passent aussi par des routes `/api/…` lisibles dans le réseau.
+- **Modules assemblés par Turbopack** (relevé du 02/10) : registre `globalThis.TURBOPACK`, où un module à nous peut s'inscrire et lire ceux du site (React, react-dom/client, un composant chargé à la demande). Identifiants numériques tirés du chemin des fichiers, stables d'un déploiement à l'autre jusqu'ici (`273271` : fenêtre d'échange, du 29/09 au 02/10) ; on reconnaît plutôt un module à son code. Une partie des composants n'est chargée qu'à la demande (`e.A(<chargeur>)`, import dynamique). Lecture : `src/core/turbopack.ts` (`pageModules`), `src/core/page-react.ts`.
 - **Tailwind v4** : ses utilitaires sont dans `@layer utilities`, une règle hors couche l'emporte sans `!important`. Icônes **lucide** (`svg.lucide-<nom>`, presque partout), polices Outfit (titres) et Inter.
 - **`card-frame`**, cadre de presque tous les panneaux : `backdrop-filter: blur(14px)`, fond `#131615e0`, bordure `1px solid #c8d0cb1f`, `border-radius: 16px` ; thème clair (`html.light`) : fond `#f7f8f7eb`, bordure `#0f172a14`. Il existe aussi `card-frame-solid` (Gérer les étiquettes).
 - **Supabase** : REST (`/rest/v1/…`), RPC (`/rest/v1/rpc/…`), authentification (`/auth/v1/…`), Realtime (WebSocket). Le client du site y envoie la clé publique et le jeton de session ([api.md](../api.md#conventions)).
@@ -92,7 +94,8 @@ _Relevé : 29/09._
 
 - Raretés, de la plus basse à la plus haute, selon les vues mensuelles de l'article Wikipédia : **C** commune (< 50), **PC** peu commune (50+), **R** rare (250+), **SR** super rare (1 000+), **UR** ultra rare (5 000+), **L** légendaire (20 000+). Ordre du site (filtres, tris) : L UR SR R PC C. Couleur : `var(--color-rarity-<c|pc|r|sr|ur|l>)`. Lecture : `src/site/rarity.ts`.
 - Les vues évoluent : une carte sortie L un jour peut sortir UR le lendemain. Une même carte a donc des ventes à plusieurs raretés (chaque vente garde la sienne).
-- **La rareté n'est pas figée sur l'exemplaire** (constat de l'utilisateur, 29/09) : une L mise aux enchères qui revient (invendue, retirée) alors que ses vues ont baissé peut revenir en UR. Un exemplaire qui passe par le marché **perd aussi ses étiquettes**. Seules l'annonce et la vente gardent la rareté du moment (`snapshot_rarity`, `rarity`).
+- **La rareté n'est pas figée sur l'exemplaire** (constat de l'utilisateur, 29/09) : une L mise aux enchères qui revient (invendue, retirée) alors que ses vues ont baissé peut revenir en UR. Un exemplaire qui passe par le marché **perd aussi ses étiquettes**. Invendu, il revient **sous un nouvel identifiant d'exemplaire**, `obtained_at` à l'heure de la fin de l'enchère (capture du 02/10 : enchères de 10 min, retour quelques secondes après la fin) : l'ancien identifiant n'existe plus. Seules l'annonce et la vente gardent la rareté du moment (`snapshot_rarity`, `rarity`).
+- La carte que les listes passent à la face et à la modale est celle de l'exemplaire (`effectiveCardListItem`, code du 02/10) : `{ ...card, rarity: snapshot_rarity ?? card.rarity, atk, def (idem), is_shiny }`. La face n'habille en shiny qu'une L (`is_shiny && rarity === 'L'`).
 - **Shiny** (`is_shiny`, vu sur des L) : autre visuel ([Face de carte](#face-de-carte)), sans la classe `glow-l`. **Repérer les raretés par les données, jamais par les classes `glow-*`.** Valeur très supérieure (Olympique lyonnais : 29 000 en shiny, 5 000 en L normale).
 - Deux identifiants à ne pas confondre : la **carte** (modèle commun à tous, `cards.id`, `card_id`) et l'**exemplaire** (carte possédée, `user_cards.id`, `user_card_id`). Le favori et la liste de souhaits portent sur la carte ; les étiquettes, la défausse, la mise aux enchères sur un exemplaire. Piège : `POST /api/marketplace` attend l'exemplaire dans un champ nommé `card_id`.
 
@@ -108,16 +111,21 @@ div[class*="glow-"].relative.rounded-2xl.overflow-hidden     face (onClick : mod
   div.absolute.top-2.left-2                                  badge de rareté
   div.absolute.top-[45%].bottom-0.flex.flex-col.p-3.z-20     texte
     h3 (nom) · p (description)
-    div.mt-auto.flex.flex-col.pt-1
+    div.mt-auto.flex.flex-col.items-start.gap-0.5.pt-1        bas
+      div.rounded.bg-amber-400/80                            « Échange en attente » (`pendingTradeLabel`)
+      div.min-w-0.max-w-full.shrink-0                        emplacement du bas (`bottomOverlay`)
       div.flex.flex-wrap.pb-0.5                              étiquettes (Collection, Échanges)
       div.flex.justify-between.border-t.pt-1.py-1            ATK · DEF (lucide swords, shield)
 ```
+
+- Props (code du 01/10) : `{ card, size, onClick, className, topRight, bottomOverlay, tags, pendingTradeLabel, detailExcerpt, layoutVariant }`.
+- Emplacement du bas, rempli par la page : pastille « Possédée » (`span.w-fit.rounded-full.bg-emerald-600/90…text-[9px]`, `title="Dans ta collection"` ; `text-[10px]` sur la page d'une enchère) sur les vignettes du marché (`owned`), la page d'une enchère, Toutes les cartes (`ownedCardIds`, au-dessus de la pastille bleue des amis qui l'ont, lucide `users`) et les cartes de l'ami dans la fenêtre d'échange (`owned_by_viewer`) ; « Déjà dans la collection de <ami> » (bleu) sur mes cartes dans la fenêtre d'échange (`owned_by_peer`) ; auteur d'une demande de la liste de souhaits de guilde. Nulle part ailleurs : ni collection d'un ami, ni vitrine, ni détail d'un échange, ni paquets.
 
 - Halo `glow-<rareté>` : ombres floues de 10 px (C) à 28 px (L), 30 px en shiny.
 - Shiny : `glow-shiny shiny-card` au lieu de `glow-l`, fond `/shiny/onyx-art.webp` et couches `shiny-onyx-*`, reflet qui suit la souris (`--shiny-mx`, `--shiny-my`, classe `shiny-hover`, inclinaison), badge « L✦ » (`shiny-badge`), texte blanc.
 - Étoile du favori (modale, grille de la Collection, carrousel) : « Ajouter aux favoris » (contour, `text-amber-200/65`) ou « Retirer des favoris » (remplie, `fill="currentColor"`, `text-amber-200`).
 - Image (`loading="lazy"`, `crossOrigin="anonymous"`), cadrage choisi à son chargement : transparente (réduite à 96 px au plus sur un canevas, un pixel non opaque suffit) : `object-contain object-center`, `transform: scale(0.9)` ; sinon portrait (`naturalHeight >= naturalWidth`) : `object-cover`, `object-position: center 28%` ; sinon `object-cover object-center` (aussi avant le chargement). Image en erreur : vignette de remplacement. Reproduit par `src/features/market-search/face-image.ts`.
-- Lecture : `src/site/cards/face.ts` (`FACE`, `SMALL_FACE`, `FACE_TEXT`, `FACE_STATS`, `findFaceImage`, `cloneSiteFace`), `findStarButton`.
+- Lecture : `src/site/cards/face.ts` (`FACE`, `SMALL_FACE`, `FACE_TEXT`, `FACE_BOTTOM`, `FACE_STATS`, `findFaceImage`, `findFaceBottomPlace`, `cloneSiteFace`), `findStarButton`.
 
 ## Grilles de cartes
 
@@ -141,9 +149,9 @@ Rangée `flex flex-wrap justify-center` dont chaque enfant est une case contenan
 
 ## Modale de carte
 
-_Relevé : captures du 29/09 ; état React et vue catalogue : 30/09._
+_Relevé : captures du 29/09 ; état React et vue catalogue : 30/09 ; les trois cas : code du 02/10._
 
-Ouverte au clic sur une carte (paquet, Collection, Toutes les cartes, profils…), portail dans `body` :
+Ouverte au clic sur une carte (paquet, Collection, Toutes les cartes, profils…), portail dans `body`. **Un seul composant pour trois cas**, selon ses props : un de mes exemplaires, la vue catalogue (Toutes les cartes), l'exemplaire d'un ami (sa collection). Structure d'un de mes exemplaires :
 
 ```
 div.fixed.inset-0.z-50 … bg-black/70 (fond)
@@ -164,8 +172,11 @@ div.fixed.inset-0.z-50 … bg-black/70 (fond)
 - À l'ouverture, `GET /api/marketplace/mine` : limite d'enchères atteinte, « Mettre aux enchères » est désactivé (info-bulle « Maximum n enchères actives », texte « Enchères actives : n/max — annulez une vente… »).
 - Onglet Marché : vue du site (`GET /api/marketplace/cards/<card_id>/sales`), badge « PRO » sans compte PRO ([marketplace.md](marketplace.md#historique-des-ventes-et-offre-pro)).
 - **État React** : le composant reçoit `{ card, starred, count, onClose, userCardId, tags, tagsCatalog, … }` (`card` : `id`, `wikipedia_title`, `rarity`…) et rend lui-même son fond (`createPortal`). Pas de fermeture par Échap.
-- **Vue catalogue** (Toutes les cartes) : même modale sans exemplaire, donc ni favori, ni étiquettes, ni rangée d'actions. Dans la colonne de droite, bloc `div.space-y-2 > div.space-y-1.5 > (bouton, p d'aide)` : « Ajouter à la liste de souhaits » (pleine largeur, fond accent léger, « Recevez une alerte si cette carte est mise en vente. » dessous) ou « Retirer de la liste de souhaits » (bordure accent, sans le texte), lucide `bell`. Au-dessus, « Proposer un échange » si un ami possède la carte, ou « Échange en attente » (lucide `refresh-cw`, ambre) si une offre est déjà en cours avec lui. Comportement : [global-collection.md](global-collection.md#liste-de-souhaits).
-- Lecture : `src/site/cards/modal.ts` (`findCardModals`, `readModalCard` : à lire au clic, c'est un parcours de l'arbre React), `src/site/cards/actions.ts`.
+- **Vue catalogue** (Toutes les cartes, `catalogView`) : même modale sans exemplaire, donc ni favori (aucune étoile sur la face), ni étiquettes, ni rangée d'actions. Dans la colonne de droite, bloc `div.space-y-2` : « Proposer un échange » (lucide `handshake`, fond accent léger) si un ami possède la carte (`friendUsername` : le premier), ou à sa place « Échange en attente » (`div[role=status]`, lucide `refresh-cw`, ambre) si une offre est déjà en cours avec lui ; puis `div.space-y-1.5 > (bouton, p d'aide)` : « Ajouter à la liste de souhaits » (pleine largeur, fond accent léger, « Recevez une alerte si cette carte est mise en vente. » dessous) ou « Retirer de la liste de souhaits » (bordure accent, sans le texte), lucide `bell`. Comportement : [global-collection.md](global-collection.md#liste-de-souhaits).
+- **Exemplaire d'un ami** (onglet Collection de son profil ; code du 02/10) : props `{ card, userCardId, starred, count, tags, tagsReadOnly: true, onClose, friendUsername, friendProfileId, friendOfferPending }`. Favori sur la face ; ses étiquettes en lecture seule (« Étiquettes » et pastilles, sans champ ni « Retirer ») ; même bloc d'échange qu'en vue catalogue, sans liste de souhaits ; ni rangée d'actions (réservée à `!catalogView && !friendUsername`). Offre en cours : « Échange en attente » aussi sur la face (`pendingTradeLabel`).
+- Une offre d'échange s'ouvre par-dessus, **dans le fond de la modale** (`div.fixed.inset-0.z-[60]`), comme la confirmation de défausse (`z-[70]`) : les contrôles d'une modale de carte se cherchent hors de ces fonds.
+- Aucune modale n'affiche « Possédée » : la page ne lui passe pas cette information.
+- Lecture : `src/site/cards/modal.ts` (`findCardModals` : les trois cas, `kind` déduit de ce qu'elle affiche ; `readModalCard` : à lire au clic, c'est un parcours de l'arbre React ; `readModalView` : vue catalogue, exemplaire d'un ami ou le mien, et son identifiant, d'après ses props ; `findModalFaces`), `src/site/cards/actions.ts`.
 
 ### Mise aux enchères
 
@@ -190,7 +201,9 @@ div.fixed.inset-0.z-[60] (fond, un clic ferme)
 - Tout l'état (mise, durée, envoi, erreur) vit dans React ; le champ de la mise est contrôlé par React.
 - Composant chargé à la première ouverture : en attendant, une roue (`div.fixed.inset-0.z-[60]` sans `h2`) est rendue **dans** la modale de carte. La vraie modale est un portail dans `body`, sœur de la modale de carte ; fermer la modale de carte la fait disparaître.
 - Envoi : `POST /api/marketplace` `{ card_id: <exemplaire>, base_amount, duration_minutes }`. Réussite : le rappel `onListed` de la modale de carte ferme la modale d'enchère, puis `router.push('/marketplace/<id>')`.
-- Lecture : `src/site/cards/auction-modal.ts` (`findAuctionModal`, `parseDuration`), `readAuctionCreation`.
+- **Vérification anti-robot** (nouveau déploiement du 02/10, vue par l'utilisateur) : réponse 403 `human_verification_required` → aucune erreur affichée, la modale ouvre « Vérification rapide », portail dans `body` (`div.fixed.inset-0.z-[70]`, fond qui arrête le clic) : h2, explication, widget Cloudflare Turnstile (script `challenges.cloudflare.com/turnstile/v0/api.js`, `appearance: interaction-only` : visible seulement s'il faut cliquer), « Vérification… » pendant `POST /api/human-check { token }`, erreur en encart rouge, « Annuler » (texte). Réussite : fermée, la mise en vente repart d'elle-même (même requête). À faire par l'utilisateur, **jamais contournée**. Lecture : `findAuctionHumanCheck`.
+- **État React** (code du 02/10) : le composant reçoit `{ card, onClose, onListed, userCardId }`, `card` étant celui de la modale de carte, aux valeurs de l'exemplaire (voir [Cartes](#cartes-raretés-identifiants)).
+- Lecture : `src/site/cards/auction-modal.ts` (`findAuctionModal`, `parseDuration`, `readAuctionModalCard` : carte, shiny, exemplaire), `readAuctionCreation` (exemplaire, mise, durée).
 
 ### Défausse
 
@@ -237,6 +250,8 @@ WebSocket `wss://<projet>.supabase.co/realtime/v1/websocket?apikey=…&vsn=2.0.0
 | `friendships-requester-<uid>`, `friendships-addressee-<uid>` | `postgres_changes` | **Refusé par le serveur** (« Unable to subscribe… ») : la page Amis ne se met pas à jour seule. |
 
 - La connexion tombe souvent (29/09 : fermetures 1006 sans ouverture pendant plusieurs minutes, nouvel essai toutes les 3 à 12 s, puis reconnexion et nouveaux `phx_join`). Les diffusions manquées ne sont **pas** rejouées : ne pas compter sur le temps réel seul pour un état qui compte, relire par `fetch` à la reconnexion.
+- Cause relevée le 01/10 au soir : **serveur temps réel saturé** (limite de connexions simultanées du projet Supabase). Une connexion neuve échoue en 1006 avant de s'ouvrir, plusieurs fois de suite ; une fois ouverte, ses `phx_join` sont refusés pendant ~2 min (`phx_reply` `{ status: 'error', response: { reason: 'ConnectionRateLimitReached: Too many connected users' } }`), nouvel essai toutes les ~14 s. Le site n'affiche rien. Une connexion déjà établie tient et sert aux pages suivantes de l'onglet (navigation sans rechargement) : un F5 ou un nouvel onglet repart de zéro.
+- **Client du site** (realtime-js 2.99.2, code du 02/10) : un seul pour toutes les pages (même WebSocket, mêmes numéros de messages), pris dans une référence (`useRef(createClient())`) de la page d'une enchère. `connectionState()` (`connecting`, `open`, `closing`, `closed`) ; `channels` (`topic` = `realtime:<nom>`, `state` : `closed`, `errored`, `joined`, `joining`, `leaving`). Essais espacés de 1, 2, 5 puis 10 s : la WebSocket fermée par `connect()`, chaque canal en erreur par sa minuterie `rejoinTimer` (`_rejoin()` si la WebSocket est ouverte ; appelé WebSocket fermée, le `phx_join` attend son ouverture). Abonnement refusé ou sans réponse en 10 s : canal en erreur. Un canal rejoint rappelle **à chaque fois** son abonnement (`SUBSCRIBED`). Pièges : `_rejoin()` sur un canal en cours d'abonnement le quitte (il s'y voit en double) : arrêter sa minuterie avant de le relancer ; `disconnect()` démonte tous les canaux (abonnements perdus) : ne jamais l'appeler. Lecture et relance : `findSiteRealtime`, `readSiteRealtime` (`src/site/realtime/client.ts`).
 - Le script observe ces messages en lecture seule (`net.observeSocket`). Pour le chat de guilde hors de /guild, il ouvre son propre canal sur sa propre WebSocket (`openRealtimeChannel`, `src/site/realtime/channel.ts`) : `phx_join` avec la configuration qu'envoie le client du site pour un canal public (`broadcast: { ack: false, self: false }`, `presence: { key: '', enabled: false }`, `postgres_changes`, `private: false`, `access_token`) ; les changements arrivent en JSON.
 
 ## Modales
@@ -296,10 +311,10 @@ _Relevé : code du site, 30/09 ; marché : captures du 29/09._
 
 _Relevé : solde 29/09 ; cloche : code du site, 30/09._
 
-- **Solde** (`aria-label="Ouvrir la boutique WikiBidous"`, ouvre la boutique) en deux exemplaires : barre du haut sur mobile (`md:hidden fixed top-0 …`) et boîte fixe en haut à droite sur ordinateur (`hidden md:block fixed top-0 right-0 … pointer-events-none`, bouton `pointer-events-auto`). Lecture : `src/site/header.ts`.
+- **Solde** (`aria-label="Ouvrir la boutique WikiBidous"`, ouvre la boutique) en deux exemplaires : barre du haut sur mobile (`md:hidden fixed top-0 …`) et boîte fixe en haut à droite sur ordinateur (`hidden md:block fixed top-0 right-0 … pointer-events-none`, padding 0,75 rem en style, bouton `pointer-events-auto`, aucun autre bouton du site). Son parent direct est son cadre : la boîte elle-même sur ordinateur, la rangée `flex h-11 … justify-end gap-1` sur mobile (avec la cloche du site). Lecture : `src/site/header.ts`.
 - **Cloches** : deux `button[aria-label="Notifications"]` (`aria-expanded`), une dans le menu latéral à côté du logo (ordinateur), une après le solde dans la barre du haut (mobile). Icône `svg.w-5.h-5` sans classe `lucide`. Pastille rouge du nombre de non lues (« 9+ » au-delà).
 - **État** : un fournisseur React autour de toute la navigation (`NotificationsProvider`, props `userId`) garde la liste (50 dernières, triées par date) et ses actions `{ markAsRead(ids), markAllAsRead(), fetchNotifications() }`, qui ne changent que l'état local. Liste relue par `GET /api/notifications` au montage, à chaque abonnement réussi au canal `notifications:<uid>` et à chaque ouverture de la liste ; une diffusion `INSERT` l'ajoute en tête ; une relecture ne rend pas « non lue » une notification lue localement.
 - **La cloche**, seule à lire ce fournisseur, fait les `PATCH` : clic sur une ligne non lue → `PATCH { ids }` attendu, puis fermeture et `router.push` vers sa page (une sanction ouvre une fenêtre à lui : texte complet, contestation) ; « Tout marquer lu » (seulement s'il y a des non lues) → `markAllAsRead()` puis `PATCH {}`.
 - Liste en portail dans `body` (`card-frame fixed z-[100]`, 320 px, 24 rem au plus, sous la cloche, calée dans l'écran), lignes `button` à clé React = id, fermée par un `mousedown` ailleurs.
 - Types, textes et pages ouvertes : [api.md](../api.md#notifications).
-- Lecture : `src/site/notifications/` (`findSiteBells`, `readSiteNotifications`, `openSiteNotification`, `notificationLabel`, `notificationText`, `notificationPath`).
+- Lecture : `src/site/notifications/` (`findSiteBells`, `readSiteNotifications`, `openSiteNotification`, `notificationLabel`, `notificationText`, `notificationPath`, `wishlistCardOf`).

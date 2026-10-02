@@ -4,7 +4,7 @@ import { RARITIES, RARITY_NAMES, rarityBadgeStyle } from '@/site/rarity';
 import { buttonClass } from '@/ui/button';
 import { Icon, ICON_NAMES } from '@/ui/icons';
 import { siteClass } from '@/ui/site';
-import { stampFace, type Stamp } from '@/ui/stamp';
+import { stampFace, STAMPS, type Stamp } from '@/ui/stamp';
 import { Group, Specimen } from './layout';
 
 const OWNER = 'showcase';
@@ -33,16 +33,19 @@ function StampedFace({ stamp }: { readonly stamp: Stamp }) {
   }, [stamp]);
   return (
     <div ref={face} class="wm-showcase-face">
-      <span>Tour Eiffel</span>
+      <div>
+        <span>Tour Eiffel</span>
+      </div>
     </div>
   );
 }
 
-const DISCARDED: Stamp = { label: 'Défaussée', tone: 'danger', revealable: true };
-const LISTED: Stamp = { label: 'En vente', tone: 'success', revealable: true };
+const shownStamps = (): readonly (readonly [string, Stamp])[] =>
+  Object.entries(STAMPS).map(([name, stamp]) => [name, { ...stamp, revealable: true }]);
 
 export function Marks() {
   const [tags] = useState(demoTags);
+  const [stamps] = useState(shownStamps);
   const [chips, setChips] = useState(tags);
   const remove = (tag: DemoTag) => {
     const next = chips.filter((chip) => chip !== tag);
@@ -121,8 +124,9 @@ export function Marks() {
       </Group>
 
       <Group title="Tampons">
-        <StampedFace stamp={DISCARDED} />
-        <StampedFace stamp={LISTED} />
+        {stamps.map(([name, stamp]) => (
+          <StampedFace key={name} stamp={stamp} />
+        ))}
       </Group>
     </>
   );

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseAuctionCard, readAuctionCancel, readAuctionCreation, readAuctionRequest } from '@/site/api';
+import { parseAuctionCard, parseListingCard, readAuctionCancel, readAuctionCreation, readAuctionRequest } from '@/site/api';
 import { netRequest } from '../../support';
 
 const ID = '198816ca-4758-42ca-a1d3-800a37b0d850';
@@ -7,7 +7,9 @@ const ID = '198816ca-4758-42ca-a1d3-800a37b0d850';
 describe('mise aux enchères et retrait', () => {
   it('lit une mise aux enchères (le champ card_id porte l’exemplaire)', () => {
     const create = netRequest('/api/marketplace', { method: 'POST', body: { card_id: 'u1', base_amount: 90, duration_minutes: 10 } });
-    expect(readAuctionCreation(create)).toEqual({ userCardId: 'u1' });
+    expect(readAuctionCreation(create)).toEqual({ userCardId: 'u1', price: 90, minutes: 10 });
+    const partial = netRequest('/api/marketplace', { method: 'POST', body: { card_id: 'u1', base_amount: '90' } });
+    expect(readAuctionCreation(partial)).toEqual({ userCardId: 'u1', price: undefined, minutes: undefined });
     expect(readAuctionCreation(netRequest('/api/marketplace/a1/bid', { method: 'POST', body: { amount: 5 } }))).toBeUndefined();
     expect(readAuctionCreation(netRequest('/api/marketplace?page=1'))).toBeUndefined();
     expect(readAuctionCreation(netRequest('/api/marketplace', { method: 'POST', body: 'pas du json' }))).toBeUndefined();
@@ -43,5 +45,8 @@ describe('enchère affichée', () => {
     expect(parseAuctionCard({ auction: { ...body.auction, snapshot_rarity: null } })?.rarity).toBe('SR');
     expect(parseAuctionCard({ auction: { id: ID } })).toBeUndefined();
     expect(parseAuctionCard({ error: 'Introuvable' })).toBeUndefined();
+    // L'annonce seule, telle que dans une liste du marché.
+    expect(parseListingCard(body.auction)).toEqual({ id: 'c1', title: 'Michael Mando', rarity: 'UR' });
+    expect(parseListingCard(undefined)).toBeUndefined();
   });
 });

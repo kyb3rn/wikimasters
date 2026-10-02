@@ -1,4 +1,7 @@
+import { isRecord } from '@/core/guards';
+import { currentFiberAncestors, stateHooks } from '@/core/react';
 import { textOf } from '@/core/text';
+import { isAuctionStatus, type AuctionStatus } from '@/site/api';
 import { FACE, findFaceImage } from '@/site/cards';
 import { hasIcon } from '@/site/dom';
 
@@ -19,10 +22,18 @@ import { hasIcon } from '@/site/dom';
  *
  * Le meneur et l'historique changent en direct (mises reçues en temps réel).
  */
+
+/** Bouton « Vue du marché », à côté du titre de la carte (icône lucide `chart-line`), dans `div.flex.items-start.gap-2`. */
+export const AUCTION_MARKET_BUTTON = 'main button[aria-label="Vue du marché"]';
+
+/** Canal temps réel de l'enchère (mises reçues, sans `realtime:`), rejoint par sa page. */
+export const auctionChannel = (auctionId: string) => `auction:${auctionId}`;
 export interface AuctionPlayer {
   /** `span` du pseudo, rendu par le site. */
   readonly name: HTMLElement;
   readonly username: string;
+  /** Le vendeur (« Mis en vente par »). */
+  readonly seller: boolean;
 }
 
 /** Pseudo tel quel, espaces compris. */
@@ -34,10 +45,14 @@ const NO_USERNAME = 'Joueur';
 /** Vendeur (« Mis en vente par »), meneur (« Meneur : »), gagnant (« Remportée par ») et joueurs de l'historique des mises. */
 export function findAuctionPlayers(doc: Document = document): AuctionPlayer[] {
   const names: HTMLElement[] = [];
+  let seller: HTMLElement | undefined;
   for (const line of doc.querySelectorAll<HTMLElement>('main p')) {
-    if (!/^(Mis en vente par|Meneur :)/.test(textOf(line))) continue;
+    const role = /^(Mis en vente par|Meneur :)/.exec(textOf(line))?.[1];
+    if (!role) continue;
     const name = line.querySelector<HTMLElement>(':scope > span');
-    if (name) names.push(name);
+    if (!name) continue;
+    names.push(name);
+    if (role === 'Mis en vente par') seller = name;
   }
   for (const line of doc.querySelectorAll<HTMLElement>('main div.card-frame')) {
     if (!textOf(line).startsWith('Remportée par')) continue;
@@ -52,7 +67,25 @@ export function findAuctionPlayers(doc: Document = document): AuctionPlayer[] {
       if (textOf(name) !== NO_USERNAME) names.push(name);
     }
   }
-  return names.map((name) => ({ name, username: usernameOf(name) })).filter((player) => player.username !== '');
+  return names.map((name) => ({ name, username: usernameOf(name), seller: name === seller })).filter((player) => player.username !== '');
+}
+
+/** Carte de l'enchère, en tête de la colonne de gauche. */
+export function findAuctionFace(doc: Document = document): HTMLElement | undefined {
+  return [...doc.querySelectorAll<HTMLElement>(`main div.flex-shrink-0 > ${FACE}`)].find((face) => face.querySelector('h3'));
+}
+
+/**
+ * Statut de l'enchère affichée, lu dans l'état de sa page (l'annonce entière, même `id`) : celui qu'elle affiche, même
+ * si le script a démarré après sa requête, et à jour de chaque relecture (code du site, 01/10/2026).
+ */
+export function readAuctionStatus(face: Element, auctionId: string): AuctionStatus | undefined {
+  for (const fiber of currentFiberAncestors(face)) {
+    for (const { value } of stateHooks(fiber)) {
+      if (isRecord(value) && value.id === auctionId && isAuctionStatus(value.status)) return value.status;
+    }
+  }
+  return undefined;
 }
 
 export interface AuctionReport {

@@ -1,7 +1,7 @@
 import { useState } from 'preact/hooks';
 import { isPlainClick } from '@/core/dom';
 import { AuctionTime, ensureMarketTileStyle } from '@/services/market-tile';
-import { OWN_TILE } from '@/site/marketplace';
+import { OWN_TILE, ownTileData } from '@/site/marketplace';
 import { auctionPath } from '@/site/routes';
 import { rarityBadgeStyle, type Rarity } from '@/site/rarity';
 import { Icon } from '@/ui/icons';
@@ -135,13 +135,19 @@ export interface AuctionTileProps {
 
 /**
  * Vignette d'annonce au balisage de celles du site : elle reçoit le même habillage (carte sans cadre et appendice,
- * vendeur sur l'image).
+ * vendeur sur l'image, prix moyen), son annonce en attributs.
  */
 export function AuctionTile({ auction, leading, onOpen }: AuctionTileProps) {
   ensureMarketTileStyle();
   const href = auctionPath(auction.id);
+  const data = ownTileData({
+    card: { id: auction.cardId, title: auction.card?.title ?? '', rarity: auction.rarity },
+    amount: auction.currentBid ?? auction.baseAmount,
+    // La recherche ne demande que les annonces en cours.
+    status: 'active',
+  });
   return (
-    <div class={`${OWN_TILE} wm-msearch-tile`}>
+    <div class={`${OWN_TILE} wm-msearch-tile`} {...data}>
       <a
         class={siteClass.tile}
         href={href}

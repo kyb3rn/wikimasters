@@ -18,6 +18,8 @@ export const CSS = `
 .wm-settings-section + .wm-settings-section { margin-top: 20px; }
 .wm-settings-feature[data-enabled="false"] .wm-settings-rows,
 .wm-settings-feature[data-enabled="false"] .wm-settings-main > .wm-settings-row + .wm-settings-row { opacity: 0.5; }
+/* Leurs contrôles, désactivés, ne s'estompent pas une seconde fois. */
+.wm-settings-feature[data-enabled="false"] .wm-settings-row-control :disabled { opacity: 1; }
 .wm-settings-main { display: flex; flex-direction: column; gap: 12px; }
 .wm-settings-feature-name { font-weight: 700; }
 .wm-settings-text { margin: 4px 0 0; font-size: 12px; opacity: 0.65; }

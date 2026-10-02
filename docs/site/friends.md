@@ -4,7 +4,7 @@ Amis, demandes reçues et envoyées, recherche de joueurs. Dates en jj/mm (2026)
 
 ## Page
 
-_Relevé : captures du 29/09, code du site du 30/09._
+_Relevé : captures du 29/09 et du 01/10, code du site du 30/09 et du 01/10._
 
 ```
 main › div.flex-1.p-4.md:p-6.space-y-6
@@ -18,17 +18,39 @@ main › div.flex-1.p-4.md:p-6.space-y-6
     lignes : div.flex.items-center.gap-3.p-3 › a[href="/profile/<pseudo>"] (photo, pseudo), div d'actions ›
       span (cible tactile) › button[title="Envoyer un message"] (lucide message-circle, « Message »),
       idem [title="Proposer un échange"] (lucide handshake, « Échanger »), [« Défier » : administrateurs]
-    sinon card-frame « Vous n'avez pas encore d'amis. », ou p « Aucun résultat pour « … » »
+    sinon div.card-frame.p-8.text-center.space-y-3 › icône (lucide users), p « Vous n'avez pas encore d'amis. »,
+      button.mt-2 « Rechercher des joueurs » (même fenêtre que celui de l'en-tête) ; ou p « Aucun résultat pour « … » »
   [div.space-y-3 › h2 « Demandes envoyées (n) », lignes : initiales, p pseudo, « En attente », button « Annuler »]
   [fenêtre « Rechercher un joueur »]
 ```
 
 - « Inviter » : lien d'inscription partagé par `navigator.share`, sinon copié (lucide `check` + « Copié ! » pendant 2 s).
-- « Rechercher un joueur » : fenêtre du même nom (`card-frame max-w-md p-6`), recherche à partir de 2 caractères (`GET /api/friends/search?q=`), « Ajouter » envoie `POST /api/friends` `{ addressee_id }`.
+- « Rechercher un joueur » : voir [Fenêtre « Rechercher un joueur »](#fenêtre--rechercher-un-joueur-).
+- Sans amis : ni recherche ni lignes, le cadre « Vous n'avez pas encore d'amis. » et son bouton « Rechercher des joueurs » ; les boutons de l'en-tête restent les seuls « Inviter » (capture du 01/10 : ils passent sous le cadre du solde).
 - Demandes reçues : lignes `bg-[var(--color-accent)]/5`, trait `/20`. « Tout accepter » dès deux demandes.
 - Amis : le champ filtre sur place ; textes des boutons `hidden sm:inline`. Les fenêtres Message et Échanger d'une ligne sont rendues juste après elle, en `fixed`. **Aucun moyen d'y retirer un ami** (seulement depuis son profil).
 - Demandes envoyées : « Annuler » en petit texte gris.
 - Lecture : `src/site/friends/page.ts` (`findFriendsPage` ; boutons reconnus à leur icône).
+
+## Fenêtre « Rechercher un joueur »
+
+_Relevé : code du site du 01/10 ; capture du 01/10 (fenêtre fermée)._
+
+```
+div.fixed.inset-0.z-50.bg-black/70.backdrop-blur-sm (fond, ferme) › div.card-frame.w-full.max-w-md.p-6
+  div.flex.items-center.justify-between.mb-5 › h2 « Rechercher un joueur », button[aria-label="Fermer"] (lucide x)
+  input « Nom d'utilisateur... »
+  div.mt-4.h-[220px].overflow-y-auto.space-y-2 › [roue], [p message], lignes :
+    div.flex.items-center.gap-3.p-2.5.rounded-lg › photo (w-9 h-9), span pseudo,
+      [button « Signaler <pseudo> » (lucide flag)], button « Ajouter » / « ... » / « Demande envoyée » / « Déjà amis » / « Demande reçue »
+  [fenêtre « Signaler »]
+```
+
+- Rendue en fin de page (pas de portail), par « Rechercher un joueur » (en-tête) ou « Rechercher des joueurs » (liste vide). Focus sur le champ à l'ouverture.
+- Recherche **350 ms après la dernière frappe**, dès 2 caractères sans les espaces du bout ; le texte part **tel quel** (`GET /api/friends/search?q=`, espaces compris). Capture du 01/10 : 10 joueurs pour « ed » (limite probable). Rien n'est retenu entre deux ouvertures.
+- Pendant la recherche : roue au-dessus des résultats précédents (gardés) ; puis « Aucun joueur trouvé » ou les lignes ; moins de 2 caractères : « Entrez au moins 2 caractères… », résultats vidés.
+- Libellé d'une ligne d'après les amitiés de la page : « Déjà amis », « Demande envoyée », « Demande reçue » (désactivés), sinon « Ajouter » (`POST /api/friends` `{ addressee_id }`, « ... » pendant l'envoi, puis relecture de la page). Pas de « Signaler » sur soi-même.
+- Lecture : `src/site/friends/player-search.ts` (`findPlayerSearch`).
 
 ## Données et relecture
 
@@ -53,4 +75,4 @@ _Relevé : code du site, 30/09._
 
 ## Dans le script
 
-`friends-layout` (page refaite ; relectures servies sans réseau par `refresh.ts`) ; service `friends`. Détail : section « Amis » de [features.md](../features.md).
+`friends-layout` (page refaite ; relectures servies sans réseau par `refresh.ts`), `player-search` (fenêtre « Rechercher un joueur ») ; service `friends`. Détail : section « Amis » de [features.md](../features.md).

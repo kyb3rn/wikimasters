@@ -1,6 +1,6 @@
 # Tests
 
-Deux séries : **unitaires** (Vitest, dans Node : la logique) et **Edge** (Playwright : le script injecté dans un faux site). `npm run check` lance les deux, avec types, lint, architecture et build. Règles essentielles : [`CLAUDE.md`](../CLAUDE.md#tests).
+Deux séries : **unitaires** (Vitest, dans Node : la logique) et **navigateur** (Playwright : le script injecté dans un faux site). `npm run check` lance les deux, avec types, lint, architecture et build. Règles essentielles : [`CLAUDE.md`](../CLAUDE.md#tests).
 
 **Jamais le vrai site** : aucune session, actions irréversibles, garde `automation_limit` du site. Tout ce qu'un test charge est servi par Playwright ou imité.
 
@@ -8,13 +8,13 @@ Deux séries : **unitaires** (Vitest, dans Node : la logique) et **Edge** (Playw
 
 - `vitest.config.js` : `test/unit/**/*.test.ts`, environnement `node`, alias `@` → `src`, `__DEV__` vrai, `__VERSION__` = `"test"`.
 - Arborescence miroir de `src/` : `test/unit/<couche>/<module>/…` (ou `<module>.test.ts`) teste `src/<couche>/<module>`. Un fichier de test porte le nom de ce qu'il teste.
-- Garder la logique séparée du DOM pour la tester ici (fonctions `parse`, modèles, calculs, suivis de requêtes). Ce qui demande un vrai navigateur va dans les tests Edge.
+- Garder la logique séparée du DOM pour la tester ici (fonctions `parse`, modèles, calculs, suivis de requêtes). Ce qui demande un vrai navigateur va dans les tests navigateur.
 - Outils communs, `test/unit/support.ts` : `memoryLogger` (journal qui retient erreurs et avertissements), `netRequest` (une `NetRequest`), `flush` (laisse passer les tâches en attente), `stateComponent` / `statelessFiber` (fibers et hooks d'état React imités), `fakeStorage`, `realtimeFrame` (diffusion binaire de Supabase Realtime), `recordedExchange` (échange d'une capture), `friendship` (amitié de `GET /api/friends`), `sale`, `SALES_NOW`, `DAY` (historiques de ventes), `connectFakeSite` (un `fetch` qui répond comme le site).
 - `test/unit/core/fake-dom.ts` : DOM minimal pour `core/dom` (éléments, attributs, classes, nœuds texte, `document`), qui compte les écritures (`writes`) : un appel sans changement ne doit rien écrire.
 
-## Tests Edge (`test/e2e/`)
+## Tests navigateur (`test/e2e/`)
 
-`playwright.config.js` : Edge installé sur la machine (`channel: 'msedge'`), sans fenêtre, `locale: 'fr-FR'`, 4 processus (la machine saturait au-delà : Edge dessine sans carte graphique). `npm run test:e2e` construit d'abord la version de dev.
+`playwright.config.js` : Chromium headless de Playwright (`npx playwright install --only-shell chromium`, une fois par machine), `locale: 'fr-FR'`, 4 processus (la machine saturait au-delà : le navigateur dessine sans carte graphique). Pas `channel: 'msedge'` : le headless d'Edge crée des fenêtres Windows cachées qui font fuir explorer.exe jusqu'à sa relance. `npm run test:e2e` construit d'abord la version de dev.
 
 Lancer une partie seulement, ou plusieurs séries en parallèle sans écraser le fichier des autres :
 
@@ -32,13 +32,14 @@ WM_DEV_BUNDLE=dist/<nom>.dev.js npx playwright test <specs> --workers=2 --output
 - `presetSettings(page, { features, values })` : réglages posés dans `wm-settings-v1` avant le premier chargement seulement (ce que le test change ensuite reste) ; plusieurs appels s'additionnent.
 - `expectDomIdle(page, { settle, quiet })` : **test de repos**. Exige d'abord `wm.debug.domSyncs()` (version de dev), puis vérifie que le nombre de passes de synchronisation ne bouge plus pendant `quiet` ms. Toute fonctionnalité qui écrit dans le DOM en a un.
 - `letTimePass(page, ms)` : la seule attente fixe, pour vérifier qu'il ne se passe **rien** pendant ce temps (aucune requête, rien d'affiché ni de retiré). Toute autre attente porte sur une condition (`expect(…).toBe…`, `waitForFunction`, `waitForRequest`).
+- `nextFrame(page)` : attend l'image suivante, donc la passe du script qui suit un changement de la page (`watchDom`, une par image). Le Chromium des tests tourne à 60 images/s (Edge sans fenêtre allait à ~220) : une action lancée aussitôt après l'ouverture d'une modale du site (clic sur « Fermer », Échap, mesure, style lu) la précède et vise ce que le script n'a pas encore remplacé. Inutile quand le test attend déjà un état posé par le script. Côté code, même raison pour `useLayoutEffect` plutôt qu'un effet ordinaire (qui attend l'image suivante) pour un écouteur ou une valeur qu'une saisie immédiate doit trouver en place.
 - `rect(locator)` : rectangle d'un élément affiché ; lève s'il manque (une comparaison de positions passerait sur deux absents).
 - `openSettings(page, onglet?)`, `chooseOption(page, liste, option)` (liste déroulante du site ou la nôtre), `hold(server)` / `Gated` (réponses d'un serveur imité retenues jusqu'à libération : états « en cours »), `animationsDone(locator)` (les filtres des faux sites apparaissent avec une animation : l'attendre avant de mesurer ou d'enchaîner des clics chronométrés), `collectLogs(page)` (journaux `[WM …]`).
 - `SUPABASE` (`https://x.supabase.co`), `FAKE_JWT` (session imitée, utilisateur `u0`), `VERSION`.
 
 ### La boîte à outils des pages : `support/kit.ts`
 
-`window.kit`, posé par `sitePage` avant le script de la page (écrit en TypeScript, sérialisé dans la page : rien de l'extérieur) : `el`, `button`, `icon` (lucide, classe `lucide-<nom>`), `tailwindBase`, `fiber` (fiber React noté sur un nœud), `hooks` (états d'un composant, chaînés comme chez React), `nextRouter` (routeur Next.js imité), `listbox` (liste déroulante du site : props `ariaLabel`, `value`, `options`, `onChange`, menu en portail), `rarityPills` (pastilles de rareté).
+`window.kit`, posé par `sitePage` avant le script de la page (écrit en TypeScript, sérialisé dans la page : rien de l'extérieur) : `el`, `button`, `icon` (lucide, classe `lucide-<nom>`), `tailwindBase`, `fiber` (fiber React noté sur un nœud), `hooks` (états d'un composant, chaînés comme chez React), `nextRouter` (routeur Next.js imité), `listbox` (liste déroulante du site : props `ariaLabel`, `value`, `options`, `onChange`, menu en portail), `rarityPills` (pastilles de rareté), `cardModal` (modale de carte du site, un seul composant pour ses trois cas d'après ses props : mon exemplaire, vue catalogue, exemplaire d'un ami ; « Proposer un échange » ouvre `#trade-composer` dans son fond ; la page change `props` puis appelle `render()`). Les modales de carte de `pulls.ts` et `collection.ts` (mise aux enchères, défausse) sont encore les leurs.
 
 ### Faux sites des pages (`test/e2e/support/`)
 
@@ -48,14 +49,15 @@ Chacun imite une page d'après le code et les captures du site (dates en tête d
 |---|---|---|
 | `collection.ts` | Collection : recherche, listes, pastilles, liste et compteurs, voile, pagination, « tirer pour rafraîchir » (fibers périmés compris), modale de carte (défausse, mise aux enchères), « Gérer les étiquettes » | `openCollection`, `collectionScript`, `entry`, `faces`, `titles` |
 | `collection-selection.ts` | mode sélection de la Collection : barre du bas, modale d'étiquetage, défausse groupée, étiquettes lues à Supabase | `openSelectionPage` |
-| `global-collection.ts` | Toutes les cartes, modale de carte en vue catalogue | `CATALOG_HTML` |
+| `global-collection.ts` | Toutes les cartes, modale de carte en vue catalogue (un ami qui a la carte, offre en cours) | `CATALOG_HTML`, `catalogHtml` |
 | `global-collection-list.ts` | liste de Toutes les cartes : filtres, effet de chargement, pages gardées en `sessionStorage`, états dans les hooks | `openGlobalCollection` |
 | `marketplace.ts` | onglet « Parcourir » : `<select>` du tri, « Charger la suite », `onRefresh`, retour d'une annonce | `openMarketplace` |
-| `profile-collection.ts` | profil d'un ami, onglets Vitrine et Collection (recréé à chaque ouverture, toute réponse affichée) | `openFriendCollection` |
-| `pulls.ts` | carrousel de /pulls (face recréée à chaque carte, sons Web Audio, étoile, props React, révélation des shiny, clic ignoré après un glissement, modale d'enchère chargée à sa première ouverture), cadre des paquets, pack PRO du jour | `openPulls`, `openCard`, `packFaces`, `PACK`, `PRO_PACK`, `CAROUSEL`, `recordSounds`, `playedSounds` |
-| `friends.ts` | page Amis : amitiés, demandes, recherche de joueurs | `openFriendsPage` |
+| `profile-collection.ts` | profil d'un ami, onglets Vitrine et Collection (recréé à chaque ouverture, toute réponse affichée), modale de carte de ses exemplaires | `openFriendCollection` |
+| `pulls.ts` | carrousel de /pulls (face recréée à chaque carte, sons Web Audio, étoile, props React, révélation des shiny, clic ignoré après un glissement, modale d'enchère chargée à sa première ouverture, avec ses props React), cadre des paquets, pack PRO du jour | `openPulls`, `openCard`, `packFaces`, `PACK`, `PRO_PACK`, `CAROUSEL`, `recordSounds`, `playedSounds` |
+| `friends.ts` | page Amis : amitiés, demandes, liste vide (`NO_FRIENDS`), fenêtre « Rechercher un joueur » (recherche 350 ms après la frappe ; `hold` retient ses réponses) | `openFriendsPage` |
 | `friend-picker.ts` | /trades et « Choisir un ami » | `openFriendPickerPage` |
 | `trades.ts` | fenêtre « Échanger avec » : onglets, filtres, wikibidous, zone des cartes | `openTradeComposer` |
+| `market-db.ts` | pas une page : la base IndexedDB `wm-market` du script (même version, mêmes magasins), remplie ou relue depuis la page | `putMarketRecords`, `readMarketRecords` |
 
 Les tests du carrousel désactivent « toutes les cartes d'un coup » (`presetSettings(page, CAROUSEL)`).
 

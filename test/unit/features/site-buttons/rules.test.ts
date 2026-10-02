@@ -8,10 +8,11 @@ interface Facts {
   graphic?: boolean;
   role?: string | null;
   popup?: boolean;
+  balance?: boolean;
 }
 
-function site(classes: string, { text = true, icon, graphic = icon !== undefined, role = null, popup = false }: Facts = {}) {
-  return classify({ classes: new Set(classes.split(/\s+/).filter(Boolean)), text, graphic, icon, role, popup });
+function site(classes: string, { text = true, icon, graphic = icon !== undefined, role = null, popup = false, balance = false }: Facts = {}) {
+  return classify({ classes: new Set(classes.split(/\s+/).filter(Boolean)), text, graphic, icon, role, popup, balance });
 }
 
 const style = (shape: Restyle['shape'], tone: string, fill: string, size = 'md'): Restyle =>
@@ -75,13 +76,15 @@ describe('boutons du site : allure standard', () => {
     );
   });
 
-  it('solde : vert ghost, petit', () => {
+  it('solde : vert ghost, petit, arrondi', () => {
     const balance =
       'inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold text-[var(--color-accent)] bg-[var(--color-surface)]/90';
+    expect(site(balance, { balance: true })).toEqual({ shape: 'standard', style: { tone: 'accent', fill: 'ghost', size: 'sm', pill: true } });
+    // Mêmes classes ailleurs : pas arrondi.
     expect(site(balance)).toEqual(style('standard', 'accent', 'ghost', 'sm'));
   });
 
-  it('icône seule : rond (rond chez le site, ou sans fond ni trait), sinon carré ; petit jusqu’à 36 px', () => {
+  it('icône seule : rond (rond chez le site, ou sans fond ni trait), sinon carré ; petit jusqu’à 36 px, sauf « Vue du marché »', () => {
     const header = 'relative p-2 rounded-xl text-[var(--color-foreground)]/60 hover:bg-[var(--color-surface-light)]';
     // Icône du site hors lucide (cloche des notifications).
     expect(site(header, { text: false, graphic: true })).toEqual(style('round', 'neutral', 'ghost', 'sm'));
@@ -92,7 +95,7 @@ describe('boutons du site : allure standard', () => {
     const send = 'p-2.5 rounded-xl bg-[var(--color-accent)] text-[var(--color-accent-foreground)] flex-shrink-0';
     expect(site(send, { text: false, icon: 'send' })).toEqual(style('square', 'accent', 'solid'));
     const chart = 'relative shrink-0 flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-border)]';
-    expect(site(chart, { text: false, icon: 'chart-line' })).toEqual(style('square', 'neutral', 'outline', 'sm'));
+    expect(site(chart, { text: false, icon: 'chart-line' })).toEqual(style('square', 'neutral', 'outline'));
   });
 
   it('sur le coin d’une carte : rond petit, plein de sa couleur pour rester lisible sur l’image', () => {

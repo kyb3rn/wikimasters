@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
-import { prefersReducedMotion } from '@/core/dom';
+import { isPlainClick, prefersReducedMotion } from '@/core/dom';
 import { buttonClass, type ButtonTone } from '@/ui/button';
 import { Icon } from '@/ui/icons';
 import { alpha, layers, palette, tokens } from '@/ui/theme';
 import { withLeaving, withoutToast, type ShownToast } from './leaving';
-import type { Toast, ToastPosition, ToastStore, ToastVariant } from './store';
+import type { Toast, ToastAction, ToastPosition, ToastStore, ToastVariant } from './store';
 
 // Le site n'a pas de toasts : ceux-ci reprennent ses encarts teintés (celui du solde WB : bordure et halo de
 // la couleur), sur son fond uni, avec sa palette Tailwind v4 (teinte 400 pour le texte et l'icône, 500 pour
@@ -24,13 +24,19 @@ const PALETTE: Record<ToastVariant, { text: string; tint: string }> = {
 const EXIT_MS = 300;
 const GAP = 10;
 
+/**
+ * Distance du bas de l'écran pour la pile du bas (16 px) : un encart fixe posé en bas à droite (compteur des
+ * historiques) la remonte au-dessus de lui en redéfinissant cette variable sur `body`.
+ */
+export const TOAST_BOTTOM_VAR = '--wm-toast-bottom';
+
 const tint = (percent: number) => alpha('var(--wm-toast-tint)', percent);
 const dim = (percent: number) => alpha(tokens.foreground, percent);
 
 export const TOASTER_CSS = `
 .wm-toaster { position: fixed; right: 16px; z-index: ${layers.toast}; display: flex; flex-direction: column; gap: ${GAP}px;
   width: min(360px, calc(100vw - 32px)); pointer-events: none; }
-.wm-toaster[data-position="bottom-right"] { bottom: 16px; flex-direction: column-reverse; }
+.wm-toaster[data-position="bottom-right"] { bottom: var(${TOAST_BOTTOM_VAR}, 16px); flex-direction: column-reverse; }
 .wm-toast { position: relative; overflow: hidden; pointer-events: auto; display: flex; gap: 10px; align-items: flex-start; padding: 14px;
   background: ${tokens.surface}; border: 1px solid ${tint(25)}; border-radius: 16px;
   box-shadow: 0 12px 32px -8px rgb(0 0 0 / 60%), 0 0 30px -12px ${tint(45)};
@@ -156,18 +162,7 @@ function ToastView({ toast, store, leaving, onGone }: ToastViewProps) {
       <div class="wm-toast-body">
         {toast.title && <div class="wm-toast-title">{toast.title}</div>}
         <div class="wm-toast-message">{toast.message}</div>
-        {toast.action && (
-          <button
-            type="button"
-            class={`${buttonClass('standard', { tone: ACTION_TONE[toast.variant], size: 'sm' })} wm-toast-action`}
-            onClick={() => {
-              onClose();
-              toast.action?.onClick();
-            }}
-          >
-            {toast.action.label}
-          </button>
-        )}
+        {toast.action && <ActionView action={toast.action} variant={toast.variant} onClose={onClose} />}
       </div>
       <button type="button" class={buttonClass('round', { fill: 'ghost', size: 'sm' })} aria-label="Fermer" onClick={onClose}>
         <Icon name="close" size={16} />
@@ -176,5 +171,57 @@ function ToastView({ toast, store, leaving, onGone }: ToastViewProps) {
         <span class="wm-toast-progress" aria-hidden="true" style={{ animationDuration: `${toast.durationMs}ms` }} />
       )}
     </div>
+  );
+}
+
+interface ActionViewProps {
+  readonly action: ToastAction;
+  readonly variant: ToastVariant;
+  readonly onClose: () => void;
+}
+
+/**
+ * Bouton d'action du toast, qui le ferme. Avec une page, c'est un vrai lien : Ctrl, Maj ou le clic du milieu
+ * l'ouvrent dans un autre onglet par le navigateur ; un clic simple garde la navigation du site.
+ */
+function ActionView({ action, variant, onClose }: ActionViewProps) {
+  const className = `${buttonClass('standard', { tone: ACTION_TONE[variant], size: 'sm' })} wm-toast-action`;
+  if (action.href === undefined) {
+    return (
+      <button
+        type="button"
+        class={className}
+        onClick={() => {
+          onClose();
+          action.onClick();
+        }}
+      >
+        {action.label}
+      </button>
+    );
+  }
+  const openedElsewhere = () => {
+    onClose();
+    action.onOpenElsewhere?.();
+  };
+  return (
+    <a
+      href={action.href}
+      class={className}
+      onClick={(event) => {
+        if (!isPlainClick(event)) {
+          openedElsewhere();
+          return;
+        }
+        event.preventDefault();
+        onClose();
+        action.onClick();
+      }}
+      onAuxClick={(event) => {
+        if (event.button === 1) openedElsewhere();
+      }}
+    >
+      {action.label}
+    </a>
   );
 }

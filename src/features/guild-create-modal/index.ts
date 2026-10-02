@@ -1,15 +1,11 @@
 import { h } from 'preact';
-import { watchDom } from '@/core/dom';
-import { net } from '@/core/net';
-import { setReactInputValue } from '@/core/react';
+import { childController } from '@/core/async';
 import type { Feature } from '@/core/runtime';
-import { NETWORK_ERROR } from '@/site/api';
-import { findGuildCreationForm, findNoGuildCard, isGuildCreation, type GuildCreationForm } from '@/site/guild';
+import { createGuild, siteErrorText } from '@/site/api';
+import { findNoGuildCard, reloadSiteGuild } from '@/site/guild';
 import { GUILD_ROUTE } from '@/site/routes';
-import { mirrorSiteDialog } from '@/services/site-dialog';
+import { mountUi } from '@/ui/mount';
 import { CreateGuildModal } from './CreateGuildModal';
-
-const CARD_COPY = 'wm-guild-card-copy';
 
 export const guildCreateModal: Feature = {
   id: 'guild-create-modal',
@@ -22,75 +18,55 @@ export const guildCreateModal: Feature = {
   async mount(ctx) {
     const { signal } = ctx;
     if (!(await ctx.ready())) return;
-    /** Erreur sans message du site (requête sans réponse), effacée au prochain envoi. */
-    let networkError: string | undefined;
-    /**
-     * Copie inerte de la carte « Vous n'êtes dans aucune guilde », tenue à jour tant qu'elle est affichée : React
-     * la retire quand le formulaire s'ouvre, la copie reste derrière la fenêtre.
-     */
-    let cardCopy: HTMLElement | undefined;
-    ctx.onDispose(() => cardCopy?.remove());
+    /** Saisie gardée d'une ouverture à l'autre (comme le site après « Annuler »), effacée après une création. */
+    let draft = { name: '', description: '' };
+    let modal: AbortController | undefined;
 
-    watchDom(
-      () => {
-        const card = findNoGuildCard();
-        if (card && cardCopy?.innerHTML !== card.root.innerHTML) {
-          cardCopy?.remove();
-          cardCopy = card.root.cloneNode(true) as HTMLElement;
-          cardCopy.classList.add(CARD_COPY);
-          cardCopy.classList.remove('animate-fade-in-up');
-          cardCopy.inert = true;
-          cardCopy.setAttribute('aria-hidden', 'true');
-        }
-        const form = findGuildCreationForm();
-        if (card || !form) cardCopy?.remove();
-        else if (cardCopy && cardCopy.previousElementSibling !== form.root) form.root.after(cardCopy);
-      },
-      { signal },
-    );
+    async function create(name: string, description: string, close: () => void): Promise<string | undefined> {
+      try {
+        await createGuild(name, description);
+      } catch (error) {
+        return siteErrorText(error);
+      }
+      draft = { name: '', description: '' };
+      close();
+      if (signal.aborted) return undefined;
+      // Comme le site après une création : son chargeur relit la guilde, qui remplace la carte dans la page.
+      const card = findNoGuildCard();
+      if (card && reloadSiteGuild(card.root)) return undefined;
+      ctx.log.warn('chargeur de la guilde introuvable : rechargement de la page');
+      location.reload();
+      return undefined;
+    }
 
-    // Le formulaire du site reste le moteur (caché) : nos champs écrivent dans les siens, notre bouton clique le
-    // sien. Requête, erreur, fermeture et chargement de la guilde restent ceux du site.
-    const view = (form: GuildCreationForm) =>
-      h(CreateGuildModal, {
-        initialName: form.nameInput.value,
-        initialDescription: form.descriptionInput.value,
-        nameMax: form.nameInput.maxLength > 0 ? form.nameInput.maxLength : 30,
-        descriptionMax: form.descriptionInput.maxLength > 0 ? form.descriptionInput.maxLength : 200,
-        error: form.error ?? networkError,
-        sending: form.sending,
-        onName: (value) => {
-          const current = findGuildCreationForm();
-          if (current) setReactInputValue(current.nameInput, value);
+    function open(): void {
+      if (modal && !modal.signal.aborted) return;
+      const controller = childController(signal);
+      modal = controller;
+      const close = () => controller.abort();
+      const view = h(CreateGuildModal, {
+        initialName: draft.name,
+        initialDescription: draft.description,
+        onDraft: (name, description) => {
+          draft = { name, description };
         },
-        onDescription: (value) => {
-          const current = findGuildCreationForm();
-          if (current) setReactInputValue(current.descriptionInput, value);
-        },
-        onSubmit: () => {
-          const current = findGuildCreationForm();
-          networkError = undefined;
-          if (current && !current.submitButton.disabled) current.submitButton.click();
-        },
-        onClose: () => findGuildCreationForm()?.cancelButton.click(),
+        onSubmit: (name, description) => create(name, description, close),
+        onClose: close,
       });
+      mountUi(view, { signal: controller.signal });
+    }
 
-    const dialog = mirrorSiteDialog(ctx, {
-      find: findGuildCreationForm,
-      render: view,
-      onClose: () => {
-        networkError = undefined;
+    // Avant React (écouteur de la racine) : le site n'ouvre pas son formulaire, qui remplacerait la carte dans la page.
+    window.addEventListener(
+      'click',
+      (event) => {
+        const target = event.target instanceof Node ? event.target : null;
+        if (!target || !findNoGuildCard()?.createButton.contains(target)) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        open();
       },
-    });
-
-    net.track(
-      (request) => isGuildCreation(request) && !request.own,
-      () => (status) => {
-        if (status !== undefined || !findGuildCreationForm()) return;
-        networkError = NETWORK_ERROR;
-        dialog.refresh();
-      },
-      { signal },
+      { capture: true, signal },
     );
   },
 };

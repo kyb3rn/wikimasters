@@ -12,6 +12,13 @@ import type { SettingDefinition, Settings, SettingsSchema, SettingValue } from '
  *     settings.get('delayMs'); // number
  */
 export function defineSettings<S extends SettingsSchema>(namespace: string, schema: S): Settings<S> {
+  for (const [key, definition] of Object.entries(schema)) {
+    const parent = definition.enabledBy;
+    if (parent !== undefined && schema[parent]?.type !== 'boolean') {
+      throw new Error(`réglage ${namespace}.${key} : ${parent} n'est pas un réglage booléen du même module`);
+    }
+  }
+
   function stored(): Readonly<Record<string, unknown>> {
     return readSettings().values[namespace] ?? {};
   }

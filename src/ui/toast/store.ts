@@ -6,7 +6,12 @@ export type ToastPosition = 'top-right' | 'bottom-right';
 /** Lien d'action dans le toast (« Voir l'enchère »…) : le suivre ferme le toast. */
 export interface ToastAction {
   readonly label: string;
+  /** Clic simple. */
   readonly onClick: () => void;
+  /** Page du lien : un vrai lien, que Ctrl, Maj ou le clic du milieu ouvrent dans un autre onglet par le navigateur. */
+  readonly href?: string;
+  /** Ouvert ainsi dans un autre onglet (`href`). */
+  readonly onOpenElsewhere?: () => void;
 }
 
 export interface ToastOptions {

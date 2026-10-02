@@ -143,6 +143,8 @@ const SCRIPT = `
     let price = '10', minutes = 60, sending = false, error = null, selling = null, max = 10;
     const back = el('div', 'fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm');
     back.id = 'auction-modal';
+    // Comme le site : le composant reçoit la carte de la modale de carte, l'exemplaire et ses rappels.
+    back['__reactFiber$test'] = { memoizedProps: {}, return: { memoizedProps: { card, onClose: () => back.remove(), onListed: () => back.remove(), userCardId: copyOf(card) }, return: null } };
     back.onclick = () => back.remove();
     const panel = el('div', 'card-frame relative max-w-lg w-full p-6');
     panel.onclick = (event) => event.stopPropagation();
@@ -168,10 +170,31 @@ const SCRIPT = `
       const response = await fetch('/api/marketplace', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ card_id: copyOf(card), base_amount: Number(price), duration_minutes: minutes }) });
       const body = await response.json();
       sending = false;
+      if (!response.ok && body.code === 'human_verification_required') { render(); showHumanCheck(); return; }
       if (!response.ok) { error = body.error ?? "Impossible de créer l'enchère"; render(); return; }
       back.remove();
       router.push('/marketplace/' + body.auction_id);
     });
+    // « Vérification rapide » (code du site du 02/10) : portail dans body, au-dessus de la modale d'enchère ; le widget
+    // Turnstile (une iframe) est remplacé par un bouton qui rend un jeton. Réussite : fermée, la mise en vente repart.
+    let check = null;
+    function showHumanCheck() {
+      check = el('div', 'fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm');
+      check.id = 'human-check';
+      check.onclick = (event) => event.stopPropagation();
+      const frame = el('div', 'card-frame max-w-sm w-full p-6 animate-fade-in-up text-center');
+      const widget = el('div'); widget.id = 'turnstile-r1';
+      widget.append(button('', 'Je suis humain', async () => {
+        const verified = await fetch('/api/human-check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: 'jeton' }) });
+        if (!verified.ok) return;
+        check.remove(); check = null;
+        launch.click();
+      }));
+      const cancelCheck = button('text-sm', 'Annuler', () => { check.remove(); check = null; });
+      frame.append(el('h2', 'text-xl font-bold mb-2', 'Vérification rapide'), el('p', 'text-sm mb-4', "On vérifie que tu es bien humain. Ça ne prend qu'une seconde."), widget, cancelCheck);
+      check.append(frame);
+      document.body.append(check);
+    }
     function render() {
       const valid = Number.isInteger(Number(price)) && Number(price) >= 1;
       const full = selling !== null && selling >= max;

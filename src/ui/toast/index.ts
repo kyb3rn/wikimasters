@@ -4,6 +4,8 @@ import { ensureBaseStyle } from '@/ui/theme';
 import { createToastStore, type ToastOptions } from './store';
 import { Toaster, TOASTER_CSS } from './Toaster';
 
+export { TOAST_BOTTOM_VAR } from './Toaster';
+
 export {
   createToastStore,
   type Toast,

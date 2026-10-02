@@ -5,6 +5,7 @@ import { textOf } from '@/core/text';
 import { hasIcon, isOwn } from '@/site/dom';
 import { statesAboveRefresh } from '@/site/list-page';
 import { SITE_OVERLAY } from '@/site/modals';
+import { COLLECTION_CARD_BOX, SELECTION_OVERLAY } from './collection';
 import { findCollectionFilters } from './filters';
 
 /**
@@ -144,7 +145,7 @@ export interface SelectionMark {
  * sur sa face (`div` à classe `glow-…`, `onClick`).
  */
 export function selectionMarkOf(face: HTMLElement): SelectionMark | undefined {
-  const overlay = face.closest('div.relative.isolate.group')?.querySelector<HTMLElement>(':scope > div.pointer-events-none.absolute.inset-0');
+  const overlay = face.closest(COLLECTION_CARD_BOX)?.querySelector<HTMLElement>(`:scope > ${SELECTION_OVERLAY}`);
   return overlay ? { overlay, selected: overlay.classList.contains('ring-4') } : undefined;
 }
 

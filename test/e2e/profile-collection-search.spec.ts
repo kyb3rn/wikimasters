@@ -1,10 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
 import { gridTitles as titles, rarityBox as box } from './support/lists';
 import { openFriendCollection } from './support/profile-collection';
-import { chooseOption, expectDomIdle, hold, letTimePass, openSettings, presetSettings, rect } from './support/site';
+import { animationsDone, chooseOption, expectDomIdle, hold, letTimePass, openSettings, presetSettings, rect } from './support/site';
 
 const BUTTON = '.wm-pc-search';
 const field = (page: Page) => page.locator('main input[type="text"]');
+/** Apparition de la page du site finie : la rangée des filtres est à sa place définitive. */
+const settled = (page: Page) => animationsDone(page.locator('.animate-fade-in-up'));
 
 test('ligne des filtres comme la Collection : champ, cases de rareté, étiquette, tri puis bouton ; pastilles cachées', async ({ page }) => {
   await openFriendCollection(page);
@@ -13,6 +15,7 @@ test('ligne des filtres comme la Collection : champ, cases de rareté, étiquett
   await expect(line.locator('.wm-rarity-filter .wm-rarity')).toHaveText(['L', 'UR', 'SR', 'R', 'PC', 'C']);
   await expect(page.locator('main .flex-wrap.gap-2 > button', { hasText: /^L$/ })).toBeHidden();
   await expect(field(page)).toHaveAttribute('placeholder', 'Rechercher par nom ou description');
+  await settled(page);
   const boxes = await Promise.all(
     [
       field(page),
@@ -32,6 +35,7 @@ test('sans étiquettes chez l’ami : champ, cases, tri et bouton, toujours sur 
   await openFriendCollection(page, { tags: false });
   await expect(titles(page)).toHaveText(['rarity toutes p0']);
   await expect(page.getByRole('button', { name: 'Filtrer par étiquette' })).toHaveCount(0);
+  await settled(page);
   const boxes = await Promise.all([field(page), box(page, 'C'), page.getByRole('button', { name: 'Trier la collection' }), page.locator(BUTTON)].map(rect));
   expect(new Set(boxes.map((b) => Math.round(b.y + b.height / 2))).size).toBe(1);
 });

@@ -33,7 +33,7 @@ _Relevé : code du site, 30/09._
 
 _Relevé : code du site, 30/09._
 
-« Échanger avec … » / « Contre-offre avec … », ouverte depuis /trades, la page Amis (« Échanger ») et la modale de carte du catalogue (« Proposer un échange ») : elle peut apparaître sur toutes ces pages.
+« Échanger avec … » / « Contre-offre avec … », ouverte depuis /trades, la page Amis (« Échanger ») et la modale de carte du catalogue (« Proposer un échange ») : elle peut apparaître sur toutes ces pages. Le script l'ouvre aussi sur le profil d'un ami ([Ouverte par le script](#ouverte-par-le-script)).
 
 - Portail dans `body`, fond `fixed inset-0 z-50` (`p-2`), cadre `max-w-5xl h-[90vh]` (modale « en-tête en barre », [README](README.md#modales)).
 - En-tête : `h2` avec le pseudo de l'ami dans un `span` accent. Résumé « Moi : n cartes · m wb ⇄ … ».
@@ -75,6 +75,16 @@ _Relevé : code du site, 30/09._
 - Chaque case est un `button.relative.rounded-2xl.overflow-hidden.border-2` : choisie, trait accent, ombre, voile teinté avec un rond ✓ ; bloquée (échange en attente, 100 cartes atteintes), `opacity-50 cursor-not-allowed`, sans `onClick`.
 - Résumé sous l'en-tête (`div.justify-center`) : deux `span` « Moi : n carte(s)[ · m wb] » et « <ami> : … », flèche lucide `arrow-left-right` ; accent pour un côté non vide.
 - Lecture : `parseTradeSummarySide`.
+
+### Ouverte par le script
+
+_Relevé : code du site, 02/10._
+
+- Composant `{ friendUsername, friendProfileId, preselectedFriendCard, preselectedFriendCards, parentTradeId, preselectedMyCards, preselectedMyWikibidous, preselectedFriendWikibidous, onClose, onSent }`, export par défaut de son module (`273271`), rendu en portail dans `body`. La page Amis lui passe `{ friendUsername, friendProfileId, onClose, onSent }` (`friendProfileId` : id du joueur) ; `onSent`, appelé après un envoi réussi, ferme la fenêtre comme `onClose`.
+- Importé directement par la page Amis et /trades. Sur un profil, seule la modale d'un exemplaire de l'ami le charge, par un import dynamique : enveloppe `function $({ friendUsername, friendProfileId, preselectedFriendCard, onClose })`, qui attend `e.A(<chargeur>)` (`799047`) puis rend le composant, avec une roue `fixed inset-0 z-[60]` en attendant. Le profil n'a pas d'autre bouton d'échange.
+- Contextes lus : le joueur connecté (`useUserId`, qui lève une erreur hors de son `AuthProvider`) et le réglage des images sensibles (cartes floutées). Aucun routeur.
+- Ouverte par le script (profil d'un ami) : React et react-dom/client de la page trouvés parmi ses modules, composant par son module s'il est déjà inscrit, sinon par le chargeur de l'enveloppe, rendu dans une racine React à nous, sous les contextes de l'arbre de la page (valeurs au moment de l'ouverture). Les fonctionnalités de la fenêtre (`routes: 'all'`) s'y appliquent comme ailleurs.
+- Lecture : `src/site/trades/open.ts` (`openTradeComposer`, `locateTradeComposer`).
 
 ## Dans le script
 

@@ -172,7 +172,7 @@ test('désactivée : un changement de tri recharge la liste (après l’attente)
 test('paramètres : onglet Collection, option active par défaut, désactivée sur-le-champ', async ({ page }) => {
   await openCollection(page);
   const dialog = await openSettings(page, 'Collection');
-  await expect(dialog.locator('.wm-settings-heading')).toHaveText(['Recherche', 'Sélection', 'Apparence']);
+  await expect(dialog.locator('.wm-settings-heading')).toHaveText(['Recherche', 'Sélection', 'Prix moyen', 'Apparence']);
   const toggle = dialog.getByRole('switch', { name: SWITCH });
   await expect(toggle).toHaveAttribute('aria-checked', 'true');
 

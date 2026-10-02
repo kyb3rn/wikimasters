@@ -1,9 +1,27 @@
 import { buttonClass } from '@/ui/button';
+import { cx } from '@/ui/cx';
 import { Icon, type IconName } from '@/ui/icons';
 import { siteClass } from '@/ui/site';
+import { ACTION } from './style';
+
+export interface InviteButtonProps {
+  /** Lien copié : le site affiche « Copié ! » et une coche pendant 2 s. */
+  readonly copied: boolean;
+  readonly onClick: () => void;
+  readonly class?: string;
+}
+
+/** « Inviter » de l'en-tête du site (caché), qu'il déclenche ; vert en contour, comme chez lui. */
+export function InviteButton({ copied, onClick, class: extra }: InviteButtonProps) {
+  return (
+    <button type="button" class={cx(buttonClass('standard', { tone: 'accent' }), extra)} onClick={onClick}>
+      <Icon name={copied ? 'check' : 'link'} size={16} />
+      {copied ? 'Copié !' : 'Inviter'}
+    </button>
+  );
+}
 
 export interface SearchActionsProps {
-  /** Lien copié : le site affiche « Copié ! » et une coche pendant 2 s. */
   readonly copied: boolean;
   readonly onInvite: () => void;
   readonly onAdd: () => void;
@@ -13,11 +31,8 @@ export interface SearchActionsProps {
 export function SearchActions({ copied, onInvite, onAdd }: SearchActionsProps) {
   return (
     <>
-      <button type="button" class={`${buttonClass('standard', { tone: 'accent' })} wm-friends-action`} onClick={onInvite}>
-        <Icon name={copied ? 'check' : 'link'} size={16} />
-        {copied ? 'Copié !' : 'Inviter'}
-      </button>
-      <button type="button" class={`${buttonClass('standard', { tone: 'accent', fill: 'solid' })} wm-friends-action`} onClick={onAdd}>
+      <InviteButton copied={copied} onClick={onInvite} class={ACTION} />
+      <button type="button" class={cx(buttonClass('standard', { tone: 'accent', fill: 'solid' }), ACTION)} onClick={onAdd}>
         <span>+</span> Ajouter un ami
       </button>
     </>

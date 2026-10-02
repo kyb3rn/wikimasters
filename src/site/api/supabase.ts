@@ -1,5 +1,6 @@
 import { isRecord, parseJson } from '@/core/guards';
 import { net, type NetRequest } from '@/core/net';
+import { jsonStore } from '@/core/storage';
 import { NETWORK_ERROR, SiteApiError } from './errors';
 
 /**
@@ -7,12 +8,26 @@ import { NETWORK_ERROR, SiteApiError } from './errors';
  * favoris, profils… Chaque requête porte la clé publique (`apikey`) et le jeton de la session
  * (`Authorization: Bearer …`, valable une heure, renouvelé par le client du site par `POST /auth/v1/token`).
  * On reprend ceux de sa dernière requête, et le jeton de chaque renouvellement.
+ *
+ * Le site peut ne rien demander à Supabase pendant toute une visite (02/10 : marché rechargé, aucune requête) :
+ * le jeton se relit alors dans son cookie de session, avec la clé publique gardée de la dernière requête vue.
  */
 interface Session {
   readonly origin: string;
   readonly apikey: string;
   readonly authorization: string;
 }
+
+/** Base et clé publique (la même pour tous les joueurs, écrite dans le code du site). */
+interface Project {
+  readonly origin: string;
+  readonly apikey: string;
+}
+
+const parseProject = (raw: unknown): Project | undefined =>
+  isRecord(raw) && typeof raw.origin === 'string' && typeof raw.apikey === 'string' ? { origin: raw.origin, apikey: raw.apikey } : undefined;
+
+const savedProject = jsonStore<Project | undefined>('wm-supabase-v1', undefined, parseProject);
 
 let session: Session | undefined;
 
@@ -23,7 +38,10 @@ export function trackSupabaseSession(): void {
   net.track(isSupabase, (request) => {
     const apikey = request.headers.get('apikey');
     const authorization = request.headers.get('authorization');
-    if (apikey && authorization?.startsWith('Bearer ')) session = { origin: request.url.origin, apikey, authorization };
+    if (!apikey || !authorization?.startsWith('Bearer ')) return;
+    session = { origin: request.url.origin, apikey, authorization };
+    const saved = savedProject.get();
+    if (saved?.origin !== session.origin || saved.apikey !== apikey) savedProject.set({ origin: session.origin, apikey });
   });
   net.observe(
     (request) => isSupabase(request) && request.url.pathname === '/auth/v1/token',
@@ -35,9 +53,71 @@ export function trackSupabaseSession(): void {
   );
 }
 
+const BASE64_PREFIX = 'base64-';
+
+function decodeBase64Url(text: string): string {
+  const bytes = Uint8Array.from(atob(text.replace(/-/g, '+').replace(/_/g, '/')), (char) => char.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
+/**
+ * Jeton d'accès rangé par le client Supabase du site (`@supabase/ssr`, code du 02/10/2026) dans le cookie
+ * `sb-<projet>-auth-token` : la session en JSON, écrite `base64-<base64url>` (ou en clair, forme plus ancienne),
+ * découpée en `<nom>.0`, `<nom>.1`… quand elle est trop longue pour un cookie. `cookies` : `document.cookie`.
+ */
+export function readSessionCookie(cookies: string, origin: string): string | undefined {
+  const name = `sb-${new URL(origin).hostname.split('.')[0]}-auth-token`;
+  const values = new Map<string, string>();
+  for (const part of cookies.split(';')) {
+    const at = part.indexOf('=');
+    if (at < 0) continue;
+    const value = part.slice(at + 1).trim();
+    try {
+      values.set(part.slice(0, at).trim(), decodeURIComponent(value));
+    } catch {
+      values.set(part.slice(0, at).trim(), value);
+    }
+  }
+  let stored = values.get(name);
+  if (stored === undefined) {
+    const chunks: string[] = [];
+    for (let index = 0; ; index++) {
+      const chunk = values.get(`${name}.${index}`);
+      if (chunk === undefined) break;
+      chunks.push(chunk);
+    }
+    if (chunks.length > 0) stored = chunks.join('');
+  }
+  if (!stored) return undefined;
+  let json: unknown;
+  try {
+    json = parseJson(stored.startsWith(BASE64_PREFIX) ? decodeBase64Url(stored.slice(BASE64_PREFIX.length)) : stored);
+  } catch {
+    // Ni base64url ni JSON.
+    return undefined;
+  }
+  const token: unknown = isRecord(json) ? json.access_token : Array.isArray(json) ? json[0] : undefined;
+  return typeof token === 'string' && token ? token : undefined;
+}
+
+/** Session de la dernière requête du site, sinon celle de son cookie avec la clé publique gardée. */
+function currentSession(): Session | undefined {
+  if (session) return session;
+  const project = savedProject.get();
+  if (!project) return undefined;
+  let token: string | undefined;
+  try {
+    token = readSessionCookie(document.cookie, project.origin);
+  } catch {
+    // Pas de page (tests) ou adresse gardée illisible.
+    return undefined;
+  }
+  return token ? { ...project, authorization: `Bearer ${token}` } : undefined;
+}
+
 /** Utilisateur de la session (`sub` du jeton), s'il est lisible. */
 export function supabaseUserId(): string | undefined {
-  const payload = session?.authorization.slice('Bearer '.length).split('.')[1];
+  const payload = currentSession()?.authorization.slice('Bearer '.length).split('.')[1];
   if (!payload) return undefined;
   let json: unknown;
   try {
@@ -54,6 +134,7 @@ export function supabaseUserId(): string | undefined {
  * publique comprise) et jeton de la session, renouvelé avec elle.
  */
 export function supabaseRealtimeAccess(): { readonly url: string; readonly token: string } | undefined {
+  const session = currentSession();
   if (!session) return undefined;
   const url = `${session.origin.replace(/^http/, 'ws')}/realtime/v1/websocket?apikey=${encodeURIComponent(session.apikey)}&vsn=2.0.0`;
   return { url, token: session.authorization.slice('Bearer '.length) };
@@ -65,7 +146,7 @@ export function supabaseRealtimeAccess(): { readonly url: string; readonly token
  * ou sans réseau.
  */
 export async function supabaseFetch(path: string, init: RequestInit = {}): Promise<Response> {
-  const current = session;
+  const current = currentSession();
   if (!current) throw new SiteApiError('Session du site introuvable : rechargez la page.', 0);
   const headers = new Headers(init.headers);
   headers.set('apikey', current.apikey);

@@ -246,8 +246,9 @@ export function SalesChart({ model, showAverages }: SalesChartProps) {
     return matrix ? project(matrix.inverse(), clientX, clientY) : undefined;
   }
 
-  // Touches lues sur toute la fenêtre : l'affichage change sans bouger la souris.
-  useEffect(() => {
+  // Touches lues sur toute la fenêtre : l'affichage change sans bouger la souris. Dès l'affichage : un effet
+  // ordinaire attend l'image suivante, une touche tapée aussitôt serait perdue.
+  useLayoutEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       setKeys(event.shiftKey, event.ctrlKey);
       if (event.type !== 'keydown' || event.ctrlKey || event.altKey || event.metaKey) return;

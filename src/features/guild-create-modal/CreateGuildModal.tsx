@@ -1,38 +1,45 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { GUILD_DESCRIPTION_MAX, GUILD_NAME_MAX, GUILD_NAME_MIN } from '@/site/api';
 import { buttonClass } from '@/ui/button';
+import { cx } from '@/ui/cx';
 import { Icon } from '@/ui/icons';
 import { Modal } from '@/ui/modal';
 import { siteClass } from '@/ui/site';
 
 export interface CreateGuildProps {
-  /** Valeurs déjà dans le formulaire du site (il les garde après « Annuler »). */
+  /** Saisie de la dernière ouverture. */
   readonly initialName: string;
   readonly initialDescription: string;
-  readonly nameMax: number;
-  readonly descriptionMax: number;
-  readonly error: string | undefined;
-  readonly sending: boolean;
-  readonly onName: (value: string) => void;
-  readonly onDescription: (value: string) => void;
-  readonly onSubmit: () => void;
+  /** Saisie gardée pour la prochaine ouverture. */
+  readonly onDraft: (name: string, description: string) => void;
+  /** Crée la guilde : message d'erreur à afficher, ou rien quand elle est créée (la fenêtre est alors fermée). */
+  readonly onSubmit: (name: string, description: string) => Promise<string | undefined>;
   readonly onClose: () => void;
 }
 
-/** Nom le plus court accepté par le site. */
-const NAME_MIN = 2;
-
 /** « Créer une guilde » : nom, description, erreur du site, « Créer la guilde ». */
 export function CreateGuildModal(props: CreateGuildProps) {
-  const { nameMax, descriptionMax, error, sending } = props;
   const [name, setName] = useState(props.initialName);
   const [description, setDescription] = useState(props.initialDescription);
+  const [error, setError] = useState<string>();
+  const [sending, setSending] = useState(false);
   const nameInput = useRef<HTMLInputElement>(null);
-  const canSubmit = !sending && name.trim().length >= NAME_MIN;
+  const canSubmit = !sending && name.trim().length >= GUILD_NAME_MIN;
 
   // À l'ouverture, et après un envoi refusé (le champ, désactivé pendant la requête, a perdu le focus).
   useEffect(() => {
     if (!sending) nameInput.current?.focus();
   }, [sending]);
+
+  const submit = async () => {
+    if (!canSubmit) return;
+    setSending(true);
+    setError(undefined);
+    const message = await props.onSubmit(name.trim(), description.trim());
+    if (message === undefined) return;
+    setError(message);
+    setSending(false);
+  };
 
   return (
     <Modal title="Créer une guilde" width={480} padded locked={sending} onClose={props.onClose}>
@@ -40,45 +47,45 @@ export function CreateGuildModal(props: CreateGuildProps) {
         class={siteClass.formStack}
         onSubmit={(event) => {
           event.preventDefault();
-          if (canSubmit) props.onSubmit();
+          void submit();
         }}
       >
         <div class={siteClass.formFields}>
           <label class={siteClass.formField}>
-            <span class={siteClass.formLabel}>Nom de la guilde</span>
+            <span class={siteClass.fieldLabel}>Nom de la guilde</span>
             <input
               ref={nameInput}
               type="text"
-              class={siteClass.formInput}
+              class={cx(siteClass.textField, siteClass.formControl)}
               placeholder="Les Conquérants"
-              maxLength={nameMax}
+              maxLength={GUILD_NAME_MAX}
               value={name}
               disabled={sending}
               onInput={(event) => {
                 setName(event.currentTarget.value);
-                props.onName(event.currentTarget.value);
+                props.onDraft(event.currentTarget.value, description);
               }}
             />
             <p class={siteClass.formCounter}>
-              {name.length}/{nameMax}
+              {name.length}/{GUILD_NAME_MAX}
             </p>
           </label>
           <label class={siteClass.formField}>
-            <span class={siteClass.formLabel}>Description (optionnel)</span>
+            <span class={siteClass.fieldLabel}>Description (optionnel)</span>
             <textarea
-              class={`${siteClass.formInput} ${siteClass.formTextarea}`}
+              class={cx(siteClass.textField, siteClass.formControl, siteClass.formTextarea)}
               placeholder="Décrivez votre guilde…"
-              maxLength={descriptionMax}
+              maxLength={GUILD_DESCRIPTION_MAX}
               rows={3}
               value={description}
               disabled={sending}
               onInput={(event) => {
                 setDescription(event.currentTarget.value);
-                props.onDescription(event.currentTarget.value);
+                props.onDraft(name, event.currentTarget.value);
               }}
             />
             <p class={siteClass.formCounter}>
-              {description.length}/{descriptionMax}
+              {description.length}/{GUILD_DESCRIPTION_MAX}
             </p>
           </label>
         </div>

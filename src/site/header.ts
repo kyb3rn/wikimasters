@@ -10,11 +10,20 @@ export function findBalanceButtons(root: ParentNode = document): HTMLButtonEleme
   return [...root.querySelectorAll<HTMLButtonElement>(BALANCE_BUTTON)];
 }
 
-/** Bas du bouton du solde affiché, en pixels depuis le haut de l'écran ; `undefined` s'il est caché. */
+export const isBalanceButton = (element: Element): boolean => element.matches(BALANCE_BUTTON);
+
+/**
+ * Cadre du solde, son parent direct : la boîte fixe elle-même sur ordinateur (`display` donné par `md:block`) ;
+ * sur mobile, la rangée `flex h-11` de la barre, qui porte aussi la cloche du site. Nos boutons y sont posés.
+ */
+export const BALANCE_BOX = `div.fixed:has(> ${BALANCE_BUTTON})`;
+export const BALANCE_ROW = `div.flex:has(> ${BALANCE_BUTTON})`;
+
+/** Bas du cadre du solde affiché, en pixels depuis le haut de l'écran ; `undefined` s'il est caché. */
 export function balanceBottom(doc: Document = document): number | undefined {
   let bottom: number | undefined;
   for (const button of findBalanceButtons(doc)) {
-    const rect = button.getBoundingClientRect();
+    const rect = (button.closest(`${BALANCE_BOX}, ${BALANCE_ROW}`) ?? button).getBoundingClientRect();
     if (rect.width > 0 && rect.height > 0) bottom = Math.max(bottom ?? 0, rect.bottom);
   }
   return bottom;

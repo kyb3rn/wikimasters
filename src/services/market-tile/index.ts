@@ -1,2 +1,2 @@
 export { AuctionTime } from './AuctionTime';
-export { ensureMarketTileStyle, TILE_ENDED } from './style';
+export { ensureMarketTileStyle, showsEnded, TILE_ENDED } from './style';

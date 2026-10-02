@@ -277,3 +277,58 @@ test('soleMainChild : le bloc `flex-1` seul dans `<main>`, rien s’il a un vois
   });
   expect(found).toEqual(['page', null]);
 });
+
+test('stampFace : une simple teinte cède la place à un tampon avec texte ; retiré, il s’efface en fondu', async ({ page }) => {
+  await loadSharedApi(page, '<div id="face" style="position: relative"><div id="art">image</div></div>');
+  const steps = await page.evaluate(async () => {
+    const { stampFace, STAMPS } = window.wmTest;
+    const face = document.getElementById('face') as HTMLElement;
+    const art = document.getElementById('art') as HTMLElement;
+    const state = () => `${face.dataset.wmStamp ?? '-'}|${face.querySelector('.wm-stamp')?.textContent ?? '-'}`;
+    stampFace(face, 'selection', STAMPS.greyed);
+    const tint = state();
+    stampFace(face, 'stay', STAMPS.discarded);
+    const replaced = state();
+    stampFace(face, 'selection', STAMPS.greyed);
+    const kept = state();
+    stampFace(face, 'stay', undefined);
+    // Pendant le fondu : la teinte part avec sa transition, le texte encore là s'efface.
+    const fading = `${state()}|${getComputedStyle(art).transitionProperty}`;
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    const gone = `${state()}|${face.className}`;
+    stampFace(face, 'selection', STAMPS.greyed);
+    const free = state();
+    return { tint, replaced, kept, fading, gone, free };
+  });
+  expect(steps).toEqual({
+    tint: 'selection|-',
+    replaced: 'stay|Défaussée',
+    kept: 'stay|Défaussée',
+    fading: '-|Défaussée|filter',
+    gone: '-|-|',
+    free: 'selection|-',
+  });
+});
+
+test('stampFace : chaque couleur est un filtre opaque, au même assombrissement, sur tout fond', async ({ page }) => {
+  await loadSharedApi(page, '<div id="faces"></div>');
+  const tints = await page.evaluate(async () => {
+    const { stampFace, STAMPS } = window.wmTest;
+    const faces = document.getElementById('faces') as HTMLElement;
+    const stamped = Object.entries(STAMPS).map(([name, stamp]) => {
+      const face = document.createElement('div');
+      // Fonds différents derrière la carte : ils ne doivent pas changer sa teinte.
+      face.style.background = name === 'listed' ? 'white' : 'black';
+      const art = document.createElement('div');
+      face.append(art);
+      faces.append(face);
+      stampFace(face, 'test', stamp);
+      return [name, art] as const;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    return Object.fromEntries(stamped.map(([name, art]) => [name, `${getComputedStyle(art).filter}|${getComputedStyle(art).opacity}`]));
+  });
+  const grey = 'grayscale(1) brightness(0.55)|1';
+  const green = 'grayscale(1) sepia(0.6) hue-rotate(75deg) saturate(1.4) brightness(0.55)|1';
+  expect(tints).toEqual({ discarded: grey, listed: green, sold: green, unsold: grey, greyed: grey });
+});

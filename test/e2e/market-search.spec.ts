@@ -330,3 +330,27 @@ test('recherche en échec : message à la place de la liste ; « Réessayer » t
   await expect(alert).toHaveCount(0);
   expect(server.auctions).toHaveLength(1);
 });
+
+test('prix moyen aussi sous nos vignettes : chargé au clic, gain et cadre comme pour celles du site', async ({ page }) => {
+  await openMarket(page);
+  const requests: string[] = [];
+  const ago = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
+  await page.route('**/api/marketplace/cards/*/sales', (route) => {
+    requests.push(new URL(route.request().url()).pathname);
+    const sales = Array.from({ length: 7 }, (_, i) => ({ id: `s${i}`, final_price: 500, settled_at: ago(10 - i), rarity: 'SR' }));
+    return route.fulfill({ json: { wikipedia_title: 'Carte 1', sales, recent: [] } });
+  });
+  await openTab(page);
+  const first = tiles(page).first();
+  const button = first.locator('.wm-tile-price button');
+  await expect(button).toHaveText('Charger le prix');
+
+  await button.click();
+  // Mise de départ 101 pour une moyenne de 500 en SR : gain estimé sur la carte.
+  await expect(button).toHaveText(/^\d+\(7\)$/);
+  await expect(first.locator('.wm-deal-ring')).toHaveCount(1);
+  await expect(first.getByText(/^\+\d+$/)).toBeVisible();
+  expect(requests).toEqual(['/api/marketplace/cards/c1/sales']);
+  // Le clic n'a pas ouvert l'annonce.
+  await expect(page).toHaveURL(/\/marketplace$/);
+});

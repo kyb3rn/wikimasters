@@ -3,6 +3,11 @@ interface CommonSetting {
   readonly description?: string;
   /** Affiché avec l'interrupteur de la fonctionnalité, au-dessus du trait (réglages principaux). */
   readonly primary?: boolean;
+  /**
+   * Réglage booléen du même module dont celui-ci dépend : éteint, celui-ci est grisé dans les paramètres. Sa valeur
+   * reste enregistrée telle quelle : c'est à l'usage de tenir compte des deux.
+   */
+  readonly enabledBy?: string;
 }
 
 export interface BooleanSetting extends CommonSetting {

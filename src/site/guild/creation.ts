@@ -1,67 +1,42 @@
-import type { NetRequest } from '@/core/net';
-import { textOf } from '@/core/text';
+import { callbackHooks, currentFiberAncestors } from '@/core/react';
 import { SITE_OVERLAY } from '@/site/modals';
 
 /*
- * /guild sans guilde (code du 30/09/2026) : dans la page, sous les onglets, la carte « Vous n'êtes dans aucune
+ * /guild sans guilde (code du 01/10/2026) : dans la page, sous les onglets, la carte « Vous n'êtes dans aucune
  * guilde » (`card-frame p-8`, château lucide `size-14`, bouton « Créer une guilde »), remplacée par React, au clic,
- * par le formulaire « Créer une guilde » (`card-frame p-6 space-y-4`) : en-tête (`h2`, « Annuler » en texte), nom
- * (`input maxlength=30`), description (`textarea maxlength=200`), compteurs, erreur (`p` rouge, message de l'API),
- * bouton pleine largeur « Créer la guilde » (`POST /api/guilds`), désactivé si le nom a moins de 2 caractères ou
- * pendant la requête (« Création… »). Réussite : formulaire fermé, page de la guilde chargée. « Annuler » garde
- * les valeurs saisies pour la prochaine ouverture ; une requête en échec réseau ne montre rien.
+ * par son formulaire « Créer une guilde ». Après une création, le site relit sa guilde par le chargeur de la page
+ * (`useCallback` : `GET /api/guilds`, puis guilde, adhésion, membres et, avec `{ seedHome: true }`, l'Accueil), qui
+ * remplace la carte par la guilde.
  */
 
-export interface GuildCreationForm {
-  readonly root: HTMLElement;
-  readonly nameInput: HTMLInputElement;
-  readonly descriptionInput: HTMLTextAreaElement;
-  readonly submitButton: HTMLButtonElement;
-  readonly cancelButton: HTMLButtonElement;
-  /** Message d'erreur du site, affiché dans le formulaire. */
-  readonly error: string | undefined;
-  /** Requête de création en cours. */
-  readonly sending: boolean;
-}
-
-/**
- * Cadres de la page : pas ceux d'une modale (« Modifier la guilde »), ni une copie inerte posée par le script (la
- * carte « Vous n'êtes dans aucune guilde » gardée derrière sa fenêtre).
- */
-const pageFrames = (doc: Document) =>
-  [...doc.querySelectorAll<HTMLElement>('main div.card-frame')].filter((frame) => !frame.closest(`${SITE_OVERLAY}, [inert]`));
-
-/** Carte « Vous n'êtes dans aucune guilde » et son bouton « Créer une guilde ». */
+/** Carte « Vous n'êtes dans aucune guilde » et son bouton « Créer une guilde » (pas dans une modale du site). */
 export function findNoGuildCard(doc: Document = document): { root: HTMLElement; createButton: HTMLButtonElement } | undefined {
-  for (const root of pageFrames(doc)) {
+  for (const root of doc.querySelectorAll<HTMLElement>('main div.card-frame')) {
+    if (root.closest(SITE_OVERLAY)) continue;
     const createButton = root.querySelector<HTMLButtonElement>(':scope > button');
     if (createButton && root.querySelector(':scope > div svg.lucide-castle')) return { root, createButton };
   }
   return undefined;
 }
 
-/** Formulaire « Créer une guilde », quand il est ouvert. */
-export function findGuildCreationForm(doc: Document = document): GuildCreationForm | undefined {
-  for (const root of pageFrames(doc)) {
-    const nameInput = root.querySelector<HTMLInputElement>('input[maxlength]');
-    const descriptionInput = root.querySelector<HTMLTextAreaElement>('textarea');
-    const cancelButton = root.querySelector<HTMLButtonElement>(':scope > div > h2 ~ button');
-    const submitButton = root.querySelector<HTMLButtonElement>(':scope > button');
-    if (!nameInput || !descriptionInput || !cancelButton || !submitButton) continue;
-    const error = textOf(root.querySelector(':scope > p'));
-    return {
-      root,
-      nameInput,
-      descriptionInput,
-      submitButton,
-      cancelButton,
-      error: error || undefined,
-      // Le site ne désactive le bouton, nom assez long, que pendant la requête.
-      sending: submitButton.disabled && nameInput.value.trim().length >= 2,
-    };
-  }
-  return undefined;
-}
+/** Le chargeur de la guilde : il demande `/api/guilds` et connaît l'option `seedHome`. */
+const isGuildLoader = (callback: (...args: unknown[]) => unknown): boolean => {
+  const source = Function.prototype.toString.call(callback);
+  return /["'`]\/api\/guilds["'`]/.test(source) && source.includes('seedHome');
+};
 
-/** Requête de création d'une guilde. */
-export const isGuildCreation = (request: NetRequest): boolean => request.method === 'POST' && request.url.pathname === '/api/guilds';
+/**
+ * Relit la guilde comme le site après une création : son chargeur, pris dans l'état de la page au-dessus de `node`.
+ * `false` s'il est introuvable.
+ */
+export function reloadSiteGuild(node: Node): boolean {
+  for (const fiber of currentFiberAncestors(node)) {
+    const loader = callbackHooks(fiber).find(isGuildLoader);
+    if (!loader) continue;
+    void Promise.resolve()
+      .then(() => loader({ seedHome: true }))
+      .catch(() => undefined);
+    return true;
+  }
+  return false;
+}

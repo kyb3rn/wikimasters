@@ -1,1 +1,1 @@
-export { isTitleListed, listedCardTitle, listingOf, onListingsChange, trackListings, type Listing } from './listings';
+export { listedCardTitle, listingOf, onListingsChange, trackListings, type Listing } from './listings';

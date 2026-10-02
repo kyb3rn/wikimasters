@@ -309,6 +309,13 @@ export async function openSelectionPage(page: Page, options: SelectionOptions = 
         }
         return true;
       }
+      // Mise aux enchères depuis la modale de carte : l'exemplaire quitte la liste.
+      if (url.pathname === '/api/marketplace' && route.request().method() === 'POST') {
+        const { card_id } = JSON.parse(route.request().postData() ?? '{}') as { card_id: string };
+        list = list.filter((e) => e.id !== card_id);
+        await route.fulfill({ status: 201, json: { auction_id: 'a1b2c3d4-0000-4000-8000-000000000001' } });
+        return true;
+      }
       return false;
     },
   });

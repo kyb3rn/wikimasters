@@ -1,7 +1,9 @@
 import { isRecord } from '@/core/guards';
 import { currentFiberAncestors } from '@/core/react';
 import { textOf } from '@/core/text';
-import { FACE, findFaceImage } from '@/site/cards';
+import { isAuctionStatus, parseListingCard, type AuctionStatus } from '@/site/api';
+import { FACE, findFaceImage, type CardRef } from '@/site/cards';
+import { parseRarity } from '@/site/rarity';
 
 /**
  * Vignettes d'annonce du marché, dans tous les onglets (captures du 29/09/2026) :
@@ -62,6 +64,21 @@ export function findTileDurations(root: ParentNode = document): { readonly eleme
   }));
 }
 
+export interface AuctionTileFace {
+  readonly tile: HTMLElement;
+  readonly face: HTMLElement;
+  /** Vignette du script (recherche avancée), hors des onglets du site. */
+  readonly own: boolean;
+}
+
+/** Face de chaque vignette affichée, celles du site comme les nôtres. */
+export function findAuctionTileFaces(root: ParentNode = document): AuctionTileFace[] {
+  return [...root.querySelectorAll<HTMLElement>(`${TILE_FACE} > ${FACE}`)].flatMap((face) => {
+    const tile = face.closest<HTMLElement>(TILE);
+    return tile ? [{ tile, face, own: tile.classList.contains(OWN_TILE) }] : [];
+  });
+}
+
 export interface SiteAuctionTile {
   readonly tile: HTMLElement;
   readonly auctionId: string;
@@ -80,18 +97,107 @@ export function findSiteAuctionTiles(root: ParentNode = document): SiteAuctionTi
 }
 
 /**
- * Fin de l'enchère d'une vignette du site (`end_at`, en millisecondes), lue dans les props de son composant (l'annonce
- * entière, de même `id`), au dernier rendu : elle peut être repoussée par une mise de dernière minute.
+ * L'annonce entière (de même `id`), au dernier rendu. Le site la passe au composant de la vignette, rendu dans la
+ * case : `div#marketplace-auction-<id>` › composant `{ auction, href, bidStatus, owned, onBeforeNavigate, userId }`
+ * (code du site, 01/10/2026). Ses props sont donc sur l'enfant de la case, pas sur un ancêtre.
  */
-export function readTileEndAt({ tile, auctionId }: SiteAuctionTile): number | undefined {
-  for (const fiber of currentFiberAncestors(tile).slice(0, 8)) {
-    const props: unknown = fiber.memoizedProps;
+function tileListing(tile: HTMLElement, auctionId: string): Record<string, unknown> | undefined {
+  const fibers = currentFiberAncestors(tile).slice(0, 8);
+  for (const fiber of [fibers[0]?.child, ...fibers]) {
+    const props: unknown = fiber?.memoizedProps;
     if (!isRecord(props)) continue;
     for (const value of [props, ...Object.values(props)]) {
-      if (!isRecord(value) || value.id !== auctionId || typeof value.end_at !== 'string') continue;
-      const endAt = Date.parse(value.end_at);
-      if (Number.isFinite(endAt)) return endAt;
+      if (isRecord(value) && value.id === auctionId) return value;
     }
   }
   return undefined;
+}
+
+const dateOf = (value: unknown) => (typeof value === 'string' ? Date.parse(value) : Number.NaN);
+
+/**
+ * Fin de l'enchère d'une vignette du site (`end_at`, en millisecondes), lue dans l'annonce au dernier rendu : elle
+ * peut être repoussée par une mise de dernière minute.
+ */
+export function readTileEndAt({ tile, auctionId }: SiteAuctionTile): number | undefined {
+  const endAt = dateOf(tileListing(tile, auctionId)?.end_at);
+  return Number.isFinite(endAt) ? endAt : undefined;
+}
+
+/** Une vignette d'annonce affichée, du site ou à nous (recherche avancée). */
+export interface AuctionTile {
+  readonly tile: HTMLElement;
+  /** Colonne du cadre (`a.card-frame > div`) : carte, mise et durée. */
+  readonly column: HTMLElement;
+  /** Face de la carte. */
+  readonly face: HTMLElement | undefined;
+  readonly own: boolean;
+}
+
+/** Vignettes d'annonce affichées, celles du site comme les nôtres. */
+export function findAuctionTiles(root: ParentNode = document): AuctionTile[] {
+  return [...root.querySelectorAll<HTMLElement>(TILE)].flatMap((tile) => {
+    const column = tile.querySelector<HTMLElement>(':scope > a.card-frame > div');
+    if (!column) return [];
+    const face = column.querySelector<HTMLElement>(`:scope > div.overflow-hidden > ${FACE}`) ?? undefined;
+    return [{ tile, column, face, own: tile.classList.contains(OWN_TILE) }];
+  });
+}
+
+export interface TileAuction {
+  /** Rareté de l'exemplaire en vente, sinon celle de la carte aujourd'hui. */
+  readonly card: CardRef;
+  /** Montant affiché : mise actuelle, sinon mise de départ (`effective_bid`). */
+  readonly amount: number | undefined;
+  readonly status: AuctionStatus | undefined;
+}
+
+const amountOf = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : undefined);
+
+/** Annonce de nos vignettes, en attributs (`ownTileData`) : elles n'ont pas de composant React où la lire. */
+const OWN_DATA = {
+  cardId: 'data-wm-card-id',
+  title: 'data-wm-card-title',
+  rarity: 'data-wm-rarity',
+  amount: 'data-wm-amount',
+  status: 'data-wm-status',
+} as const;
+
+/** Attributs à poser sur une de nos vignettes pour que son annonce se lise comme celle des vignettes du site. */
+export function ownTileData({ card, amount, status }: TileAuction): Record<string, string | undefined> {
+  return {
+    [OWN_DATA.cardId]: card.id,
+    [OWN_DATA.title]: card.title,
+    [OWN_DATA.rarity]: card.rarity,
+    [OWN_DATA.amount]: amount === undefined ? undefined : String(amount),
+    [OWN_DATA.status]: status,
+  };
+}
+
+function readOwnTileAuction(tile: HTMLElement): TileAuction | undefined {
+  const id = tile.getAttribute(OWN_DATA.cardId);
+  if (!id) return undefined;
+  const status = tile.getAttribute(OWN_DATA.status);
+  const amount = tile.getAttribute(OWN_DATA.amount);
+  return {
+    card: { id, title: tile.getAttribute(OWN_DATA.title) ?? '', rarity: parseRarity(tile.getAttribute(OWN_DATA.rarity)) },
+    amount: amount === null ? undefined : amountOf(Number(amount)),
+    status: isAuctionStatus(status) ? status : undefined,
+  };
+}
+
+/**
+ * L'annonce d'une vignette : pour celles du site, les props de son composant au dernier rendu (une mise reçue change
+ * le montant) ; pour les nôtres, leurs attributs.
+ */
+export function readTileAuction({ tile, own }: AuctionTile): TileAuction | undefined {
+  if (own) return readOwnTileAuction(tile);
+  const listing = tileListing(tile, tile.id.slice(SITE_TILE_PREFIX.length));
+  const card = parseListingCard(listing);
+  if (!listing || !card) return undefined;
+  return {
+    card,
+    amount: amountOf(listing.effective_bid) ?? amountOf(listing.current_bid) ?? amountOf(listing.base_amount),
+    status: isAuctionStatus(listing.status) ? listing.status : undefined,
+  };
 }

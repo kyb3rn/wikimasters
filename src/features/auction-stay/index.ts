@@ -3,11 +3,12 @@ import { net } from '@/core/net';
 import { matchRoute } from '@/core/router';
 import type { Feature } from '@/core/runtime';
 import { markModalCard } from '@/services/card-marks';
-import { isTitleListed, listedCardTitle, onListingsChange, trackListings } from '@/services/listings';
+import { listedCardTitle, listingOf, onListingsChange, trackListings } from '@/services/listings';
 import { notify } from '@/services/notifications';
 import { findPullsGrid, onPullsGridChange } from '@/services/pulls-grid';
+import { onPackChange, packCarousel, trackPack, type OpenPack } from '@/services/pulls-pack';
 import { readAuctionCreation } from '@/site/api';
-import { findCardModals } from '@/site/cards';
+import { findCardModals, readModalView, type CardModal } from '@/site/cards';
 import { findCarousel } from '@/site/pulls';
 import { ensureRouterGuards, guardRouterPush } from '@/site/router';
 import { AUCTION_ROUTE } from '@/site/routes';
@@ -21,6 +22,13 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Page d'une annonce (pas `/marketplace/mine` ni une autre page du marché). */
 const isAuctionPage = (path: string) => UUID.test(matchRoute(AUCTION_ROUTE, path)?.id ?? '');
 
+/** La carte `index` du paquet : l'exemplaire que le site y associe est-il aux enchères ? */
+function isPackCardListed(pack: OpenPack | undefined, index: number): boolean {
+  const card = pack?.cards[index];
+  const copy = card && pack?.chosen?.get(card.id);
+  return copy !== undefined && listingOf(copy) !== undefined;
+}
+
 export const auctionStay: Feature = {
   id: 'auction-stay',
   name: 'Mise aux enchères',
@@ -31,6 +39,7 @@ export const auctionStay: Feature = {
   async mount(ctx) {
     const { signal, log } = ctx;
     trackListings();
+    trackPack();
     /** Mise en vente en cours : carte de la modale ouverte au moment de « Lancer l'enchère ». */
     let pending: { at: number; title: string } | undefined;
 
@@ -72,27 +81,40 @@ export const auctionStay: Feature = {
 
     if (!(await ctx.ready())) return;
 
-    // Carte aux enchères : exemplaire réservé par le site, plus de vente, de défausse ni d'étiquette.
+    // Exemplaire de chaque modale, lu une fois (parcours de l'arbre de React) tant que sa carte ne change pas.
+    const modalCopies = new WeakMap<HTMLElement, { readonly title: string; readonly copy: string | undefined }>();
+    function copyOf(modal: CardModal): string | undefined {
+      const known = modalCopies.get(modal.root);
+      if (known?.title === modal.title) return known.copy;
+      const copy = readModalView(modal.root)?.userCardId;
+      modalCopies.set(modal.root, { title: modal.title, copy });
+      return copy;
+    }
+
+    // Exemplaire aux enchères : réservé par le site, plus de vente, de défausse ni d'étiquette. Reconnu à son
+    // identifiant, pas au titre : un autre exemplaire de la carte, ou celui revenu d'une enchère invendue, reste libre.
     function sync(): void {
       for (const modal of findCardModals()) {
-        // Vue catalogue : la carte (modèle), pas un exemplaire, elle n'est jamais « en vente ».
-        if (!modal.catalog) markModalCard(modal, OWNER, isTitleListed(modal.title) ? 'listed' : undefined);
+        // Carte seule (modèle) ou exemplaire d'un ami : jamais un de mes exemplaires « en vente ».
+        if (modal.kind !== 'own') continue;
+        const copy = copyOf(modal);
+        markModalCard(modal, OWNER, copy !== undefined && listingOf(copy) ? 'listed' : undefined);
       }
       const carousel = findCarousel();
       if (!carousel) return;
+      const pack = packCarousel()?.pack;
       // Toutes les cartes d'un coup : les copies de la grille ; sinon la carte du carrousel.
-      const grid = findPullsGrid(carousel.root);
-      const faces = grid
-        ? grid.slots.map((slot) => ({ face: slot.face, title: slot.title }))
-        : [{ face: carousel.face, title: carousel.title }];
+      const faces = findPullsGrid(carousel.root)?.slots ?? [{ face: carousel.face, index: carousel.index }];
       syncStamps(
         OWNER,
-        faces.flatMap(({ face, title }) => (face && isTitleListed(title) ? [[face, STAMPS.listed] as const] : [])),
+        faces.flatMap(({ face, index }) => (face && isPackCardListed(pack, index) ? [[face, STAMPS.listed] as const] : [])),
         carousel.root,
       );
     }
     watchDom(sync, { signal });
     onListingsChange(sync, { signal });
+    // Exemplaires du paquet chargés après lui (paquet PRO).
+    onPackChange(sync, { signal });
     // Ce qui se passe dans la grille (copie de face remplacée) échappe à watchDom.
     onPullsGridChange(sync, { signal });
     ctx.onDispose(() => {

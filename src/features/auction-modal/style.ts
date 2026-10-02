@@ -1,4 +1,4 @@
-import { alpha, layers, palette, tokens } from '@/ui/theme';
+import { alpha, DISABLED_OPACITY, layers, palette, tokens } from '@/ui/theme';
 
 // Mise en page seulement : les contrôles (mise, durées, boutons, croix, erreur) portent les classes du site.
 export const CSS = `
@@ -27,6 +27,24 @@ export const CSS = `
 .wm-sale-note { margin-top: -8px; font-size: 11px; opacity: 0.5; }
 .wm-sale-field { display: flex; flex-direction: column; gap: 6px; }
 .wm-sale-actions { display: flex; gap: 8px; margin-top: 2px; }
+
+/*
+ * Historique des mises en vente (cadre et modale « Tout voir ») : lignes du site (siteClass.listRow), colonnes alignées ;
+ * liste élargie de la marge des lignes, leur texte dans l'alignement des libellés. La rangée du titre l'est aussi à
+ * droite : « Tout voir » finit au bord des liens vers les enchères.
+ */
+.wm-sale-history-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 20px;
+  margin-right: -12px; }
+.wm-sale-history-list { display: flex; flex-direction: column; gap: 2px; margin: 0 -12px; padding: 0; list-style: none; }
+.wm-sale-history-item { display: flex; align-items: center; gap: 4px; }
+.wm-sale-history-row { flex: 1; min-width: 0; font-size: 13px; white-space: nowrap; }
+.wm-sale-history-row:disabled { opacity: ${DISABLED_OPACITY}; }
+.wm-sale-history-date { font-variant-numeric: tabular-nums; }
+.wm-sale-history-gap { flex: 1; }
+.wm-sale-history-price { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.wm-sale-history-coin { width: 14px; height: 14px; opacity: 0.6; }
+.wm-sale-history-duration { min-width: 44px; text-align: right; opacity: 0.8; }
+.wm-sale-history-nolink { flex: none; width: 30px; }
 
 @media (max-width: 720px) {
   .wm-sale-columns { flex-direction: column; align-items: center; }

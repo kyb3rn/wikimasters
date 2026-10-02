@@ -14,7 +14,10 @@ const HTML = sitePage(
     <div class="flex-shrink-0 flex flex-col items-center gap-2">
       <div class="w-72 h-[420px] glow-sr relative rounded-2xl overflow-hidden" style="width:18rem;height:420px;position:relative;background:#555">
         <div class="absolute top-0 left-0 right-0 h-[45%] z-20" style="position:absolute;top:0;left:0;right:0;height:45%"></div>
-        <h3>Alléluia</h3>
+        <div class="absolute top-[45%] left-0 right-0 bottom-0 flex min-h-0 flex-col p-3 z-20" style="position:absolute;top:45%;left:0;right:0;bottom:0">
+          <h3>Alléluia</h3>
+          <div class="mt-auto flex min-h-0 w-full flex-col items-start gap-0.5 pt-1"><div class="min-w-0 max-w-full shrink-0"><span id="owned" class="w-fit rounded-full bg-emerald-600/90 px-2 py-0.5 text-[9px] font-bold text-white" title="Dans ta collection">Possédée</span></div></div>
+        </div>
       </div>
       <div class="space-y-1.5 "><button type="button" aria-pressed="false" class="inline-flex items-center gap-1.5 text-xs"><svg class="lucide lucide-flag size-3.5"></svg>Signaler l'image</button></div>
     </div>
@@ -43,7 +46,7 @@ const HTML = sitePage(
 test('page d’une enchère : vendeur, meneur et historique des mises mènent aux profils', async ({ page }) => {
   await openSite(page, `/marketplace/${AUCTION}`, { html: HTML });
   const main = page.locator('main');
-  await expect(main.getByRole('link', { name: 'iftar' })).toHaveAttribute('href', '/profile/iftar');
+  await expect(main.getByRole('link', { name: 'iftar', exact: true })).toHaveAttribute('href', '/profile/iftar');
   await expect(main.getByRole('link', { name: 'Vreeecht' })).toHaveCount(2);
   await expect(main.getByRole('link', { name: 'Latina_Wife' })).toHaveAttribute('href', '/profile/Latina_Wife');
   await expect(page.locator('#winner').getByRole('link', { name: 'evan_wiki' })).toHaveAttribute('href', '/profile/evan_wiki');
@@ -51,7 +54,7 @@ test('page d’une enchère : vendeur, meneur et historique des mises mènent au
   // Mise sans pseudo : « Joueur » reste du texte.
   await expect(page.locator('#anonymous').getByRole('link')).toHaveCount(0);
   // Allure du pseudo du site reprise.
-  await expect(main.getByRole('link', { name: 'iftar' })).toHaveClass(/font-medium/);
+  await expect(main.getByRole('link', { name: 'iftar', exact: true })).toHaveClass(/font-medium/);
   await expect(page.locator('#leader')).toHaveText('Meneur : Vreeecht', { useInnerText: true });
 
   // Mise reçue : le meneur suit, la nouvelle ligne de l'historique a son lien.
@@ -60,8 +63,27 @@ test('page d’une enchère : vendeur, meneur et historique des mises mènent au
   await expect(page.locator('#leader')).toHaveText('Meneur : eli!', { useInnerText: true });
   await expect(page.locator('li').first().getByRole('link', { name: 'eli!' })).toBeVisible();
 
-  await main.getByRole('link', { name: 'iftar' }).click();
+  await main.getByRole('link', { name: 'iftar', exact: true }).click();
   await expect(page).toHaveURL(/\/profile\/iftar$/);
+});
+
+test('page d’une enchère : « @vendeur » sur l’image de la carte au survol, pastille « Possédée » gardée', async ({ page }) => {
+  await openSite(page, `/marketplace/${AUCTION}`, { html: HTML });
+  const face = page.locator('.glow-sr');
+  // Seul le vendeur : la pastille « Possédée » (même emplacement qu'un auteur de demande de guilde) n'est pas un pseudo.
+  await expect(face.locator('.wm-profile-link')).toHaveText(['@iftar']);
+  const seller = face.getByRole('link', { name: '@iftar', exact: true });
+  await expect(seller).toHaveAttribute('href', '/profile/iftar');
+  await expect(page.locator('#owned')).toBeVisible();
+
+  await page.mouse.move(0, 0);
+  await expect(seller).toHaveCSS('opacity', '0');
+  await face.locator('h3').hover();
+  await expect(seller).toHaveCSS('opacity', '1');
+  const [link, image] = await Promise.all([rect(seller), rect(face.locator('> div').first())]);
+  // En bas à gauche de l'image.
+  expect(Math.abs(link.x - image.x - 6)).toBeLessThanOrEqual(1);
+  expect(Math.abs(image.y + image.height - (link.y + link.height) - 6)).toBeLessThanOrEqual(1);
 });
 
 test('page d’une enchère : « Signaler l’image » sur l’image de la carte', async ({ page }) => {

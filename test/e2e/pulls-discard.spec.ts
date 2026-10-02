@@ -1,6 +1,6 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { CAROUSEL, openPulls as openFakePulls, PACK, packFaces } from './support/pulls';
-import { letTimePass, openSettings, presetSettings, rect } from './support/site';
+import { letTimePass, nextFrame, openSettings, presetSettings, rect } from './support/site';
 
 // Le carrousel du site, sans « toutes les cartes d'un coup ».
 test.beforeEach(({ page }) => presetSettings(page, CAROUSEL));
@@ -134,6 +134,7 @@ test('une étiquette ajoutée dans la modale du site protège la carte tout de s
   await expect(page.locator(TRASH)).toHaveAttribute('data-status', 'ready');
 
   await packFaces(page).click();
+  await nextFrame(page); // notre croix remplace celle du site
   await page.getByPlaceholder('Ajouter une étiquette…').fill('garder');
   await page.getByPlaceholder('Ajouter une étiquette…').press('Enter');
   await page.getByRole('button', { name: 'Fermer' }).click();

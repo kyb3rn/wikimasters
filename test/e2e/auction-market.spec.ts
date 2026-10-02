@@ -86,6 +86,8 @@ const newServer = (): Server => ({ sales: 0, release: () => {}, hold: false });
 test('« Vue du marché » ouvre notre historique des ventes, pas la vue du site ; roue pendant le chargement', async ({ page }) => {
   const server = { ...newServer(), hold: true };
   const button = await openAuction(page, server);
+  // Moyen, plus grand que le petit carré du site (demande de l'utilisateur).
+  await expect(button).toHaveClass(/wm-button-md/);
   await button.click();
   await expect(button).toHaveAttribute('aria-busy', 'true');
   await expect(button).toBeDisabled();

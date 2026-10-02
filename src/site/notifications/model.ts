@@ -105,6 +105,11 @@ export function notificationText(notification: SiteNotification): string {
   }
 }
 
+/** Carte (modèle) de ma liste de souhaits mise en vente, pour une notification `marketplace_wishlist_listed`. */
+export function wishlistCardOf(notification: SiteNotification): string | undefined {
+  return notification.type === 'marketplace_wishlist_listed' ? text(notification.data.card_id) : undefined;
+}
+
 const MARKETPLACE_TYPES = new Set([
   'marketplace_outbid',
   'marketplace_auction_won',

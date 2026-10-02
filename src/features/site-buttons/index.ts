@@ -2,6 +2,7 @@ import { watchDom } from '@/core/dom';
 import type { Feature } from '@/core/runtime';
 import { normalizeText } from '@/core/text';
 import { isOwn } from '@/site/dom';
+import { isBalanceButton } from '@/site/header';
 import { applyButtonClass } from '@/ui/button';
 import { classify, type SiteButton } from './rules';
 
@@ -26,6 +27,7 @@ function read(button: HTMLButtonElement): SiteButton {
     icon: icon ? icon.slice('lucide-'.length) : undefined,
     role: button.getAttribute('role'),
     popup: button.hasAttribute('aria-haspopup'),
+    balance: isBalanceButton(button),
   };
 }
 

@@ -22,3 +22,11 @@ export {
 export { acceptedFriends, findFriendPicker, friendshipDates, type FriendPicker, type PickerFriend } from './friend-picker';
 export { parseTradeWikibidous, TRADE_WIKIBIDOUS_MAX } from './wikibidous';
 export { findTradesPage, type TradesPage } from './page';
+export {
+  locateTradeComposer,
+  openTradeComposer,
+  TradeComposerUnavailable,
+  type OpenedTradeComposer,
+  type TradeComposerOptions,
+  type TradeComposerTarget,
+} from './open';

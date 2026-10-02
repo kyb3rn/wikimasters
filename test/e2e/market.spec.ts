@@ -27,12 +27,15 @@ interface SalesServer {
   status: number;
   /** Retient la réponse jusqu'à `release()`. */
   hold: boolean;
+  /** Libère les réponses retenues ; aucune encore arrivée (la roue tourne avant l'envoi) : la prochaine passe. */
   release: () => void;
 }
 
 async function openCardModal(page: Page, server: SalesServer) {
   let waiting: (() => void)[] = [];
+  let releaseNext = false;
   server.release = () => {
+    releaseNext = waiting.length === 0;
     for (const go of waiting) go();
     waiting = [];
   };
@@ -40,7 +43,8 @@ async function openCardModal(page: Page, server: SalesServer) {
     handle: async (route, url) => {
       if (!url.pathname.endsWith('/sales')) return false;
       server.count++;
-      if (server.hold) await new Promise<void>((resolve) => waiting.push(resolve));
+      if (server.hold && releaseNext) releaseNext = false;
+      else if (server.hold) await new Promise<void>((resolve) => waiting.push(resolve));
       await route.fulfill(server.status === 200 ? { json: SALES } : { status: server.status, json: { error: 'Erreur serveur' } });
       return true;
     },

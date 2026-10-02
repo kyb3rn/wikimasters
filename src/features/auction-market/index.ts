@@ -5,13 +5,11 @@ import type { Feature } from '@/core/runtime';
 import { openMarketModal } from '@/services/market';
 import { parseAuctionCard, readAuctionRequest } from '@/site/api';
 import type { CardRef } from '@/site/cards';
+import { AUCTION_MARKET_BUTTON } from '@/site/marketplace';
 import { AUCTION_ROUTE } from '@/site/routes';
 import { lockControl, unlockAll } from '@/ui/lock';
 
 const OWNER = 'auction-market';
-
-/** Bouton « Vue du marché » de la page d'une enchère, à côté du titre de la carte (icône lucide `chart-line`). */
-const BUTTON = 'main button[aria-label="Vue du marché"]';
 
 /**
  * Page d'une enchère : son bouton « Vue du marché » ouvre notre historique des ventes (ou, sans PRO, l'offre
@@ -53,7 +51,7 @@ export const auctionMarket: Feature = {
 
     // Historique en cours de chargement : la roue à la place du graphique.
     function sync(): void {
-      const button = document.querySelector<HTMLButtonElement>(BUTTON);
+      const button = document.querySelector<HTMLButtonElement>(AUCTION_MARKET_BUTTON);
       if (button) lockControl(button, { owner: OWNER, locked: busy, reason: "Chargement de l'historique…", busy });
     }
 
@@ -62,7 +60,7 @@ export const auctionMarket: Feature = {
       'click',
       (event) => {
         const target = event.target instanceof Element ? event.target : null;
-        const card = target?.closest(BUTTON) ? currentCard() : undefined;
+        const card = target?.closest(AUCTION_MARKET_BUTTON) ? currentCard() : undefined;
         if (!card) return;
         event.preventDefault();
         event.stopImmediatePropagation();

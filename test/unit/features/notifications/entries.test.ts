@@ -16,4 +16,20 @@ describe('liste de la cloche', () => {
       ['site:s1', 'message', 'inconnu', 'Nouvelle notification', true],
     ]);
   });
+
+  it('liste de souhaits : son icône plutôt que le marteau, et la carte à en retirer', () => {
+    const [entry] = mergeEntries(
+      [
+        {
+          id: 'w1',
+          type: 'marketplace_wishlist_listed',
+          data: { card_id: 'c1', auction_id: 'a1', card_title: 'Opale' },
+          read: false,
+          created_at: '2026-09-30T12:00:00Z',
+        },
+      ],
+      [],
+    );
+    expect(entry).toMatchObject({ icon: 'bookmark', label: 'Liste de souhaits', wishlistCard: 'c1', href: '/marketplace/a1' });
+  });
 });

@@ -13,6 +13,8 @@ export interface SiteButton {
   readonly role: string | null;
   /** Ouvre une liste (`aria-haspopup`). */
   readonly popup: boolean;
+  /** Le solde de l'en-tête. */
+  readonly balance: boolean;
 }
 
 export interface Restyle {
@@ -94,6 +96,8 @@ const SMALL_TEXT = ['text-xs', 'text-[10px]', 'text-[11px]'];
 const LARGE_PADDING = ['py-3', 'py-3.5', 'py-4'];
 /** Icône seule de 36 px au plus (croix, icônes de l'en-tête) ; au-delà (flèches du carrousel, « Envoyer ») : moyen. */
 const SMALL_ICON = ['p-1', 'p-1.5', 'p-2', 'size-6', 'size-7', 'size-8', 'size-9', 'w-6', 'w-7', 'w-8', 'w-9', 'h-6', 'h-7', 'h-8', 'h-9'];
+/** Icônes seules moyennes malgré leur taille chez le site : « Vue du marché » d'une enchère (demande de l'utilisateur). */
+const MEDIUM_ICONS = ['chart-line'];
 
 function textSize(classes: ReadonlySet<string>): ButtonSize {
   if (any(classes, ...SMALL_TEXT)) return 'sm';
@@ -102,9 +106,9 @@ function textSize(classes: ReadonlySet<string>): ButtonSize {
 
 /**
  * Allure standard d'un bouton du site, ou `undefined` s'il n'est pas un bouton d'action. Texte : bouton standard
- * (sa largeur, `flex-1` ou `w-full`, reste celle du site), petit, moyen ou grand selon le sien. Icône seule : rond
- * (sur le site : rond, ou sans fond ni trait), sinon carré, petit ou moyen. Toute corbeille est rouge, tout bouton sur
- * le coin d'une carte plein.
+ * (sa largeur, `flex-1` ou `w-full`, reste celle du site), petit, moyen ou grand selon le sien ; le solde arrondi
+ * (demande de l'utilisateur). Icône seule : rond (sur le site : rond, ou sans fond ni trait), sinon carré, petit ou
+ * moyen. Toute corbeille est rouge, tout bouton sur le coin d'une carte plein.
  */
 export function classify(button: SiteButton): Restyle | undefined {
   if (isOtherControl(button)) return undefined;
@@ -112,7 +116,11 @@ export function classify(button: SiteButton): Restyle | undefined {
   const painted = paint(classes);
   const fill = onCardCorner(classes) ? 'solid' : painted.fill;
   const tone = painted.tone === 'neutral' && button.icon?.startsWith('trash') ? 'danger' : painted.tone;
-  if (button.text) return { shape: 'standard', style: { tone, fill, size: textSize(classes) } };
+  if (button.text) {
+    const style = { tone, fill, size: textSize(classes) };
+    return { shape: 'standard', style: button.balance ? { ...style, pill: true } : style };
+  }
   const shape = classes.has('rounded-full') || fill === 'ghost' ? 'round' : 'square';
-  return { shape, style: { tone, fill, size: any(classes, ...SMALL_ICON) ? 'sm' : 'md' } };
+  const small = any(classes, ...SMALL_ICON) && !MEDIUM_ICONS.includes(button.icon ?? '');
+  return { shape, style: { tone, fill, size: small ? 'sm' : 'md' } };
 }

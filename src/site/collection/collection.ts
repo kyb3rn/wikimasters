@@ -21,6 +21,11 @@ export interface CollectionEntry {
   readonly count: number;
 }
 
+/** Case d'une carte de la grille : sa face, puis en mode sélection le calque et la case à cocher. */
+export const COLLECTION_CARD_BOX = 'div.relative.isolate.group';
+/** Calque du mode sélection, sur toute la case : anneau si cochée, voile si en échange (code du site, 01/10/2026). */
+export const SELECTION_OVERLAY = 'div.pointer-events-none.absolute.inset-0';
+
 /** Voile avec roue posé sur la grille pendant un chargement (sauf le premier : toute la page tourne). */
 export const LIST_LOADING_VEIL = 'div.absolute.inset-0.z-20[aria-busy="true"]';
 

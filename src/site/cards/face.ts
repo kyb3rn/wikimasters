@@ -9,7 +9,9 @@ import { ROOT_CLASS } from '@/core/dom';
  *     div.absolute.top-2.left-2                                  badge de rareté
  *     div.absolute.top-[45%].bottom-0.flex.flex-col.p-3.z-20     texte
  *       h3 (nom) · p (description)
- *       div.mt-auto.flex.flex-col.pt-1
+ *       div.mt-auto.flex.flex-col.pt-1                           bas (`FACE_BOTTOM`)
+ *         div.rounded.bg-amber-400/80                            « Échange en attente »
+ *         div.min-w-0.max-w-full.shrink-0                        emplacement du bas : « Possédée », pseudo, amis…
  *         div.flex.flex-wrap.pb-0.5                              étiquettes (Collection, Échanges)
  *         div.flex.justify-between.border-t.pt-1.py-1            ATK · DEF
  */
@@ -27,11 +29,20 @@ export const FACE_CORNER_BUTTON = 'button.absolute[class*="-top-"][class*="-righ
  * `span.pointer-events-none.absolute.top-1.5.right-1.5.size-6`, à 6 px du coin. La face grandit au survol, pas elle.
  */
 export const FACE_SELECTION_BOX = 'span.absolute.top-1\\.5.right-1\\.5';
-export const FACE_STATS = `${FACE_TEXT} > div.mt-auto > div.border-t`;
+export const FACE_BOTTOM = `${FACE_TEXT} > div.mt-auto`;
+export const FACE_STATS = `${FACE_BOTTOM} > div.border-t`;
+const FACE_TAGS = 'div.flex-wrap.pb-0\\.5';
 
 /** Zone de l'image d'une face (positionnée : de quoi y poser une pastille). */
 export function findFaceImage(face: Element): HTMLElement | undefined {
   return face.querySelector<HTMLElement>(':scope > div[class*="h-[45%]"]') ?? undefined;
+}
+
+/** Où poser une pastille dans l'emplacement du bas, comme le site : juste avant les étiquettes et ATK · DEF. */
+export function findFaceBottomPlace(face: Element): { readonly parent: HTMLElement; readonly before: Element } | undefined {
+  const bottom = face.querySelector<HTMLElement>(`:scope > ${FACE_BOTTOM}`);
+  const before = bottom && [...bottom.children].find((child) => child.matches(`${FACE_TAGS}, div.border-t`));
+  return bottom && before ? { parent: bottom, before } : undefined;
 }
 
 export interface CloneFaceOptions {

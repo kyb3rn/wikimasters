@@ -11,7 +11,15 @@ import {
   onLocalNotificationsChange,
   toastNotification,
 } from '@/services/notifications';
-import { isNotificationsList, markNotificationsRead, siteErrorText } from '@/site/api';
+import {
+  addToWishlist,
+  isNotificationsList,
+  isWishlistChange,
+  markNotificationsRead,
+  readWishlistChange,
+  removeFromWishlist,
+  siteErrorText,
+} from '@/site/api';
 import { HEADER_RANKS } from '@/site/header';
 import {
   findSiteBells,
@@ -30,7 +38,8 @@ import { toast } from '@/ui/toast';
 import { createArrivals } from './arrivals';
 import { mergeEntries, siteEntry, siteVariant, type Entry } from './entries';
 import { createCenterStore } from './store';
-import { Bell, BELL_CLASS, DATE_CLASS, Panel, ROW_CLASS } from './views';
+import { ACTION_ROW_CLASS, ACTIONS_CLASS, Bell, BELL_CLASS, DATE_CLASS, OPENER_CLASS, Panel, ROW_CLASS } from './views';
+import { forgetReturned, rememberWish, removedWishes, wishedIn } from './wishlist';
 
 /** Posée tant que notre cloche remplace celles du site : cachées dès leur arrivée dans la page. */
 const TAKEOVER_CSS = `${SITE_BELL}:not(.${ROOT_CLASS} *) { display: none !important; }`;
@@ -39,6 +48,9 @@ const CSS = `
 .${ROOT_CLASS} .${BELL_CLASS} { position: relative; }
 .wm-notifications-panel .wm-button { flex: none; }
 .${ROW_CLASS}:not(:hover) .${DATE_CLASS} { display: none; }
+.${ACTION_ROW_CLASS} { position: relative; }
+.${OPENER_CLASS} { position: absolute; inset: 0; }
+.${ACTIONS_CLASS} { position: relative; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 `;
 
 /** Relectures de l'état du site après un évènement : React le met à jour quelques images plus tard. */
@@ -64,9 +76,13 @@ export const notifications: Feature = {
     function render(): void {
       const siteList = site?.notifications ?? [];
       const local = localNotifications();
+      const entries = mergeEntries(siteList, local);
+      // Carte retirée de la liste de souhaits, puis de nouveau notifiée : elle y a été remise.
+      forgetReturned(entries.flatMap(({ wishlistCard, time }) => (wishlistCard !== undefined && time > 0 ? [{ cardId: wishlistCard, time }] : [])));
       store.set({
-        entries: mergeEntries(siteList, local),
+        entries,
         unread: siteList.filter((n) => !n.read).length + local.filter((n) => !n.read).length,
+        removed: removedWishes(),
       });
     }
 
@@ -100,7 +116,11 @@ export const notifications: Feature = {
         title: entry.label,
         message: notificationText(notification),
         variant: siteVariant(notification),
-        action: { label: 'Voir', onClick: () => open(entry) },
+        action: {
+          label: 'Voir',
+          onClick: () => open(entry),
+          ...(entry.href !== undefined && { href: entry.href, onOpenElsewhere: () => markRead(entry) }),
+        },
       });
     }
 
@@ -153,17 +173,48 @@ export const notifications: Feature = {
       }
     }
 
+    function setWishing(cardId: string, busy: boolean): void {
+      const wishing = new Set(store.get().wishing);
+      if (busy) wishing.add(cardId);
+      else wishing.delete(cardId);
+      store.set({ wishing, removed: removedWishes() });
+    }
+
+    /** Comme le bouton de la modale du site : retire la carte de la liste de souhaits, ou l'y remet. */
+    async function toggleWish(cardId: string): Promise<void> {
+      if (store.get().wishing.has(cardId)) return;
+      const wished = wishedIn(removedWishes(), cardId);
+      setWishing(cardId, true);
+      try {
+        await (wished ? removeFromWishlist(cardId) : addToWishlist(cardId));
+        rememberWish(cardId, !wished);
+      } catch (error) {
+        toast.error(siteErrorText(error), { title: wished ? 'Retrait impossible' : 'Ajout impossible' });
+      } finally {
+        setWishing(cardId, false);
+      }
+    }
+
     function toggle(bell: HTMLElement): void {
       if (store.get().anchor === bell) {
         close();
         return;
       }
-      store.set({ anchor: bell });
+      // Retraits relus : un autre onglet a pu en faire.
+      store.set({ anchor: bell, removed: removedWishes() });
       if (!panel) {
         panel = childController(signal);
-        mountUi(h(Panel, { store, onOpen: open, onOpenElsewhere: markRead, onMarkAll: () => void markAll(), onClose: close }), {
-          signal: panel.signal,
-        });
+        mountUi(
+          h(Panel, {
+            store,
+            onOpen: open,
+            onOpenElsewhere: markRead,
+            onWish: (cardId) => void toggleWish(cardId),
+            onMarkAll: () => void markAll(),
+            onClose: close,
+          }),
+          { signal: panel.signal },
+        );
       }
       // Comme la cloche du site : la liste est relue à chaque ouverture.
       site?.fetchNotifications();
@@ -184,6 +235,18 @@ export const notifications: Feature = {
       (url) => url.pathname.includes('/realtime/'),
       (event) => {
         if (event.type === 'message' && event.direction === 'in' && typeof event.data !== 'string') refreshSoon();
+      },
+      { signal },
+    );
+    // Liste de souhaits changée par le site (modale de carte) : le bouton de ses notifications suit. Déjà dans la
+    // liste (409, code 23505) : ignoré par le site, la carte y est.
+    net.observe(
+      (request) => isWishlistChange(request) && !request.own,
+      (exchange) => {
+        const change = readWishlistChange(exchange.request);
+        if (!change || !(exchange.ok || (change.wished && exchange.status === 409))) return;
+        rememberWish(change.cardId, change.wished);
+        store.set({ removed: removedWishes() });
       },
       { signal },
     );

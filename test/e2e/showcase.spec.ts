@@ -65,7 +65,16 @@ test('les boutons de démonstration tournent le temps d’une requête simulée'
 
 test('chaque forme de bouton dans les six couleurs, pleine, en contour et ghost, en trois tailles', async ({ page }) => {
   await openShowcase(page);
-  const shapes = [['Standard', 4], ['Fenêtre', 3], ['Pleine largeur', 3], ['Carré', 3], ['Rond', 3]] as const;
+  const shapes = [
+    ['Standard', 4],
+    ['Standard arrondi', 4],
+    ['Fenêtre', 3],
+    ['Fenêtre arrondie', 3],
+    ['Pleine largeur', 3],
+    ['Pleine largeur arrondie', 3],
+    ['Carré', 3],
+    ['Rond', 3],
+  ] as const;
   for (const [shape, states] of shapes) {
     for (const tone of ['neutral', 'danger', 'info', 'accent', 'warning', 'pro']) {
       const buttons = group(page, shape).locator(`button.wm-tone-${tone}`);
@@ -77,11 +86,19 @@ test('chaque forme de bouton dans les six couleurs, pleine, en contour et ghost,
   }
   // Une taille = une hauteur, quelle que soit la forme : grand 48 px, moyen = champs (45 px), petit 30 px.
   for (const [size, height] of [['lg', 48], ['md', 45], ['sm', 30]] as const) {
-    for (const shape of ['Standard', 'Carré', 'Rond']) {
+    for (const shape of ['Standard', 'Standard arrondi', 'Carré', 'Rond']) {
       const box = await rect(group(page, shape).locator(`button.wm-button-${size}`).first());
       expect(Math.round(box.height), `${shape} ${size}`).toBe(height);
     }
   }
+  // Arrondi : bords à 100 % sur les formes longues, dans chaque groupe arrondi seulement.
+  for (const shape of ['Standard arrondi', 'Fenêtre arrondie', 'Pleine largeur arrondie']) {
+    const buttons = group(page, shape).locator('button');
+    expect(await buttons.count()).toBe(await group(page, shape).locator('button.wm-pill').count());
+    await expect(buttons.first()).toHaveCSS('border-top-left-radius', '9999px');
+  }
+  await expect(group(page, 'Standard').locator('button.wm-pill')).toHaveCount(0);
+  await expect(group(page, 'Standard').locator('button').first()).toHaveCSS('border-top-left-radius', '8px');
   const info = group(page, 'Standard').locator('button.wm-tone-info');
   const transparent = 'rgba(0, 0, 0, 0)';
   const outline = info.and(page.locator(':not(.wm-solid, .wm-ghost)')).first();

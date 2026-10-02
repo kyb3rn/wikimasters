@@ -113,8 +113,8 @@ Sonde de lecture du 30/09 (outil de dev retiré depuis ; résultats bruts : `tes
 | Requête | Réponse | Script |
 |---|---|---|
 | `GET /api/cards?page=[&q=][&rarity=…]&sort=[&wishlist=1]` (dans cet ordre) | `{ cards: [carte], total, searchHasMore, rarityCounts, friendOwners, ownedCardIds, wishlistCardIds, friendPendingOfferKeys }` ; avec une recherche (capture du 30/09, `q=mesrine`) : `total: null`, `rarityCounts: {}`, `searchHasMore` | `isGlobalCollectionList`, `globalCollectionList` |
-| `POST SB /rest/v1/wishlist_items` `{ user_id, card_id }` | 201, corps vide : carte ajoutée à la liste de souhaits (23505 si elle y est déjà, ignoré par le site) | `isWishlistChange` |
-| `DELETE SB /rest/v1/wishlist_items?user_id=eq.<uid>&card_id=eq.<card_id>` | carte retirée de la liste | `isWishlistChange` |
+| `POST SB /rest/v1/wishlist_items` `{ user_id, card_id }` | 201, corps vide : carte ajoutée à la liste de souhaits (409, code 23505 si elle y est déjà, ignoré par le site) | `isWishlistChange`, `readWishlistChange`, `addToWishlist` |
+| `DELETE SB /rest/v1/wishlist_items?user_id=eq.<uid>&card_id=eq.<card_id>` | carte retirée de la liste | `isWishlistChange`, `readWishlistChange`, `removeFromWishlist` |
 
 Relevé : code du site, 30/09.
 
@@ -128,7 +128,8 @@ Relevé : code du site, 30/09.
 | `GET /api/marketplace?page=&limit=50&sort=[&rarity=…][&q=][&mine=1]` | `{ auctions: [annonce], page, limit, hasMore }` ; avec `mine=1`, en plus `mine: true`, `selling, bidding, won, history` (annonces) et `maxConcurrentAuctions` | `isMarketplaceList`, `marketplaceList` ; `limit=1` : `isMarketplaceMineRefresh` |
 | `GET /api/marketplace/<auctionId>` | `{ auction, bids: [mise] }` ; `auction` : `card_id`, `snapshot_rarity` (rareté de l'exemplaire en vente), `card` (la carte : `id`, `wikipedia_title`, `rarity`…), `seller`, `effective_bid`… (capture du 30/09) | `readAuctionRequest`, `parseAuctionCard` |
 | `GET /api/marketplace/mine` | `{ sellingCount, maxConcurrentAuctions }` (modale de carte, mise aux enchères) | |
-| `POST /api/marketplace` `{ card_id: <user_card_id>, base_amount, duration_minutes }` | 201 `{ auction_id }` | `readAuctionCreation` |
+| `POST /api/marketplace` `{ card_id: <user_card_id>, base_amount, duration_minutes }` | 201 `{ auction_id }` ; vérification due (depuis le 02/10) : 403 `{ error: "Vérification anti-bot requise.", code: "human_verification_required" }` | `readAuctionCreation` |
+| `POST /api/human-check` `{ token }` | jeton Cloudflare Turnstile de la « Vérification rapide » (mise aux enchères) ; refus : `{ error }` | |
 | `POST /api/marketplace/<auctionId>/bid` `{ amount }` | `{ auction_id, current_bid, bidder_balance }` ; refus : `{ error, code: "bid_too_low", min }` ou `code: "insufficient_balance"` | |
 | `POST /api/marketplace/<auctionId>/settle` | finalise une enchère terminée (code du site) | |
 | `DELETE /api/marketplace/<auctionId>` | `{ status: "cancelled" }` | `readAuctionCancel` |
@@ -142,7 +143,9 @@ Relevé : 29/09 (captures et code du site), sauf mention.
 - Les onglets du marché n'appellent rien : tout vient de `mine=1`. Pour relire seulement ces listes, le site demande `page=1&limit=1&mine=1`.
 - Listes de `mine=1` : `selling` = mes annonces `active` ; `bidding` = annonces `active` d'autres vendeurs où j'ai misé, que je mène ou non (`current_bidder_id` le dit) ; `won` = les 50 dernières que j'ai gagnées (`settled_sold`, `winner_id` = moi) ; `history` = les 50 dernières de mes ventes terminées (`settled_sold`, `settled_unsold`, `cancelled`). `won` et `history` vont du plus récent au plus ancien.
 - `maxConcurrentAuctions` : 5 pour un compte normal, 10 pour un compte PRO.
+- **Limite des ventes d'une carte** (mesurée le 02/10 sur deux captures, refus provoqués par l'utilisateur) : **30 requêtes par minute de l'horloge du serveur** (fenêtre fixe, libérée à hh:mm:00 ; heure du serveur : `serverNow`) ; la 31e et les suivantes reçoivent `403 { error: "Trop de requêtes automatisées. L'automatisation n'est pas autorisée — voir le règlement.", code: "automation_limit" }`, sans en-tête de quota ni `Retry-After` (refus de la route elle-même, `x-matched-path`, pas du pare-feu Vercel). Les refus ne comptent pas et ne prolongent rien : la première requête après la fin de la fenêtre passe. Compteur propre à cette route (7 autres requêtes `/api/…` dans la même fenêtre n'ont rien avancé). Exclus : fenêtre glissante, exacte ou approchée (refus mal placés), et fenêtre de 60 s ouverte par la première requête (36 passées en 36 s, 16 avant la minute et 20 après). Inconnu : par compte ou par adresse ; `scope=summary` dans le même compteur ou non.
 - Ventes d'une carte : toutes raretés mélangées (`rarity` de l'exemplaire vendu), sans indication shiny ; liste vide pour une carte jamais vendue (`{ wikipedia_title, sales: [], recent: [] }`). Le script les garde en cache dans la base IndexedDB `wm-market` (magasin `sales`, `{ id: <card_id>, fetchedAt, title, sales }`, ventes au format du site : forme de l'ancien script).
+- Mises en vente acceptées (historique de la mise aux enchères) : même base, magasin `listings` de l'ancien wm-vente, `{ id: <card_id>, title, attempts: [{ at, price, minutes, rarity, shiny, auctionId }] }` ; mise et durée lues dans `POST /api/marketplace` (`readAuctionCreation`), numéro de l'enchère dans sa réponse. Entrées de l'ancien script relues : `duration: { secs, text }`, `ok` (seuls les essais publiés, `ok: true`, comptent), rareté `SHINY` = L shiny.
 
 ### Supabase en direct : enchères
 
@@ -174,7 +177,7 @@ Relevé : 29/09. Cartes de la fenêtre d'échange : `GET /api/my-collection?…&
 | `GET /api/profile/<pseudo>/collection?page=&sort=&stats=[&q=][&rarity=…][&tag_id=]&pending=1` (dans cet ordre ; code du 30/09) | `{ collection, total, rarityCounts, tagOptions, pendingTradeCardIds, profileId }` ; exemplaires avec `owned_by_viewer` ; 50 par page, `page` à partir de 0 ; `stats=1` en page 0 seulement ; tri `rarity`, `name`, `added`. `wishlisted_by_me=1` : seulement dans la fenêtre d'échange | `profileCollectionList` (pseudo du profil affiché seulement) ; fenêtre d'échange : `tradeCardsSide` |
 | `GET /api/showcase`, `PUT /api/showcase` `{ position, user_card_id }`, `DELETE /api/showcase` `{ position }` | sa propre vitrine ; `{ ok }` | |
 | `GET /api/friends` | `{ friendships: [{ id, status, requester_id, addressee_id, requester, addressee, created_at, … }], counts: { accepted, incoming, outgoing } }` : **tout d'un coup**, amis et demandes (aucun paramètre, pas de pagination ; captures : 20 amitiés = 17 + 0 + 3 des compteurs) | `isFriendsList` (`friends-layout` la resservit sans réseau), `fetchFriendships` (même requête), `parseFriendships` ; joueur connecté (`trackMe`) |
-| `GET /api/friends/search?q=` | `{ users: [joueur] }` (à partir de 2 caractères) | `isPlayerSearch`, `parsePlayerSearch` |
+| `GET /api/friends/search?q=` | `{ users: [{ id, username, avatar_url, avatar_pos_x, avatar_pos_y }] }` (à partir de 2 caractères ; 10 pour « ed » le 01/10, limite probable) | `isPlayerSearch`, `parsePlayerSearch` ; `player-search` suit sa durée |
 | `POST /api/friends` `{ addressee_id }` | 201 `{ friendship }` (`status: "pending"` ; joueurs `requester` / `addressee` joints ou non : pas encore vu) ; « Ajouter » de « Rechercher un joueur », réponse non lue par le site | `readFriendshipAction`, `parseSentFriendship` |
 | `DELETE /api/friends/<friendshipId>` | `{ success }` : retirer un ami, annuler une demande | `removeFriendship` (même requête), `isFriendshipDelete`, `readFriendshipAction` |
 | `PATCH /api/friends/<friendshipId>` `{ action: "accept" \| "decline" }` | demande reçue acceptée ou refusée (réponse non lue par le site) | `readFriendshipAction` |
@@ -199,7 +202,7 @@ Relevé : 29/09. Nouveaux messages : canaux `dms-list:<uid>`, `chat:<ami>:<uid>`
 | Requête | Réponse | Script |
 |---|---|---|
 | `GET /api/guilds` (capture du 01/10) | `{ guild, membership, member_count, home }` (`guild` nul sans guilde) ; `home` : `guild` (`karma_this_week`, `donations_this_week`), `wishlist[]` (demandes des membres : `id`, `card` (modèle), `user_id`, `username`, `avatar_url`, `is_self`, `can_donate`, `owned_copy_ids[]`, `recipient_received_today`, `created_at`), `my_wishlist`, `leaderboard`, `my_contribution`, `recent_donations[]` (`card`, `donor`, `recipient`, `karma_awarded`), `weekly_karma_donors[]`, `received_donation_today`, `reset_in_ms` | `trackGuildMembership`, `readGuildsResponse` |
-| `POST /api/guilds` `{ name, description? }` (nom de 2 à 30 caractères, description de 200 au plus, vide = absente) | création ; erreur : `{ error }`, affiché tel quel dans le formulaire ; réussite : le site relit sa guilde | `isGuildCreation` |
+| `POST /api/guilds` `{ name, description? }` (nom de 2 à 30 caractères, description de 200 au plus, vide = absente) | création ; erreur : `{ error }`, affiché tel quel dans le formulaire ; réussite : le site relit sa guilde (`GET /api/guilds`) | `createGuild` |
 | `PATCH /api/guilds` `{ name, description \| null }` | « Modifier la guilde » (chef) ; `{ guild }` ou `{ error }` | |
 | `POST /api/guilds/leave` | quitter la guilde (après `window.confirm`) ; `{ error }` en cas de refus (`alert`) | `trackGuildMembership` |
 | `GET /api/guilds/chat` (`cache: 'no-store'`, capture du 01/10) | `{ messages: [message de guilde] }` triés (106 messages relevés) ; demandée seulement à l'ouverture de l'onglet Chat | `fetchGuildChat` (même requête) |
@@ -219,7 +222,7 @@ Lectures directes du script (Supabase, colonnes utiles), **non vérifiées sur l
 | `POST SB /auth/v1/token?grant_type=refresh_token` `{ refresh_token }` | `{ access_token, … }` : nouveau jeton (toutes les heures) | `trackSupabaseSession` (jeton renouvelé) |
 | `GET SB /auth/v1/.well-known/jwks.json` | clés publiques de vérification des jetons | |
 
-Le jeton de session et la clé publique se lisent au passage dans les requêtes Supabase du site ; le `sub` du jeton est l'`uid`.
+Le jeton de session et la clé publique se lisent au passage dans les requêtes Supabase du site ; le `sub` du jeton est l'`uid`. Le site peut ne faire aucune requête Supabase de toute une visite (02/10 : marché rechargé, statut PRO non redemandé) : le jeton se relit alors dans son cookie (client `@supabase/ssr`, code du 02/10) `sb-<projet>-auth-token`, lisible par la page, la session en JSON écrite `base64-<base64url>`, découpée en `<nom>.0`, `<nom>.1`… si elle est longue (`readSessionCookie`) ; la clé publique, absente du cookie (écrite dans le code du site), est gardée de la dernière requête vue (`wm-supabase-v1`).
 
 ## Formes des données
 

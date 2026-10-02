@@ -1,5 +1,5 @@
 import type { JSX } from 'preact';
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useState } from 'preact/hooks';
 import { injectStyle } from '@/core/dom';
 import { buttonClass } from '@/ui/button';
 import { useLatest } from '@/ui/hooks';
@@ -51,7 +51,9 @@ export function Pagination({ page, total, hasNext, busy, lockedReason, delay = D
   const [queued, setQueued] = useState<{ readonly page: number; readonly control: PaginationControl }>();
   const shown = queued?.page ?? page;
   const [draft, setDraft] = useState(String(shown));
-  useEffect(() => setDraft(String(shown)), [shown]);
+  // Synchronisations en `useLayoutEffect` : un effet ordinaire attend l'image suivante, et effacerait à l'affichage
+  // une saisie (ou une page visée) tapée aussitôt.
+  useLayoutEffect(() => setDraft(String(shown)), [shown]);
 
   const latest = useLatest(onChange);
   useEffect(() => {
@@ -63,7 +65,7 @@ export function Pagination({ page, total, hasNext, busy, lockedReason, delay = D
     return () => clearTimeout(timer);
   }, [queued, delay, latest]);
   // Page changée d'ailleurs, ou pagination devenue indisponible : ce qui attendait est abandonné.
-  useEffect(() => setQueued(undefined), [page, inactive]);
+  useLayoutEffect(() => setQueued(undefined), [page, inactive]);
 
   /** Revenir à la page affichée annule l'attente. */
   const queue = (target: number, control: PaginationControl) => setQueued(target === page ? undefined : { page: target, control });

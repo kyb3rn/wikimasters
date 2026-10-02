@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { letTimePass, openSettings, openSite, rect, sitePage } from './support/site';
+import { animationsDone, letTimePass, nextFrame, openSettings, openSite, rect, sitePage } from './support/site';
 
 /**
  * Modales du site, une de chaque sorte (balisage des captures et du code du 29/09/2026). Comme sur le site : le
@@ -121,6 +121,7 @@ async function open(page: Page, name: string): Promise<Locator> {
   await page.evaluate((modal) => (window as unknown as { openModal: (name: string) => void }).openModal(modal), name);
   const frame = page.locator(`#${name}`);
   await expect(frame).toBeVisible();
+  await nextFrame(page); // passe du script faite : fond, croix, Échap
   return frame;
 }
 
@@ -285,6 +286,7 @@ test('aide sans croix (/pulls) : « Compris ! » devient la croix ronde dans le 
   const help = await open(page, 'help');
   await expect(help.getByRole('button', { name: 'Compris !' })).toBeHidden();
   const cross = ourCross(help);
+  await animationsDone(help);
   const [outer, inner] = await Promise.all([rect(help), rect(cross)]);
   expect(outer.x + outer.width - (inner.x + inner.width)).toBeCloseTo(12, 0);
   expect(inner.y - outer.y).toBeCloseTo(12, 0);

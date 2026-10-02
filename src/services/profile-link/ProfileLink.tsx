@@ -1,3 +1,4 @@
+import type { ComponentChildren } from 'preact';
 import { isPlainClick } from '@/core/dom';
 import { profilePath } from '@/site/profile';
 import { navigateTo } from '@/site/router';
@@ -8,6 +9,8 @@ export interface ProfileLinkProps {
   readonly className: string;
   /** Texte du lien (par défaut le pseudo). */
   readonly label?: string;
+  /** Contenu à la place du texte (ligne d'une liste de joueurs). */
+  readonly children?: ComponentChildren;
 }
 
 /**
@@ -15,7 +18,7 @@ export interface ProfileLinkProps {
  * l'annonce : le clic s'arrête ici (le site n'ouvre pas l'annonce) et navigue comme le site, sans recharger.
  * Ctrl, Maj, clic du milieu : le navigateur ouvre le profil (nouvel onglet…).
  */
-export function ProfileLink({ username, className, label = username }: ProfileLinkProps) {
+export function ProfileLink({ username, className, label = username, children }: ProfileLinkProps) {
   const href = profilePath(username);
   return (
     <a
@@ -29,7 +32,7 @@ export function ProfileLink({ username, className, label = username }: ProfileLi
         navigateTo(href);
       }}
     >
-      {label}
+      {children ?? label}
     </a>
   );
 }

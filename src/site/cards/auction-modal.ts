@@ -1,7 +1,10 @@
+import { isRecord } from '@/core/guards';
+import { findPropsAbove } from '@/core/react';
 import { textOf } from '@/core/text';
 import { siteButtons } from '@/site/dom';
 import { SITE_OVERLAY } from '@/site/modals';
 import { FACE } from './face';
+import { parseCardRef, type CardRef } from './ref';
 
 /**
  * Modale « Mettre aux enchères » du site, ouverte par-dessus la modale de carte (code du site relevé
@@ -78,4 +81,48 @@ export function findAuctionModal(doc: Document = document): AuctionModal | undef
     };
   }
   return undefined;
+}
+
+/**
+ * Fenêtre « Vérification rapide » que la modale d'enchère ouvre quand `POST /api/marketplace` répond 403
+ * `human_verification_required` (code du site du 02/10/2026) : portail dans `body`, au-dessus de la modale d'enchère
+ * restée ouverte. Un widget Cloudflare Turnstile (`appearance: interaction-only` : visible seulement s'il faut
+ * cliquer) envoie son jeton à `POST /api/human-check` ; réussite : la fenêtre se ferme et la mise en vente repart
+ * d'elle-même.
+ *
+ *   div.fixed.inset-0.z-[70] (fond, arrête le clic)
+ *     div.card-frame : h2 « Vérification rapide », p (explication), div > div#turnstile-<id>,
+ *       p « Vérification… » (envoi du jeton), encart d'erreur, button « Annuler » (texte, ferme sans rien envoyer)
+ */
+export function findAuctionHumanCheck(doc: Document = document): HTMLElement | undefined {
+  return [...doc.querySelectorAll<HTMLElement>(SITE_OVERLAY)].find((root) =>
+    [...root.querySelectorAll('h2')].some((h2) => textOf(h2) === 'Vérification rapide'),
+  );
+}
+
+/** La carte mise aux enchères, telle que l'exemplaire la montre. */
+export interface AuctionModalCard {
+  /** Rareté de l'exemplaire (pas forcément celle de la carte aujourd'hui). */
+  readonly card: CardRef;
+  /** L shiny (le site n'habille en shiny que les L). */
+  readonly shiny: boolean;
+  readonly userCardId: string | undefined;
+}
+
+/**
+ * Carte mise aux enchères, lue dans l'état React de la modale (code du site du 02/10/2026) : son composant reçoit
+ * `{ card, onClose, onListed, userCardId }`, `card` étant celle de la modale de carte, aux valeurs de l'exemplaire
+ * (`rarity` = `snapshot_rarity` s'il en a une, `is_shiny`). Parcours de l'arbre de React : à lire au moment voulu.
+ */
+export function readAuctionModalCard(modal: AuctionModal): AuctionModalCard | undefined {
+  const found = findPropsAbove(modal.root, (props) => typeof props.onListed === 'function' && parseCardRef(props.card) !== undefined);
+  const card = found && parseCardRef(found.props.card);
+  if (!found || !card) return undefined;
+  const raw = found.props.card;
+  const { userCardId } = found.props;
+  return {
+    card,
+    shiny: isRecord(raw) && raw.is_shiny === true && card.rarity === 'L',
+    userCardId: typeof userCardId === 'string' ? userCardId : undefined,
+  };
 }
