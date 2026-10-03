@@ -184,6 +184,41 @@ export function tradeCardsSide(request: Pick<NetRequest, 'method' | 'url'>, frie
   }
 }
 
+/**
+ * Compteurs de « Mes cartes » (`GET /api/my-collection/stats?sort=rarity[&filtres]`, sans `owned_by`, en page 1,
+ * partis juste avant la liste) : le site y lit le total (pagination) et les étiquettes. Rien d'autre ne les
+ * distingue de ceux de la Collection : à croiser avec la fenêtre ouverte.
+ */
+export function isTradeMineStats(request: Pick<NetRequest, 'method' | 'url'>): boolean {
+  const { pathname, searchParams } = request.url;
+  return request.method === 'GET' && pathname === '/api/my-collection/stats' && searchParams.get('sort') === 'rarity';
+}
+
+/** Paramètres que le site place avant l'étiquette (`appendMyCollectionFilterParams`). */
+const BEFORE_TAG = new Set(['sort', 'q', 'rarity']);
+
+/**
+ * Liste ou compteurs de « Mes cartes » limités aux cartes sans étiquette, comme « Sans étiquette » de la Collection
+ * (le site ne le propose pas ici, la route l'accepte, total des compteurs compris) : `untagged=1` à la place de
+ * `tag_id`, dans l'ordre du site (tri, recherche, raretés, étiquette, liste de souhaits, puis page, `stats`, `owned_by`).
+ */
+export function withUntaggedFilter(url: URL): URL {
+  const params = new URLSearchParams();
+  let placed = false;
+  for (const [key, value] of url.searchParams) {
+    if (key === 'tag_id' || key === 'untagged') continue;
+    if (!placed && !BEFORE_TAG.has(key)) {
+      params.append('untagged', '1');
+      placed = true;
+    }
+    params.append(key, value);
+  }
+  if (!placed) params.append('untagged', '1');
+  const next = new URL(url.href);
+  next.search = params.toString();
+  return next;
+}
+
 export interface TradeRarities {
   readonly checked: ReadonlySet<string>;
   /** Ce que fait la liste du site (retour en page 1, rechargement). */

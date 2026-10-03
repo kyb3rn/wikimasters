@@ -2,6 +2,7 @@ import type { LocalNotification } from '@/services/notifications';
 import { notificationLabel, notificationPath, notificationText, wishlistCardOf, type SiteNotification } from '@/site/notifications';
 import type { IconName } from '@/ui/icons';
 import type { ToastVariant } from '@/ui/toast';
+import { localCategory, siteCategory, type NotificationCategory } from './categories';
 
 /** Une ligne de la liste : notification du site ou du script. */
 export type Entry =
@@ -18,6 +19,7 @@ interface EntryView {
   /** Unique dans la liste (les deux sources ont chacune leurs id). */
   readonly key: string;
   readonly icon: IconName;
+  readonly category: NotificationCategory;
   readonly label: string;
   readonly text: string;
   /** Texte long, dans son propre défilement (contrôle anti-triche). */
@@ -75,6 +77,7 @@ export function siteEntry(notification: SiteNotification): Entry {
     notification,
     key: `site:${notification.id}`,
     icon: SITE_ICONS[notification.type] ?? 'message',
+    category: siteCategory(notification.type),
     label: notificationLabel(notification),
     text: notificationText(notification),
     long: notification.type === 'admin_cheat_warning',
@@ -91,6 +94,7 @@ export function localEntry(notification: LocalNotification): Entry {
     notification,
     key: `local:${notification.id}`,
     icon: notification.variant,
+    category: localCategory(notification.type),
     label: notification.title ?? 'WikiMasters',
     text: notification.message,
     long: false,

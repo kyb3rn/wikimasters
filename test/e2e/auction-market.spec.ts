@@ -76,7 +76,7 @@ async function openAuction(page: Page, server: Server) {
       return true;
     },
   });
-  const button = page.getByRole('button', { name: 'Vue du marché' });
+  const button = page.getByRole('button', { name: 'Vue du marché', exact: true });
   await expect(button).toBeVisible();
   return button;
 }

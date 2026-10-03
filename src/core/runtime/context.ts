@@ -1,9 +1,22 @@
 import { removeStyle, setHidden, unhideAll, whenBody, writeStyle } from '@/core/dom';
 import type { Logger } from '@/core/log';
+import type { Listeners } from '@/core/listeners';
 import type { FeatureCatalog, FeatureContext } from './types';
 
+/** Page affichée, tenue par le runtime. */
+export interface RouteSource {
+  current(): string;
+  readonly changes: Listeners<[route: string]>;
+}
+
 /** Contexte d'une fonctionnalité montée : tout ce qu'il pose est retiré à l'interruption de `signal`. */
-export function createContext(id: string, signal: AbortSignal, log: Logger, catalog: FeatureCatalog): FeatureContext {
+export function createContext(
+  id: string,
+  signal: AbortSignal,
+  log: Logger,
+  catalog: FeatureCatalog,
+  route: RouteSource,
+): FeatureContext {
   function onDispose(action: () => void): void {
     const run = () => {
       try {
@@ -48,6 +61,10 @@ export function createContext(id: string, signal: AbortSignal, log: Logger, cata
         onDispose(() => unhideAll(id));
       }
       setHidden(element, id, hidden);
+    },
+    route: () => route.current(),
+    onRouteChange(listener) {
+      route.changes.on(listener, { signal });
     },
   };
 }

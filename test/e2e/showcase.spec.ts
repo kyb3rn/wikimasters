@@ -76,7 +76,7 @@ test('chaque forme de bouton dans les six couleurs, pleine, en contour et ghost,
     ['Rond', 3],
   ] as const;
   for (const [shape, states] of shapes) {
-    for (const tone of ['neutral', 'danger', 'info', 'accent', 'warning', 'pro']) {
+    for (const tone of ['neutral', 'danger', 'info', 'accent', 'warning', 'violet', 'pro']) {
       const buttons = group(page, shape).locator(`button.wm-tone-${tone}`);
       for (const fill of ['.wm-solid', '.wm-ghost']) {
         expect(await buttons.and(page.locator(fill)).count()).toBeGreaterThanOrEqual(states * 3);

@@ -1,5 +1,6 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
-import { expectDomIdle, openSite, rect, sitePage } from './support/site';
+import { expectDomIdle, letTimePass, openSite, rect, sitePage, SUPABASE } from './support/site';
+import { serveChunk, SITE_MODULES, SITE_ROUTER, type ChunkGate } from './support/site-modules';
 
 // En-tête de son profil relevé sur le site (captures du 29/09/2026), données inventées. Le faux site n'a pas
 // Tailwind : seule la mise en page du script compte ici.
@@ -127,58 +128,24 @@ unfriend.addEventListener('click', async () => {
   }
 });`;
 
-// « Échanger » : état React de la page (profil `{ id, username }` sous un contexte, la session) et modules du site
-// imités d'après Turbopack (code du 02/10/2026). React, react-dom/client instanciés ; modale de carte inscrite, avec
-// son enveloppe de « Proposer un échange » et son chargeur 799047 ; celui-ci attend `window.tradeLoad()`, puis rend
-// la fenêtre d'échange (#trade-window, « Annuler » appelle `onClose`).
-const SITE_MODULES = `
+// « Message » et « Échanger » : état React de la page (profil `{ id, username, avatar_url, … }` sous un contexte, la
+// session), routeur de Next.js et modules du site imités (`SITE_MODULES`, `SITE_ROUTER`). Modale de carte inscrite,
+// avec son enveloppe de « Proposer un échange » et son chargeur 799047 ; celui-ci attend `window.tradeLoad()`, puis
+// rend la fenêtre d'échange (#trade-window, « Annuler » appelle `onClose`). La conversation n'est pas dans la page :
+// le préchargement de la page Amis pose ses morceaux (`window.prefetchChunks`).
+const PROFILE_MODULES = `${SITE_MODULES}
+${SITE_ROUTER}
 const session = { $$typeof: Symbol.for('react.context') };
 const pageFiber = {
   memoizedProps: {},
-  memoizedState: { memoizedState: true, queue: { dispatch() {} }, next: { memoizedState: { id: 'u-ami', username: 'Ami' }, queue: { dispatch() {} }, next: null } },
+  memoizedState: {
+    memoizedState: true,
+    queue: { dispatch() {} },
+    next: { memoizedState: { id: 'u-ami', username: 'Ami', avatar_url: 'https://img/ami.png', avatar_pos_x: 39, avatar_pos_y: 60 }, queue: { dispatch() {} }, next: null },
+  },
   return: { type: session, memoizedProps: { value: 'u0', children: null }, return: null },
 };
 document.getElementById('site-header')['__reactFiber$test'] = { memoizedProps: {}, return: pageFiber };
-
-const factories = new Map();
-const cache = {};
-const proto = { M: factories, c: cache, i: (id) => instantiate(id).exports, A(id) { return instantiate(id).exports(this.i); } };
-function instantiate(id) {
-  const key = String(id);
-  if (cache[key]) return cache[key];
-  const module = { exports: {} };
-  cache[key] = module;
-  factories.get(id)(Object.create(proto), module, module.exports);
-  return module;
-}
-window.TURBOPACK = {
-  push(chunk) {
-    if (chunk.length === 2) return void Promise.resolve().then(() => chunk[1].runtimeModuleIds.forEach(instantiate));
-    for (let i = 1; i < chunk.length; i += 2) if (!factories.has(chunk[i])) factories.set(chunk[i], chunk[i + 1]);
-  },
-};
-const createElement = (type, props, child) => ({ type, props: { ...props, children: child } });
-factories.set(1, (e, m) => { m.exports = { createElement, createContext() {}, useState() {} }; });
-factories.set(2, (e, m) => {
-  m.exports = {
-    hydrateRoot() {},
-    createRoot() {
-      let shown;
-      return {
-        render(element) {
-          window.tradeContexts = [];
-          while (typeof element.type !== 'function') {
-            window.tradeContexts.push(element.props.value);
-            element = element.props.children;
-          }
-          shown = element.type(element.props);
-          document.body.append(shown);
-        },
-        unmount() { shown?.remove(); window.tradeUnmounts = (window.tradeUnmounts ?? 0) + 1; },
-      };
-    },
-  };
-});
 factories.set(3, function (e) {
   function $({friendUsername:r,friendProfileId:l,preselectedFriendCard:s,onClose:n}){let[o,i]=(0,a.useState)(null);return((0,a.useEffect)(()=>{e.A(799047).then(e=>{i(()=>e.default)})},[]),o)}
 });
@@ -193,9 +160,8 @@ factories.set(273271, (e, m, exports) => {
     return root;
   };
 });
-instantiate(1);
-instantiate(2);
-window.tradeLoad = () => Promise.resolve();`;
+window.tradeLoad = () => Promise.resolve();
+window.prefetchChunks = ['amis', 'conversation'];`;
 
 const STRANGER_PROFILE = (request: string) => `
 <div class="flex-1 p-4 md:p-6 space-y-5">
@@ -348,11 +314,18 @@ test('la pastille de la photo ouvre la fenêtre « Photo de profil » du site', 
   await expect(page.locator('#photo-modal')).toContainText('Photo de profil');
 });
 
-async function openFriend(page: Page, remove?: (route: Route) => Promise<void>): Promise<{ deleted: number }> {
+interface FriendOptions {
+  readonly remove?: (route: Route) => Promise<void>;
+  readonly chunk?: ChunkGate;
+}
+
+async function openFriend(page: Page, { remove, chunk }: FriendOptions = {}): Promise<{ deleted: number }> {
   const seen = { deleted: 0 };
+  await page.route(`${SUPABASE}/**`, (route) => route.fulfill({ json: [] }));
   await openSite(page, '/profile/Ami', {
-    html: sitePage(FRIEND_PROFILE, FRIEND_SCRIPT + SITE_MODULES),
+    html: sitePage(FRIEND_PROFILE, FRIEND_SCRIPT + PROFILE_MODULES),
     handle: async (route, url) => {
+      if (await serveChunk(route, url, chunk)) return true;
       if (url.pathname !== '/api/friends/f1' || route.request().method() !== 'DELETE') return false;
       seen.deleted++;
       if (remove) await remove(route);
@@ -364,7 +337,7 @@ async function openFriend(page: Page, remove?: (route: Route) => Promise<void>):
   return seen;
 }
 
-test('profil d’un ami : même en-tête, « Depuis … » puis sa dernière activité sous le pseudo, « Échanger » à droite, boutons du site en bas à droite', async ({ page }) => {
+test('profil d’un ami : même en-tête, « Depuis … » puis sa dernière activité sous le pseudo, « Message » et « Échanger » à droite, boutons du site en bas à droite', async ({ page }) => {
   await openFriend(page);
   await expect(page.locator('#site-header')).toBeHidden();
   await expect(page.locator('#back')).toBeVisible();
@@ -377,7 +350,7 @@ test('profil d’un ami : même en-tête, « Depuis … » puis sa dernière act
   await expect(header(page).locator('.wm-profile-identity > p')).toHaveText(['Depuis août 2026', 'Vu il y a 10 min']);
   await expect(header(page).locator('.wm-profile-stat-left')).toHaveText('45 583Cartes');
   await expect(header(page).locator('.wm-profile-stat-right')).toHaveCount(0);
-  await expect(header(page).locator('.wm-profile-trade').getByRole('button')).toHaveText(['Échanger']);
+  await expect(header(page).locator('.wm-profile-friend').getByRole('button')).toHaveText(['Message', 'Échanger']);
   await expect(header(page).locator('.wm-profile-actions').getByRole('button')).toHaveText(['Signaler', 'Retirer des amis']);
   await expect(header(page).getByRole('button', { name: 'Signaler' })).toHaveAttribute('title', 'Signaler Ami');
   await expect(header(page).getByRole('button', { name: 'Modifier la photo de profil' })).toHaveCount(0);
@@ -385,7 +358,13 @@ test('profil d’un ami : même en-tête, « Depuis … » puis sa dernière act
   await expect(header(page).getByRole('list', { name: 'Étiquettes' })).toHaveCount(0);
 });
 
-test('profil d’un ami, mise en page : celle de son profil, « Échanger » à droite de la photo, boutons du site en bas à droite ; sur téléphone, « Échanger » en bas sur toute la largeur', async ({ page }) => {
+/** « Message » et « Échanger » sur la même ligne (mesurés ensemble : l'en-tête peut encore glisser à l'entrée). */
+const sameRow = (page: Page) =>
+  header(page)
+    .locator('.wm-profile-friend button')
+    .evaluateAll((buttons) => new Set(buttons.map((button) => button.getBoundingClientRect().y)).size === 1);
+
+test('profil d’un ami, mise en page : celle de son profil, « Message » puis « Échanger » à droite de la photo, boutons du site en bas à droite ; sur téléphone, les deux en bas sur toute la largeur', async ({ page }) => {
   await page.setViewportSize({ width: 1400, height: 900 });
   await openFriend(page);
   const box = (selector: string) => rect(header(page).locator(selector));
@@ -395,14 +374,17 @@ test('profil d’un ami, mise en page : celle de son profil, « Échanger » à 
   const left = await box('.wm-profile-stat-left > :first-child');
   const seen = await box('.wm-profile-seen');
   const details = await box('.wm-profile-identity > p:not(.wm-profile-seen)');
-  const right = await box('.wm-profile-trade button');
+  const message = await box('.wm-profile-friend button >> nth=0');
+  const right = await box('.wm-profile-friend button >> nth=1');
   const actions = await box('.wm-profile-actions');
 
   const center = frame.x + frame.width / 2;
   expect(Math.abs(avatar.x + avatar.width / 2 - center)).toBeLessThan(2);
   expect(Math.abs(avatar.y + avatar.height / 2 - (cover.y + cover.height))).toBeLessThan(2);
   expect(left.x + left.width).toBeLessThan(avatar.x);
-  expect(right.x).toBeGreaterThan(avatar.x + avatar.width);
+  expect(message.x).toBeGreaterThan(avatar.x + avatar.width);
+  expect(right.x).toBeGreaterThan(message.x + message.width);
+  expect(await sameRow(page)).toBe(true);
   expect(Math.abs(left.y - right.y)).toBeLessThan(8);
   expect(seen.y).toBeGreaterThan(details.y + details.height - 1);
   expect(Math.abs(seen.x + seen.width / 2 - center)).toBeLessThan(2);
@@ -414,9 +396,13 @@ test('profil d’un ami, mise en page : celle de son profil, « Échanger » à 
   await page.setViewportSize({ width: 400, height: 800 });
   const narrow = await rect(header(page));
   const below = await box('.wm-profile-seen');
-  const button = await box('.wm-profile-trade button');
-  expect(button.y).toBeGreaterThan(below.y + below.height);
-  expect(button.width).toBeGreaterThan(narrow.width - 40);
+  const buttons = await box('.wm-profile-friend');
+  const first = await box('.wm-profile-friend button >> nth=0');
+  const second = await box('.wm-profile-friend button >> nth=1');
+  expect(first.y).toBeGreaterThan(below.y + below.height);
+  expect(buttons.width).toBeGreaterThan(narrow.width - 40);
+  expect(await sameRow(page)).toBe(true);
+  expect(Math.abs(second.width - first.width)).toBeLessThan(1);
 });
 
 test('« Signaler » ouvre la fenêtre du site', async ({ page }) => {
@@ -428,9 +414,11 @@ test('« Signaler » ouvre la fenêtre du site', async ({ page }) => {
 test('« Retirer des amis » : notre confirmation, roue pendant la requête du site, puis profil d’un non-ami', async ({ page }) => {
   let release = () => {};
   const held = new Promise<void>((resolve) => (release = resolve));
-  const seen = await openFriend(page, async (route) => {
-    await held;
-    await route.fulfill({ json: { success: true } });
+  const seen = await openFriend(page, {
+    remove: async (route) => {
+      await held;
+      await route.fulfill({ json: { success: true } });
+    },
   });
   const unfriend = header(page).getByRole('button', { name: 'Retirer des amis' });
   await unfriend.click();
@@ -448,11 +436,17 @@ test('« Retirer des amis » : notre confirmation, roue pendant la requête du s
   expect(seen.deleted).toBe(1);
 });
 
-/** Valeurs posées par les modules imités (`SITE_MODULES`). */
-const tradeSeen = (page: Page) =>
+/** Valeurs posées par les modules imités (`SITE_MODULES`, `SITE_ROUTER`). */
+const shown = (page: Page) =>
   page.evaluate(() => {
     const seen = window as unknown as Record<string, unknown>;
-    return { props: seen.tradeProps, contexts: seen.tradeContexts, unmounts: seen.tradeUnmounts };
+    return {
+      trade: seen.tradeProps,
+      chat: seen.chatProps,
+      contexts: seen.shownContexts,
+      unmounts: seen.shownUnmounts,
+      prefetched: seen.prefetched,
+    };
   });
 
 test('« Échanger » : la fenêtre d’échange du site s’ouvre sur place, pour cet ami, roue pendant son chargement', async ({ page }) => {
@@ -472,11 +466,16 @@ test('« Échanger » : la fenêtre d’échange du site s’ouvre sur place, po
   await expect(trade).toBeEnabled();
   await expect(trade.locator('.wm-spin')).toHaveCount(0);
   expect(new URL(page.url()).pathname).toBe('/profile/Ami');
-  expect(await tradeSeen(page)).toEqual({ props: { friendUsername: 'Ami', friendProfileId: 'u-ami' }, contexts: ['u0'], unmounts: undefined });
+  expect(await shown(page)).toMatchObject({
+    trade: { friendUsername: 'Ami', friendProfileId: 'u-ami' },
+    contexts: ['u0'],
+    unmounts: undefined,
+    prefetched: [],
+  });
 
   await page.locator('#trade-cancel').click();
   await expect(page.locator('#trade-window')).toHaveCount(0);
-  expect((await tradeSeen(page)).unmounts).toBe(1);
+  expect((await shown(page)).unmounts).toBe(1);
   await trade.click();
   await expect(page.locator('#trade-window')).toBeVisible();
 });
@@ -503,6 +502,64 @@ test('« Échanger », code du site pas reçu : erreur réseau en toast', async 
   await trade.click();
   await expect(page.getByRole('alert')).toContainText("Le site n'a pas répondu (erreur réseau).");
   await expect(trade).toBeEnabled();
+});
+
+test('« Message » : la conversation du site s’ouvre sur place, avec le code de la page Amis préchargée ; roue jusqu’à ce que tous ses morceaux soient là', async ({ page }) => {
+  let release = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await openFriend(page, {
+    chunk: async (name) => {
+      if (name === 'autre') await held;
+      return 'ok';
+    },
+  });
+  await page.evaluate(() => Object.assign(window, { prefetchChunks: ['amis', 'conversation', 'autre'] }));
+  const message = header(page).getByRole('button', { name: 'Message' });
+  await message.click();
+  await expect(message).toBeDisabled();
+  await expect(message.locator('.wm-spin')).toBeVisible();
+  // La conversation est inscrite, mais un morceau de la page manque encore : elle n'est pas demandée.
+  await letTimePass(page, 600);
+  await expect(page.locator('#chat-window')).toHaveCount(0);
+  release();
+
+  await expect(page.locator('#chat-window')).toContainText('Conversation avec Ami');
+  await expect(message).toBeEnabled();
+  await expect(message.locator('.wm-spin')).toHaveCount(0);
+  expect(new URL(page.url()).pathname).toBe('/profile/Ami');
+  expect(await shown(page)).toMatchObject({
+    chat: {
+      peer: { id: 'u-ami', username: 'Ami', avatar_url: 'https://img/ami.png', avatar_pos_x: 39, avatar_pos_y: 60 },
+      currentUserId: 'u0',
+    },
+    contexts: ['u0'],
+    prefetched: [['/friends', { kind: 'full' }]],
+  });
+
+  await page.locator('#chat-close').click();
+  await expect(page.locator('#chat-window')).toHaveCount(0);
+  // Rouverte : son code est déjà là, rien n'est préchargé.
+  await message.click();
+  await expect(page.locator('#chat-window')).toBeVisible();
+  expect((await shown(page)).prefetched).toHaveLength(1);
+});
+
+test('« Message », code de la page Amis pas reçu : erreur réseau en toast, le bouton revient', async ({ page }) => {
+  await openFriend(page, { chunk: (name) => Promise.resolve(name === 'conversation' ? 'failed' : 'ok') });
+  const message = header(page).getByRole('button', { name: 'Message' });
+  await message.click();
+  const alert = page.getByRole('alert');
+  await expect(alert).toContainText('Messages');
+  await expect(alert).toContainText("Le site n'a pas répondu (erreur réseau).");
+  await expect(message).toBeEnabled();
+  await expect(page.locator('#chat-window')).toHaveCount(0);
+});
+
+test('« Message » sans les modules du site (le site a changé) : toast', async ({ page }) => {
+  await openFriend(page);
+  await page.evaluate(() => Reflect.deleteProperty(window, 'TURBOPACK'));
+  await header(page).getByRole('button', { name: 'Message' }).click();
+  await expect(page.getByRole('alert')).toContainText("La conversation du site n'a pas pu s'ouvrir.");
 });
 
 interface StrangerServer {

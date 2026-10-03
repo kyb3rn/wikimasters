@@ -64,6 +64,25 @@ describe('notifications du script', () => {
     expect(localNotifications()).toEqual([]);
   });
 
+  it('genre gardé s’il est connu ; « Enchère publiée » d’avant les genres reconnue à son titre', () => {
+    const base = { message: 'm', variant: 'success', createdAt: 1, read: false };
+    storage.setItem(
+      KEY,
+      JSON.stringify([
+        { ...base, id: 'n1', type: 'auction-published' },
+        { ...base, id: 'n2', type: 'disparu' },
+        { ...base, id: 'n3', title: 'Enchère publiée' },
+        { ...base, id: 'n4', title: 'Étiquettes' },
+      ]),
+    );
+    expect(localNotifications().map((n) => [n.id, n.type])).toEqual([
+      ['n1', 'auction-published'],
+      ['n2', undefined],
+      ['n3', 'auction-published'],
+      ['n4', undefined],
+    ]);
+  });
+
   it('abonnés prévenus des changements, ici ou dans un autre onglet, jusqu’à interruption', () => {
     const controller = new AbortController();
     let changes = 0;

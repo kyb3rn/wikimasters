@@ -1,5 +1,5 @@
 import { isRecord } from '@/core/guards';
-import { jsonStore } from '@/core/storage';
+import { jsonStore, onStorageChange } from '@/core/storage';
 import { serverNow } from '@/site/clock';
 
 /** Carte (modèle) retirée de ma liste de souhaits → heure du retrait (horloge du serveur), du plus ancien au plus récent. */
@@ -43,7 +43,8 @@ export function returnedCards(removed: RemovedWishes, listings: readonly Wishlis
  * Cartes retirées de ma liste de souhaits par le script ou par le site sous nos yeux (modale de carte), partagées
  * entre les onglets du navigateur : la notification de mise en vente ne dit pas si la carte y est encore.
  */
-const store = /* @__PURE__ */ jsonStore<RemovedWishes>('wm-wishlist-removed-v1', {}, parseRemovedWishes);
+const KEY = 'wm-wishlist-removed-v1';
+const store = /* @__PURE__ */ jsonStore<RemovedWishes>(KEY, {}, parseRemovedWishes);
 
 export function removedWishes(): RemovedWishes {
   return store.get();
@@ -57,4 +58,8 @@ export function rememberWish(cardId: string, wished: boolean): void {
 export function forgetReturned(listings: readonly WishlistListing[]): void {
   const returned = returnedCards(store.get(), listings);
   if (returned.length > 0) store.update((removed) => withoutRemoved(removed, returned));
+}
+
+export function onRemovedWishesElsewhere(listener: () => void, options: { signal: AbortSignal }): void {
+  onStorageChange(KEY, listener, options);
 }

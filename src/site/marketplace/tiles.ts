@@ -1,9 +1,11 @@
 import { isRecord } from '@/core/guards';
 import { currentFiberAncestors } from '@/core/react';
+import { matchRoute } from '@/core/router';
 import { textOf } from '@/core/text';
 import { isAuctionStatus, parseListingCard, type AuctionStatus } from '@/site/api';
 import { FACE, findFaceImage, type CardRef } from '@/site/cards';
 import { parseRarity } from '@/site/rarity';
+import { AUCTION_ROUTE } from '@/site/routes';
 
 /**
  * Vignettes d'annonce du marché, dans tous les onglets (captures du 29/09/2026) :
@@ -127,6 +129,8 @@ export function readTileEndAt({ tile, auctionId }: SiteAuctionTile): number | un
 /** Une vignette d'annonce affichée, du site ou à nous (recherche avancée). */
 export interface AuctionTile {
   readonly tile: HTMLElement;
+  /** Lue dans le lien de la vignette (`/marketplace/<id>`), le même pour les nôtres. */
+  readonly auctionId: string | undefined;
   /** Colonne du cadre (`a.card-frame > div`) : carte, mise et durée. */
   readonly column: HTMLElement;
   /** Face de la carte. */
@@ -137,10 +141,12 @@ export interface AuctionTile {
 /** Vignettes d'annonce affichées, celles du site comme les nôtres. */
 export function findAuctionTiles(root: ParentNode = document): AuctionTile[] {
   return [...root.querySelectorAll<HTMLElement>(TILE)].flatMap((tile) => {
-    const column = tile.querySelector<HTMLElement>(':scope > a.card-frame > div');
-    if (!column) return [];
+    const link = tile.querySelector<HTMLElement>(':scope > a.card-frame');
+    const column = link?.querySelector<HTMLElement>(':scope > div');
+    if (!link || !column) return [];
+    const auctionId = matchRoute(AUCTION_ROUTE, link.getAttribute('href') ?? '')?.id;
     const face = column.querySelector<HTMLElement>(`:scope > div.overflow-hidden > ${FACE}`) ?? undefined;
-    return [{ tile, column, face, own: tile.classList.contains(OWN_TILE) }];
+    return [{ tile, auctionId, column, face, own: tile.classList.contains(OWN_TILE) }];
   });
 }
 

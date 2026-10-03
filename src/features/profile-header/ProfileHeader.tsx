@@ -35,11 +35,17 @@ export type FriendRequestView =
       readonly onDecline: () => void;
     };
 
-/** « Échanger » d'un ami, à droite de la photo : ouvre la fenêtre d'échange du site. */
-export interface TradeView {
-  /** Fenêtre en cours d'ouverture (morceau du site à charger). */
+/** Bouton qui ouvre une fenêtre du site. */
+export interface WindowButton {
+  /** Fenêtre en cours d'ouverture (code du site à charger). */
   readonly busy: boolean;
   readonly onClick: () => void;
+}
+
+/** Ami, à droite de la photo : « Message » (sa conversation) et « Échanger » (la fenêtre d'échange du site). */
+export interface FriendView {
+  readonly message: WindowButton;
+  readonly trade: WindowButton;
 }
 
 export interface ProfileHeaderProps {
@@ -52,7 +58,7 @@ export interface ProfileHeaderProps {
   readonly right: ProfileStat | undefined;
   /** À la place du chiffre de droite (l'un ou l'autre). */
   readonly request: FriendRequestView | undefined;
-  readonly trade: TradeView | undefined;
+  readonly friend: FriendView | undefined;
   readonly tags: readonly ProfileTag[];
   readonly visibility: VisibilityState | undefined;
   readonly actions: readonly HeaderAction[];
@@ -185,34 +191,36 @@ function Request({ request }: { request: FriendRequestView }) {
   );
 }
 
-function Trade({ trade }: { trade: TradeView }) {
+function OpenButton(props: { button: WindowButton; tone: 'info' | 'accent'; icon: IconName; label: string }) {
+  const { busy, onClick } = props.button;
   return (
-    <div class="wm-profile-trade">
-      <button
-        type="button"
-        class={buttonClass('standard', { tone: 'accent' })}
-        disabled={trade.busy}
-        aria-busy={trade.busy}
-        onClick={trade.onClick}
-      >
-        <Icon name="handshake" busy={trade.busy} size={16} />
-        Échanger
-      </button>
+    <button type="button" class={buttonClass('standard', { tone: props.tone })} disabled={busy} aria-busy={busy} onClick={onClick}>
+      <Icon name={props.icon} busy={busy} size={16} />
+      {props.label}
+    </button>
+  );
+}
+
+function Friend({ friend }: { friend: FriendView }) {
+  return (
+    <div class="wm-profile-friend">
+      <OpenButton button={friend.message} tone="info" icon="message" label="Message" />
+      <OpenButton button={friend.trade} tone="accent" icon="handshake" label="Échanger" />
     </div>
   );
 }
 
-function Right(props: Pick<ProfileHeaderProps, 'request' | 'trade' | 'right'>) {
+function Right(props: Pick<ProfileHeaderProps, 'request' | 'friend' | 'right'>) {
   if (props.request) return <Request request={props.request} />;
-  if (props.trade) return <Trade trade={props.trade} />;
+  if (props.friend) return <Friend friend={props.friend} />;
   return <Stat stat={props.right} side="right" />;
 }
 
 /**
  * En-tête d'un profil : fond en haut (visibilité du sien dans son coin), photo à cheval sur le bas du fond, pseudo
- * et ligne du site dessous (puis la dernière activité d'un ami), un chiffre de chaque côté (à droite, « Échanger »
- * pour un ami, la demande d'ami d'un autre joueur), boutons du site d'un autre joueur en bas à droite, étiquettes
- * en bas.
+ * et ligne du site dessous (puis la dernière activité d'un ami), un chiffre de chaque côté (à droite, « Message » et
+ * « Échanger » pour un ami, la demande d'ami d'un autre joueur), boutons du site d'un autre joueur en bas à droite,
+ * étiquettes en bas.
  */
 export function ProfileHeader(props: ProfileHeaderProps) {
   return (
@@ -248,7 +256,7 @@ export function ProfileHeader(props: ProfileHeaderProps) {
           {props.seen && <p class={`${siteClass.profileDetails} wm-profile-seen`}>{props.seen}</p>}
         </div>
         <div class="wm-profile-right">
-          <Right request={props.request} trade={props.trade} right={props.right} />
+          <Right request={props.request} friend={props.friend} right={props.right} />
           {props.actions.length > 0 && (
             <div class="wm-profile-actions">
               {props.actions.map((action) => (

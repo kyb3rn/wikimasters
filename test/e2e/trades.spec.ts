@@ -71,6 +71,71 @@ test.describe("fenêtre d'échange : filtres", () => {
     await expect(cardTitles(page)).toHaveText(['theirs UR ♥ p0']);
     expect(lastRequest(server, 'theirs').get('wishlisted_by_me')).toBe('1');
   });
+
+  test('« Mes cartes » : « Sans étiquette », que le site n’a pas, ajoutée à ses requêtes (liste et compteurs)', async ({ page }) => {
+    const server = await open(page);
+    const row = line(page);
+    const tags = row.getByRole('button', { name: 'Filtrer par étiquette' });
+    await tags.click();
+    await expect(page.getByRole('option')).toHaveText(['Toutes les étiquettes', 'Sans étiquette', '#rouge (3)']);
+    await page.getByRole('option', { name: 'Sans étiquette' }).click();
+    await expect(cardTitles(page)).toHaveText(['mine toutes #aucune p0']);
+    await expect(tags).toHaveText('Sans étiquette');
+    expect(server.requests.mine.at(-1)).toBe('sort=rarity&untagged=1&page=0&stats=0&owned_by=aelonka');
+    expect(server.stats.at(-1)).toBe('sort=rarity&untagged=1');
+
+    // Les autres filtres la gardent ; une étiquette la remplace, et inversement.
+    await row.getByRole('button', { name: 'SR', exact: true }).click();
+    await expect(cardTitles(page)).toHaveText(['mine SR #aucune p0']);
+    await row.getByRole('button', { name: 'Souhaits de aelonka' }).click();
+    await expect(cardTitles(page)).toHaveText(['mine SR #aucune ♥ p0']);
+    expect(server.stats.at(-1)).toBe('sort=rarity&rarity=SR&untagged=1&wishlisted_by=aelonka');
+    await tags.click();
+    await page.getByRole('option', { name: '#rouge (3)' }).click();
+    await expect(cardTitles(page)).toHaveText(['mine SR #t1 ♥ p0']);
+    await tags.click();
+    await page.getByRole('option', { name: 'Sans étiquette' }).click();
+    await expect(cardTitles(page)).toHaveText(['mine SR #aucune ♥ p0']);
+    expect(lastRequest(server, 'mine').has('tag_id')).toBe(false);
+    await tags.click();
+    await page.getByRole('option', { name: 'Toutes les étiquettes' }).click();
+    await expect(cardTitles(page)).toHaveText(['mine SR ♥ p0']);
+    await expect(tags).toHaveText('Toutes les étiquettes');
+  });
+
+  test('« Sans étiquette » reste à « Mes cartes » d’un onglet à l’autre ; « Cartes de … » ne la propose pas', async ({ page }) => {
+    const server = await open(page);
+    await line(page).getByRole('button', { name: 'Filtrer par étiquette' }).click();
+    await page.getByRole('option', { name: 'Sans étiquette' }).click();
+    await expect(cardTitles(page)).toHaveText(['mine toutes #aucune p0']);
+
+    await sideTab(page, 'aelonka').click();
+    await line(page).getByRole('button', { name: 'Filtrer par étiquette' }).click();
+    await expect(page.getByRole('option')).toHaveText(['Toutes les étiquettes', '#rouge (3)']);
+    await page.keyboard.press('Escape');
+    await line(page).getByRole('button', { name: 'UR', exact: true }).click();
+    await expect(cardTitles(page)).toHaveText(['theirs UR p0']);
+    expect(server.requests.theirs.filter((params) => params.includes('untagged'))).toEqual([]);
+
+    await sideTab(page, 'Moi').click();
+    await expect(line(page).getByRole('button', { name: 'Filtrer par étiquette' })).toHaveText('Sans étiquette');
+    await expectDomIdle(page);
+  });
+
+  test('« Sans étiquette » sans réponse : erreur et « Réessayer », jamais toutes les cartes à la place', async ({ page }) => {
+    const server = await open(page);
+    server.fail.mine = 'network';
+    await line(page).getByRole('button', { name: 'Filtrer par étiquette' }).click();
+    await page.getByRole('option', { name: 'Sans étiquette' }).click();
+    const alert = composer(page).getByRole('alert');
+    await expect(alert).toContainText('Le chargement des cartes a échoué.');
+    expect(server.requests.mine.slice(1)).toEqual(['sort=rarity&untagged=1&page=0&stats=0&owned_by=aelonka']);
+
+    server.fail.mine = undefined;
+    await alert.getByRole('button', { name: 'Réessayer' }).click();
+    await expect(cardTitles(page)).toHaveText(['mine toutes #aucune p0']);
+    await expect(alert).toHaveCount(0);
+  });
 });
 
 test.describe("fenêtre d'échange : wikibidous", () => {

@@ -3,7 +3,8 @@
 //   node build.mjs                 dist/wikimasters.user.js       version à installer
 //   node build.mjs --dev           dist/wikimasters.dev.js        + outils de diagnostic, source map
 //                                  dist/wikimasters.loader.user.js  script de chargement à installer une fois
-//   node build.mjs --dev --watch   idem, reconstruit à chaque sauvegarde
+//   node build.mjs --dev --watch   idem, reconstruit à chaque sauvegarde, et sert dist/ sur http://127.0.0.1:47100
+//                                  pour dist/wikimasters.loader.firefox.user.js (Firefox, Violentmonkey)
 //
 // `WM_DEV_BUNDLE=<fichier> node build.mjs --dev` : version de dev écrite dans ce fichier, script de chargement
 // inchangé (plusieurs séries de tests navigateur en parallèle, chacune avec son fichier ; lu par test/e2e/support/site.ts).
@@ -23,12 +24,19 @@ const pkg = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
 
 /**
  * Fonctionnalités de développement : listées sous `__DEV__` seulement (features/index.ts), esbuild les retire de la
- * version à installer tant que leurs modules n'ont pas d'effet au chargement. Un octet de l'un d'eux dans le fichier
+ * version à installer tant que leurs modules n'ont pas d'effet au chargement ; de même pour les services qu'elles seules
+ * utilisent (prix souhaité de la Revente). Un octet de l'un d'eux dans le fichier
  * fait échouer le build.
  */
-const DEV_ONLY = /^src\/features\/(debug|showcase|market-search)\//;
+const DEV_ONLY = /^src\/(features\/(debug|showcase|market-search|resale|resale-card-display|auction-wished-price)|services\/wished-price)\//;
 
 const MATCHES = ['https://wiki-masters.com/*', 'https://www.wiki-masters.com/*'];
+const ORIGINS = MATCHES.map((m) => m.replace(/\/\*$/, ''));
+
+// Firefox n'ouvre pas les fichiers du disque aux extensions (pas de `@require file:///`) : sous `--watch`, la version
+// de dev y est servie en local, 127.0.0.1 seulement, et seul le site peut la lire.
+const DEV_HOST = '127.0.0.1';
+const DEV_PORT = 47100;
 
 const REPOSITORY = 'https://github.com/kyb3rn/wikimasters';
 // Fichier joint à la dernière release GitHub (.github/workflows/release.yml) : Tampermonkey y
@@ -65,6 +73,7 @@ const outfile = customDevBundle
   ? path.resolve(root, customDevBundle)
   : path.join(root, 'dist', dev ? 'wikimasters.dev.js' : 'wikimasters.user.js');
 const loaderFile = path.join(root, 'dist', 'wikimasters.loader.user.js');
+const firefoxLoaderFile = path.join(root, 'dist', 'wikimasters.loader.firefox.user.js');
 
 /** @type {import('esbuild').BuildOptions} */
 const options = {
@@ -88,7 +97,7 @@ const options = {
   sourcemap: dev ? 'inline' : false,
   banner: {
     js: dev
-      ? `// WikiMasters ${pkg.version} (dev) : généré par build.mjs, chargé par wikimasters.loader.user.js\n`
+      ? `// WikiMasters ${pkg.version} (dev) : généré par build.mjs, chargé par wikimasters.loader(.firefox).user.js\n`
       : userscriptHeader(
           metadata({
             name: 'WikiMasters',
@@ -104,7 +113,7 @@ const options = {
   logLevel: 'info',
 };
 
-async function writeLoader() {
+async function writeLoaders() {
   const header = userscriptHeader(
     metadata({
       name: 'WikiMasters (dev)',
@@ -116,11 +125,43 @@ async function writeLoader() {
     '\n// Script de chargement de la version de dev : Tampermonkey relit le fichier ci-dessus\n' +
     "// à chaque chargement de page (option « Autoriser l'accès aux URL de fichier » requise).\n" +
     '// Ne pas installer en même temps que wikimasters.user.js.\n';
+
+  const bundleUrl = `http://${DEV_HOST}:${DEV_PORT}/${path.basename(outfile)}`;
+  const firefoxHeader = userscriptHeader(
+    metadata({
+      name: 'WikiMasters (dev)',
+      version: `${pkg.version}-dev`,
+      // Violentmonkey : la requête et l'évaluation doivent se faire dans la page, même si son réglage par défaut change.
+      extra: [['inject-into', 'page']],
+    }),
+  );
+  // Requête synchrone : le script doit être en place avant la première requête du site. Paramètre `t` : jamais une
+  // version gardée en cache par le navigateur.
+  const firefoxBody = `
+// Script de chargement de la version de dev pour Firefox (Violentmonkey) : relit à chaque chargement de page
+// la version servie par \`npm run dev\`, qui doit donc tourner.
+// Ne pas installer en même temps que wikimasters.user.js.
+(() => {
+  const url = ${JSON.stringify(bundleUrl)};
+  const request = new XMLHttpRequest();
+  try {
+    request.open('GET', \`\${url}?t=\${Date.now()}\`, false);
+    request.overrideMimeType('text/javascript; charset=utf-8');
+    request.send();
+  } catch {}
+  if (request.status !== 200) {
+    console.error(\`[WM] version de dev introuvable sur \${url} : npm run dev est-il lancé ?\`);
+    return;
+  }
+  (0, eval)(\`\${request.responseText}\\n//# sourceURL=\${url}\`);
+})();
+`;
   await mkdir(path.dirname(loaderFile), { recursive: true });
   await writeFile(loaderFile, header + body, 'utf8');
+  await writeFile(firefoxLoaderFile, firefoxHeader + firefoxBody, 'utf8');
 }
 
-if (dev && !customDevBundle) await writeLoader();
+if (dev && !customDevBundle) await writeLoaders();
 
 /** Fichiers de `DEV_ONLY` présents dans la sortie, avec leur nombre d'octets. */
 function devCodeIn(metafile) {
@@ -135,6 +176,16 @@ if (watch) {
   const context = await esbuild.context(options);
   await context.watch();
   console.log(`Surveillance de src/ : ${path.relative(root, outfile)} reconstruit à chaque sauvegarde.`);
+  if (!customDevBundle) {
+    // Une requête arrivée pendant une reconstruction attend sa fin : un F5 prend toujours la dernière version.
+    // Port déjà pris (autre `npm run dev`) : la surveillance continue sans servir.
+    try {
+      await context.serve({ host: DEV_HOST, port: DEV_PORT, servedir: path.dirname(outfile), cors: { origin: ORIGINS } });
+      console.log(`Version de dev servie sur http://${DEV_HOST}:${DEV_PORT}/ (Firefox : ${path.basename(firefoxLoaderFile)}).`);
+    } catch (error) {
+      console.warn(`Version de dev non servie (Firefox) sur le port ${DEV_PORT} : ${error.message}`);
+    }
+  }
 } else if (dev) {
   await esbuild.build(options);
 } else {

@@ -18,6 +18,14 @@ describe('magasin IndexedDB sans IndexedDB', () => {
     await store.clear();
     expect(await store.values()).toEqual([]);
   });
+
+  it('getMany : plusieurs valeurs dans l’ordre demandé, undefined pour une absente', async () => {
+    const store = idbStore({ database: TEST_DB, store: 'items' });
+    await store.put({ id: 'a', value: 1 });
+    await store.put({ id: 'b', value: 2 });
+    expect(await store.getMany(['b', 'x', 'a'])).toEqual([{ id: 'b', value: 2 }, undefined, { id: 'a', value: 1 }]);
+    expect(await store.getMany([])).toEqual([]);
+  });
 });
 
 /** IndexedDB imité qui s'ouvre, mais dont chaque requête échoue (base corrompue, quota…). */

@@ -62,7 +62,8 @@ _Relevé : code du site, 30/09 ; captures du 29 et 30/09._
   - « Tout accepter » : `POST /api/friends/accept-all` ; désactivé et « Acceptation… » jusqu'à la fin de la relecture.
   - « Annuler » : `DELETE /api/friends/<id>`.
   - « Ajouter » de « Rechercher un joueur » : `POST /api/friends` (réponse non lue).
-- Le temps réel des amitiés est refusé par le serveur ([README](README.md#temps-réel)) : la page ne se relit qu'après ses propres actions.
+- Le temps réel des amitiés est refusé par le serveur ([README](README.md#temps-réel)) : la page ne se relit qu'après ses propres actions. Une demande acceptée ou refusée depuis une notification du script est reportée dans ses états (`changeFriendsPage`).
+- Notification d'une demande reçue (`friend_request`) : `requester_id`, `requester_username`, pas l'id de l'amitié, qu'il faut lire dans `GET /api/friends` (ou `friendshipId` de `GET /api/profile/<pseudo>`) avant de répondre.
 
 ## États de la page
 
@@ -75,4 +76,4 @@ _Relevé : code du site, 30/09._
 
 ## Dans le script
 
-`friends-layout` (page refaite ; relectures servies sans réseau par `refresh.ts`), `player-search` (fenêtre « Rechercher un joueur ») ; service `friends`. Détail : section « Amis » de [features.md](../features.md).
+`friends-layout` (page refaite ; relectures servies sans réseau par `refresh.ts`), `player-search` (fenêtre « Rechercher un joueur ») ; service `friends` ; `notifications` (Accepter / Refuser d'une demande reçue, page mise à jour). Détail : section « Amis » de [features.md](../features.md).

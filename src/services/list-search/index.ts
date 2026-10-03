@@ -5,10 +5,12 @@ export {
   applyRarities,
   applySearch,
   savedFiltersStore,
+  savedListStore,
   trackListMemory,
   type ApplyResult,
   type ListMemoryOptions,
   type Saved,
+  type SavedList,
   type SavedShape,
 } from './memory';
 export { applySearchPlaceholder, SEARCH_PLACEHOLDER } from './placeholder';

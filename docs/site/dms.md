@@ -37,9 +37,19 @@ div.fixed.inset-0.z-50 (fond)
 - Ouverture : `GET /api/chat/<peer_id>`. Envoi : `POST /api/chat/<peer_id>` ; barre du message : champ `py-2 text-sm rounded-xl`, bouton `aria-label="Envoyer"` (`p-2.5`, 36 px), rangée `items-center`.
 - Ouverte, elle suit ses canaux temps réel (`chat:<ami>:<uid>`, `chat-trades:<ami>:<uid>`) ; à sa fermeture, le site les quitte et relit la liste (`GET /api/chat`).
 - Échanges en encarts (« Échange », état, « Détails »).
-- Le même composant sert hors de /dms (fenêtre « Message » de la page Amis).
+- Le même composant sert hors de /dms (fenêtre « Message » de la page Amis, chat de guilde du site) ; le script l'ouvre aussi sur le profil d'un ami ([Ouverte par le script](#ouverte-par-le-script)).
 - Aucun lien vers le profil (ni pseudo, ni photo).
 - Lecture : `src/site/dms/chat.ts` (`findChatWindows`).
+
+## Ouverte par le script
+
+_Relevé : code du site du 03/10 (pages qui la rendent ; son propre code n'a pas été relu)._
+
+- Composant `{ peer, currentUserId, onClose }`, export par défaut de son module (`284911`), rendu en portail dans `body`. `peer` : `{ id, username, avatar_url, avatar_pos_x, avatar_pos_y }` (la page Amis le construit ainsi ; /dms depuis la ligne de `GET /api/chat`). `onClose` : la page le retire (et /dms relit sa liste).
+- Importé directement par /dms (`l=e.i(284911)`, rendu `(0,t.jsx)(l.default,{peer:$,currentUserId:T,onClose:U})`), la page Amis et la guilde ; le profil ne l'a pas.
+- /dms n'a pas la fenêtre d'échange (code chargé, captures du 30/09 : /dms, page Amis et /trades ont des morceaux en commun, mais celui de la fenêtre d'échange n'est que dans les deux derniers).
+- Ouverte par le script (profil d'un ami) : module reconnu à son usage dans une page qui la rend, page Amis préchargée par le routeur du site si besoin ([README](README.md#stack)), rendu dans une racine React à nous sous les contextes de la page. `currentUserId` : le joueur de la session (`supabaseUserId`).
+- Lecture : `src/site/dms/open.ts` (`openChatWindow`, `locateChatWindow`) ; interlocuteur d'une conversation affichée : `readChatPeer` (`src/site/dms/chat.ts`, props `peer`).
 
 ## Messages
 
@@ -65,4 +75,4 @@ div.flex-1.overflow-y-auto (liste)
 
 ## Dans le script
 
-`dms-layout` (conversation posée à droite de la liste), `dms-groups` (messages groupés), `guild-chat` (conversation de guilde épinglée, `GUILD_CHAT_CLASS`), `player-links` (pseudo et photos en liens). Détail : section « Messages » de [features.md](../features.md).
+`dms-layout` (conversation posée à droite de la liste), `dms-trade` (« Échanger » dans l'en-tête de la conversation), `dms-groups` (messages groupés), `guild-chat` (conversation de guilde épinglée, `GUILD_CHAT_CLASS`), `player-links` (pseudo et photos en liens). Détail : section « Messages » de [features.md](../features.md).

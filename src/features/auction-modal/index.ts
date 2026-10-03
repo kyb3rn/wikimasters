@@ -10,6 +10,7 @@ import {
   type AuctionModal,
   type AuctionModalCard,
 } from '@/site/cards';
+import { SaleWishedPrice, shownInSale, wishedPrice } from '@/services/wished-price';
 import { mountUi, type MountedUi } from '@/ui/mount';
 import { layers } from '@/ui/theme';
 import { saleCard } from './card';
@@ -81,7 +82,11 @@ export const auctionModalLayout: Feature = {
     };
 
     function reuse(sale: OpenSale, record: SaleRecord, auto: boolean) {
-      sale.fill = { record, seq: ++fills, auto };
+      fillIn(sale, record.price, record.minutes, auto);
+    }
+
+    function fillIn(sale: OpenSale, price: number, minutes: number | undefined, auto: boolean) {
+      sale.fill = { price, minutes, seq: ++fills, auto };
       redraw(sale);
     }
 
@@ -117,6 +122,16 @@ export const auctionModalLayout: Feature = {
         canConfirm: !modal.sending && !verifying && !modal.launchButton.disabled,
         history: history(sale),
         fill: sale.fill,
+        // Version de dev : prix souhaité de la carte dans la rareté de l'exemplaire (Revente).
+        renderBelowPrice: __DEV__
+          ? (bid: string, take: (price: number) => void, disabled: boolean) => {
+              const listed = sale.listed;
+              const rarity = listed?.card.rarity;
+              if (!listed || !rarity) return null;
+              const card = { cardId: listed.card.id, title: listed.card.title, rarity, shiny: listed.shiny };
+              return h(SaleWishedPrice, { card, bid, onTake: take, disabled });
+            }
+          : undefined,
       });
     }
 
@@ -169,6 +184,12 @@ export const auctionModalLayout: Feature = {
         const reprise = settings.get('showHistory') && settings.get('reuseLast');
         const last = reprise ? lastInRarity(sales.records, listed.card.rarity, listed.shiny) : undefined;
         if (last) reuse(sale, last, true);
+        // Version de dev : sans mise en vente à reprendre, le prix souhaité de la carte dans cette rareté plutôt que la
+        // mise du site (demande de l'utilisateur).
+        else if (__DEV__ && shownInSale() && listed.card.rarity) {
+          const wished = wishedPrice({ cardId, title: listed.card.title, rarity: listed.card.rarity, shiny: listed.shiny });
+          if (wished) fillIn(sale, wished.price, undefined, true);
+        }
       });
     }
 

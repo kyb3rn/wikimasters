@@ -206,8 +206,18 @@ test('pagination comme la Collection : barre du site cachée, dernière page d�
   expect(server.requests.at(-1)).toBe('page=2&sort=rarity');
 });
 
-test('filtres retenus : à l’arrivée, la liste revient à la dernière recherche, sans charger la liste par défaut', async ({ page }) => {
-  const server = await openGlobalCollection(page);
+/** Carte de la liste gardée par le script : son titre (les filtres) et son identifiant (rang de la requête). */
+const keptCard = (page: Page) =>
+  page.evaluate(() => {
+    const raw = localStorage.getItem('wm-global-collection-list-v1');
+    if (!raw) return undefined;
+    const kept = JSON.parse(raw) as { response: { body: string } };
+    const card = (JSON.parse(kept.response.body) as { cards: { id: string; wikipedia_title: string }[] }).cards[0];
+    return card && `${card.wikipedia_title} ${card.id}`;
+  });
+
+/** Choisit ATK, SR et la recherche « tour » : la dernière liste chargée. */
+async function searchTourInSr(page: Page): Promise<void> {
   await expect(titles(page)).toHaveText(['rarity toutes p0']);
   await chooseSort(page, 'ATK');
   await box(page, 'SR').click();
@@ -217,16 +227,129 @@ test('filtres retenus : à l’arrivée, la liste revient à la dernière recher
   await field.fill('tour');
   await field.press('Enter');
   await expect(titles(page)).toHaveText(['atk SR «tour» p0']);
+}
 
-  server.requests.length = 0;
-  await page.reload();
+async function expectTourInSr(page: Page): Promise<void> {
   await expect(titles(page)).toHaveText(['atk SR «tour» p0']);
   await expect(page.getByRole('button', { name: 'Trier les cartes' })).toHaveText('ATK');
   await expect(box(page, 'SR')).toHaveAttribute('aria-pressed', 'true');
-  await expect(field).toHaveValue('tour');
+  await expect(page.locator('input[type="text"]')).toHaveValue('tour');
+  await expect(page.locator(BUTTON)).toHaveAttribute('aria-label', 'Recharger la liste');
+}
+
+test('filtres retenus : à l’arrivée, la dernière recherche revient aussitôt, filtres et résultats, sans attendre le site', async ({ page }) => {
+  const server = await openGlobalCollection(page);
+  await searchTourInSr(page);
+  await expect.poll(() => keptCard(page)).toBe('atk SR «tour» p0 c-3');
+
+  server.requests.length = 0;
+  // Site qui ne répond plus : rien n'attend sa réponse.
+  const release = hold(server);
+  await page.reload();
+  await expectTourInSr(page);
+  await letTimePass(page, 800);
+  expect(server.requests).toEqual([]);
+
+  // La suite passe par le site, avec les filtres retenus.
+  release();
+  await page.getByRole('button', { name: 'Page suivante' }).click();
+  await expect(titles(page)).toHaveText(['atk SR «tour» p1']);
+  expect(server.requests).toEqual(['page=1&q=tour&rarity=SR&sort=atk']);
+});
+
+test('liste gardée même sans recherche ni filtre : la liste par défaut revient aussitôt, sans requête', async ({ page }) => {
+  const server = await openGlobalCollection(page);
+  await expect(titles(page)).toHaveText(['rarity toutes p0']);
+  await expect.poll(() => keptCard(page)).toBe('rarity toutes p0 c-1');
+
+  server.requests.length = 0;
+  hold(server);
+  await page.reload();
+  await expect(titles(page)).toHaveText(['rarity toutes p0']);
   await expect(page.locator(BUTTON)).toHaveAttribute('aria-label', 'Recharger la liste');
   await letTimePass(page, 800);
+  expect(server.requests).toEqual([]);
+});
+
+test('liste gardée telle quelle jusqu’au prochain chargement : le bouton la recharge et la remplace', async ({ page }) => {
+  const server = await openGlobalCollection(page);
+  await expect(titles(page)).toHaveText(['rarity toutes p0']);
+  await expect.poll(() => keptCard(page)).toBe('rarity toutes p0 c-1');
+  await page.reload();
+  await expect(titles(page)).toHaveText(['rarity toutes p0']);
+  await letTimePass(page, 800);
+  expect(server.requests).toEqual(['page=0&sort=rarity']);
+
+  await page.locator(BUTTON).click();
+  await expect.poll(() => server.requests.length).toBe(2);
+  await expect.poll(() => keptCard(page)).toBe('rarity toutes p0 c-2');
+  // Une autre page ne remplace pas la liste gardée : à l'arrivée, on revient en page 1.
+  await page.getByRole('button', { name: 'Page suivante' }).click();
+  await expect(titles(page)).toHaveText(['rarity toutes p1']);
+  await letTimePass(page, 300);
+  expect(await keptCard(page)).toBe('rarity toutes p0 c-2');
+});
+
+test('filtres retenus sans liste gardée : la première liste part avec eux, puis elle est gardée', async ({ page }) => {
+  const server = await openGlobalCollection(page);
+  await searchTourInSr(page);
+  // Comme après la mise à jour du script : des filtres retenus, pas encore de liste.
+  await page.evaluate(() => localStorage.removeItem('wm-global-collection-list-v1'));
+
+  server.requests.length = 0;
+  await page.reload();
+  await expectTourInSr(page);
+  await letTimePass(page, 800);
   expect(server.requests).toEqual(['page=0&q=tour&rarity=SR&sort=atk']);
+  await expect.poll(() => keptCard(page)).toBe('atk SR «tour» p0 c-1');
+
+  server.requests.length = 0;
+  await page.reload();
+  await expectTourInSr(page);
+  await letTimePass(page, 800);
+  expect(server.requests).toEqual([]);
+});
+
+test('liste gardée d’autres filtres que ceux retenus : ignorée, la première liste part avec les filtres retenus', async ({ page }) => {
+  const server = await openGlobalCollection(page);
+  await searchTourInSr(page);
+  await page.evaluate(() => {
+    const kept = JSON.parse(localStorage.getItem('wm-global-collection-list-v1') ?? '{}') as { filters: Record<string, unknown> };
+    kept.filters = { ...kept.filters, sort: 'name' };
+    localStorage.setItem('wm-global-collection-list-v1', JSON.stringify(kept));
+  });
+
+  server.requests.length = 0;
+  await page.reload();
+  await expectTourInSr(page);
+  await letTimePass(page, 800);
+  expect(server.requests).toEqual(['page=0&q=tour&rarity=SR&sort=atk']);
+});
+
+test('rechargement automatique permis : la liste gardée revient aussi quand le site affiche d’abord sa page de l’onglet', async ({ page }) => {
+  await presetSettings(page, { features: { 'global-collection-search': false }, values: {} });
+  const server = await openGlobalCollection(page);
+  await expect(titles(page)).toHaveText(['rarity toutes p0']);
+  await settled(page);
+  await chooseSort(page, 'DEF');
+  await box(page, 'C').click();
+  await expect(titles(page)).toHaveText(['def C p0']);
+  await expect.poll(() => keptCard(page)).toBe('def C p0 c-2');
+  // Le site ne garde dans l'onglet que la liste par défaut : il l'affiche sans requête à l'arrivée.
+  await page.evaluate(() => {
+    for (const key of Object.keys(sessionStorage)) {
+      if (key.startsWith('gc_v11_') && key !== 'gc_v11_/api/cards?page=0&sort=rarity') sessionStorage.removeItem(key);
+    }
+  });
+
+  server.requests.length = 0;
+  hold(server);
+  await page.reload();
+  await expect(titles(page)).toHaveText(['def C p0']);
+  await expect(page.getByRole('button', { name: 'Trier les cartes' })).toHaveText('DEF');
+  await expect(box(page, 'C')).toHaveAttribute('aria-pressed', 'true');
+  await letTimePass(page, 800);
+  expect(server.requests).toEqual([]);
 });
 
 test('rechargement automatique permis : un changement de tri charge la liste après l’attente, sans bouton', async ({ page }) => {

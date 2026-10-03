@@ -1,6 +1,7 @@
 export {
   ChoiceField,
   CloseButton,
+  CountBadge,
   NumberField,
   Switch,
   type ChoiceFieldProps,

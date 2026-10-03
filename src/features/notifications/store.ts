@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
+import type { NotificationCategory } from './categories';
 import type { Entry } from './entries';
+import type { FriendRequests } from './friend-requests';
 import type { RemovedWishes } from './wishlist';
 
 /** Ce que montrent la cloche et sa liste. */
@@ -14,7 +16,15 @@ export interface CenterState {
   readonly removed: RemovedWishes;
   /** Cartes ajoutées ou retirées de la liste de souhaits, en attente de la réponse du site. */
   readonly wishing: ReadonlySet<string>;
+  /** Demandes d'ami arrivées sous les yeux du script, par notification. */
+  readonly friendRequests: FriendRequests;
+  /** Réponses aux demandes d'ami en attente du site, par notification. */
+  readonly answering: ReadonlyMap<string, FriendAnswer>;
+  /** Catégories cochées dans la liste ; aucune : toutes. */
+  readonly filter: ReadonlySet<NotificationCategory>;
 }
+
+export type FriendAnswer = 'accept' | 'decline';
 
 export interface CenterStore {
   get(): CenterState;
@@ -23,7 +33,7 @@ export interface CenterStore {
 }
 
 export function createCenterStore(): CenterStore {
-  let state: CenterState = { entries: [], unread: 0, marking: false, removed: {}, wishing: new Set() };
+  let state: CenterState = { entries: [], unread: 0, marking: false, removed: {}, wishing: new Set(), friendRequests: {}, answering: new Map(), filter: new Set() };
   const listeners = new Set<() => void>();
   return {
     get: () => state,

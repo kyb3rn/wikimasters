@@ -1,5 +1,13 @@
 import type { Feature } from '@/core/runtime';
-import { applyRarities, applySearch, savedFiltersStore, trackListMemory, type ApplyResult } from '@/services/list-search';
+import {
+  applyRarities,
+  applySearch,
+  savedFiltersStore,
+  savedListStore,
+  trackListMemory,
+  type ApplyResult,
+  type SavedShape,
+} from '@/services/list-search';
 import {
   findGlobalCollectionFilters,
   forgetGlobalCollectionPagesSoon,
@@ -11,12 +19,9 @@ import {
 import { findListbox } from '@/site/listbox';
 import { GLOBAL_COLLECTION_ROUTE } from '@/site/routes';
 
-const savedFilters = savedFiltersStore<GlobalCollectionQuery>('wm-global-collection-filters-v1', {
-  sort: 'text',
-  search: 'string',
-  rarities: 'string',
-  wishlist: 'boolean',
-});
+const SHAPE: SavedShape<GlobalCollectionQuery> = { sort: 'text', search: 'string', rarities: 'string', wishlist: 'boolean' };
+const savedFilters = savedFiltersStore('wm-global-collection-filters-v1', SHAPE);
+const savedList = savedListStore('wm-global-collection-list-v1', SHAPE);
 
 /** Remet les contrôles du site aux filtres retenus (tri, raretés, liste de souhaits, puis la recherche). */
 function applyFilters(target: GlobalCollectionQuery, signal: AbortSignal): ApplyResult {
@@ -39,12 +44,13 @@ function applyFilters(target: GlobalCollectionQuery, signal: AbortSignal): Apply
 
 /**
  * Comme la Collection : retient les filtres de la dernière liste chargée (tri, raretés, liste de souhaits,
- * recherche) et y revient à l'arrivée, en page 1.
+ * recherche) et y revient à l'arrivée, en page 1. Demande de l'utilisateur : la première page de cette liste est
+ * gardée elle aussi et réaffichée aussitôt, sans requête ; elle reste telle quelle jusqu'au prochain chargement.
  */
 export const globalCollectionMemory: Feature = {
   id: 'global-collection-memory',
   name: 'Filtres retenus',
-  description: "À l'arrivée sur le catalogue, la liste revient aux filtres de la dernière recherche.",
+  description: "À l'arrivée sur le catalogue, la dernière recherche revient aussitôt, filtres et résultats.",
   category: 'Toutes les cartes',
   routes: [GLOBAL_COLLECTION_ROUTE],
   required: true,
@@ -63,6 +69,7 @@ export const globalCollectionMemory: Feature = {
       apply: applyFilters,
       // Le site garderait la réponse servie sous l'adresse de sa requête (d'autres filtres).
       onMismatch: () => forgetGlobalCollectionPagesSoon(signal),
+      savedList: { store: savedList, firstPage: 0 },
     });
   },
 };

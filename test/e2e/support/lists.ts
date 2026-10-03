@@ -3,11 +3,12 @@ import type { FakeSite, Gated } from './site';
 
 /**
  * Titre de la carte servie par un serveur de liste imité : il dit la requête, pour que le test voie quels filtres
- * sont partis (« name L+R #t1 ♥ «tour» p0 » : tri ou `head`, raretés, étiquette, liste de souhaits, recherche, page).
+ * sont partis (« name L+R #t1 ♥ «tour» p0 » : tri ou `head`, raretés, étiquette ou `#aucune` pour `untagged=1`,
+ * liste de souhaits, recherche, page).
  */
 export function filtersTitle(params: URLSearchParams, head = params.get('sort') ?? ''): string {
   const rarities = params.getAll('rarity').sort().join('+') || 'toutes';
-  const tag = params.get('tag_id') ? ` #${params.get('tag_id')}` : '';
+  const tag = params.get('untagged') === '1' ? ' #aucune' : params.get('tag_id') ? ` #${params.get('tag_id')}` : '';
   const wishlist = params.get('wishlist') === '1' || params.has('wishlisted_by') || params.has('wishlisted_by_me') ? ' ♥' : '';
   const search = params.get('q') ? ` «${params.get('q')}»` : '';
   return `${head} ${rarities}${tag}${wishlist}${search} p${params.get('page')}`;

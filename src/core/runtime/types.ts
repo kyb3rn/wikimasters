@@ -22,6 +22,10 @@ export interface FeatureContext {
   style(css: string, name?: string): void;
   /** Masque un élément pour cette fonctionnalité, ou le rend (`hidden` faux) : `setHidden`. Tous rendus au démontage. */
   hide(element: Element, hidden?: boolean): void;
+  /** Page affichée (chemin et vue : `/collection?vue=revente`), à comparer par `matchRoute`. */
+  route(): string;
+  /** Appelé quand la page change sans démonter la fonctionnalité (`routes: 'all'`), jusqu'au démontage. */
+  onRouteChange(listener: (route: string) => void): void;
 }
 
 export interface Feature {

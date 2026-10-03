@@ -109,13 +109,22 @@ export function readFriendRow(row: Element): FriendEntry | undefined {
   return friendshipId ? { friendshipId, friendId, username } : undefined;
 }
 
+/**
+ * Applique à la page un changement fait hors d'elle (ami retiré par le script, demande acceptée depuis une
+ * notification) : la page ne relit ses amitiés qu'après ses propres actions. Faux si ses états sont illisibles.
+ */
+export function changeFriendsPage(element: Element, change: FriendsChange, owner: string | undefined): boolean {
+  const states = pageStates(element);
+  if (!states) return false;
+  const next = applyFriendsChange({ friendships: states.list.value, counts: states.counts.value }, change, owner);
+  if (!next) return false;
+  if (next.friendships !== states.list.value) states.list.set(next.friendships);
+  if (next.counts !== states.counts.value) states.counts.set(next.counts);
+  return true;
+}
+
 /** Ôte une amitié de la page (sa ligne, son compteur) ; faux si ses états sont illisibles. */
 export function dropFriendship(element: Element, friendshipId: string): boolean {
-  const states = pageStates(element);
-  if (!states?.list.value.some((friendship) => friendship.id === friendshipId)) return false;
-  const next = applyFriendsChange({ friendships: states.list.value, counts: states.counts.value }, { kind: 'delete', id: friendshipId }, undefined);
-  if (!next) return false;
-  states.list.set(next.friendships);
-  states.counts.set(next.counts);
-  return true;
+  if (!pageStates(element)?.list.value.some((friendship) => friendship.id === friendshipId)) return false;
+  return changeFriendsPage(element, { kind: 'delete', id: friendshipId }, undefined);
 }

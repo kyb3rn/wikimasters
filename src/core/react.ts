@@ -1,3 +1,4 @@
+import { waitUntil } from '@/core/async';
 import { isRecord } from '@/core/guards';
 
 /** Nœud interne de React (« fiber ») : seulement ce qu'on en lit. */
@@ -23,6 +24,41 @@ export function fiberOf(node: Node): Fiber | undefined {
     if (key.startsWith('__reactFiber$')) return record[key] as Fiber;
   }
   return undefined;
+}
+
+/**
+ * React a-t-il repris ce nœud rendu par le serveur (hydratation) ? Il y note son fiber une fois le nœud et tout son
+ * contenu reconnus. Avant, un nœud à nous ajouté dedans lui ferait méconnaître la page (erreur 418) : il la
+ * redessinerait en entier.
+ */
+export function isHydrated(node: Node): boolean {
+  return fiberOf(node) !== undefined;
+}
+
+export interface HydrationGate {
+  /**
+   * Vrai si React a repris `node` : on peut y poser un nœud à nous. Sinon faux, et `retry` sera rappelé quand ce sera
+   * fait (vérifié à chaque image : l'hydratation ne change rien dans le DOM, `watchDom` ne la voit pas).
+   */
+  ready(node: Node, retry: () => void): boolean;
+}
+
+/** Garde des nœuds rendus par le serveur, une attente par nœud, jusqu'à l'interruption de `signal`. */
+export function hydrationGate(signal: AbortSignal): HydrationGate {
+  const waiting = new WeakSet<Node>();
+  return {
+    ready(node, retry) {
+      if (isHydrated(node)) return true;
+      if (!waiting.has(node)) {
+        waiting.add(node);
+        void waitUntil(() => isHydrated(node) || !node.isConnected, { signal }).then(() => {
+          waiting.delete(node);
+          if (!signal.aborted && isHydrated(node)) retry();
+        });
+      }
+      return false;
+    },
+  };
 }
 
 /**

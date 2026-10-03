@@ -1,5 +1,6 @@
 import type { ComponentChild } from 'preact';
 import { injectStyle, ROOT_CLASS, watchDom } from '@/core/dom';
+import { hydrationGate } from '@/core/react';
 import { findBalanceButtons, headerSlot, markHeaderItem } from '@/site/header';
 import { createSlots } from '@/ui/mount';
 
@@ -21,11 +22,13 @@ export interface HeaderItem {
 
 /**
  * Notre bouton (`render`) devant chaque bouton du solde (barre mobile et boîte ordinateur), à son rang parmi les
- * nôtres (`HEADER_RANKS`), reposé si React les recrée. À appeler une fois `<body>` là.
+ * nôtres (`HEADER_RANKS`), reposé si React les recrée. À appeler une fois `<body>` là. Le solde est rendu par le
+ * serveur (le menu reçoit le solde de départ) : rien n'est posé à côté avant que React ait repris son cadre.
  */
 export function placeHeaderItem(rank: number, render: () => ComponentChild, options: HeaderItemOptions): HeaderItem {
   const { signal, shown } = options;
   const slots = createSlots<HTMLButtonElement>(signal);
+  const hydration = hydrationGate(signal);
 
   function sync(): void {
     if (signal.aborted) return;
@@ -33,7 +36,7 @@ export function placeHeaderItem(rank: number, render: () => ComponentChild, opti
     slots.prune((balance) => balances.includes(balance));
     for (const balance of balances) {
       const parent = balance.parentElement;
-      if (!parent) continue;
+      if (!parent || !hydration.ready(parent, sync)) continue;
       const ui = slots.render(balance, render(), { parent, before: headerSlot(balance, rank), inline: true, className: ITEM });
       markHeaderItem(ui.element, rank);
     }

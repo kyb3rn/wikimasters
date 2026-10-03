@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { CAROUSEL, openCard, packFaces } from './support/pulls';
-import { letTimePass, presetSettings } from './support/site';
+import { letTimePass, presetSettings, rect } from './support/site';
 
 test.beforeEach(({ page }) => presetSettings(page, CAROUSEL));
 
@@ -126,6 +126,68 @@ test('les ventes restent en cache (même après un rechargement) ; « Actualiser
   server.release();
   await expect(refresh).toBeEnabled();
   expect(server.count).toBe(2);
+});
+
+test('le bouton avant « Actualiser » ouvre par-dessus la vue du marché du site, recopiée, sans rien demander ; Échap ne ferme qu’elle', async ({ page }) => {
+  const server = newServer();
+  const card = await openCardModal(page, server);
+  await card.getByRole('button', { name: 'Marché' }).click();
+  const actions = history(page).locator('.wm-modal-actions button');
+  await expect(actions).toHaveCount(2);
+  await expect(actions.nth(1)).toHaveText('Actualiser');
+  await actions.nth(0).click();
+
+  // Titrée du nom de la carte, sans sous-titre, comme l'historique : c'est la seconde modale, posée après lui.
+  const site = page.getByRole('dialog', { name: 'Tour Eiffel' }).nth(1);
+  await expect(site).toBeVisible();
+  await expect(site.getByRole('heading', { level: 2 })).toHaveText('Tour Eiffel');
+  await expect(site.locator('.wm-modal-subtitle')).toHaveCount(0);
+  const onTop = await page.evaluate(
+    () => !!document.elementFromPoint(innerWidth / 2, innerHeight / 2)?.closest('[role="dialog"]')?.querySelector('.wm-site-chart'),
+  );
+  expect(onTop).toBe(true);
+
+  // Comme le site : « Toutes » d'abord quand il y a plusieurs raretés, puis de la plus basse à la plus haute.
+  const pills = site.locator('button[aria-pressed]');
+  await expect(pills).toHaveText(['Toutes', 'Commun', 'Rare']);
+  await expect(pills.first()).toHaveAttribute('aria-pressed', 'true');
+  const tile = (label: string) => site.getByText(label, { exact: true }).locator('..');
+  await expect(tile('Ventes')).toHaveText('Ventes6');
+  await expect(tile('Dernier')).toHaveText('Dernier20');
+  await expect(tile('Moyenne')).toHaveText('Moyenne26');
+  await expect(tile('Min')).toHaveText('Min10');
+  await expect(tile('Max')).toHaveText('Max60');
+  await expect(site.locator('.wm-site-chart-dots circle')).toHaveCount(6);
+  await expect(site.locator('.wm-site-chart-average')).toHaveCount(1);
+  // Prix de 10 à 60 : repère de 4 à 66, graduations de Recharts.
+  await expect(site.locator('.wm-site-chart-prices text')).toHaveText(['4', '24', '44', '66']);
+  // Dernières ventes, la plus récente d'abord, avec leur rareté sous « Toutes ».
+  await expect(site.getByRole('heading', { name: /10 dernières ventes/ })).toContainText('· Toutes');
+  const rows = site.getByRole('listitem');
+  await expect(rows).toHaveCount(6);
+  await expect(rows.first()).toContainText('Commun');
+  await expect(rows.first()).toContainText(/20$/);
+
+  await pills.filter({ hasText: 'Rare' }).click();
+  await expect(pills.filter({ hasText: 'Rare' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(tile('Ventes')).toHaveText('Ventes2');
+  await expect(tile('Moyenne')).toHaveText('Moyenne50');
+  await expect(site.getByRole('heading', { name: /10 dernières ventes/ })).toContainText('· Rare');
+  await expect(rows).toHaveCount(2);
+  await expect(rows.first()).not.toContainText('Rare');
+
+  // Survol : la vente la plus proche du curseur dans l'info-bulle (le point grossi passe alors sous la souris).
+  const dot = await rect(site.locator('.wm-site-chart-dots circle').last());
+  await page.mouse.move(dot.x + dot.width / 2, dot.y + dot.height / 2);
+  const tip = site.getByRole('tooltip');
+  await expect(tip).toBeVisible();
+  await expect(tip).toContainText('Rare');
+  await expect(tip).toContainText(/60$/);
+
+  await page.keyboard.press('Escape');
+  await expect(site).toBeHidden();
+  await expect(history(page)).toBeVisible();
+  expect(server.count).toBe(1);
 });
 
 test('pendant le chargement, « Marché » est désactivé avec une roue ; échec sans cache : toast, pas de modale', async ({ page }) => {

@@ -34,6 +34,8 @@ interface Placed {
   readonly controller: AbortController;
   readonly host: HTMLElement;
   readonly target: Target;
+  /** Rangée dont le bord droit recule pour la croix. */
+  readonly row: HTMLElement | undefined;
 }
 
 /** Bloc à cacher pour un bouton : son parent s'il ne contient que lui (marge `mt-5` de l'aide des batailles). */
@@ -74,8 +76,14 @@ export const siteModals: Feature = {
       }
     });
 
+    /** Croix retirée, place rendue à la rangée (conversation de /dms posée dans la page : plus de croix). */
     function remove(frame: HTMLElement): void {
-      placed.get(frame)?.controller.abort();
+      const current = placed.get(frame);
+      current?.controller.abort();
+      if (current?.row) {
+        setClass(current.row, ROOM, false);
+        current.row.style.removeProperty('--wm-modal-room');
+      }
       placed.delete(frame);
     }
 
@@ -96,7 +104,7 @@ export const siteModals: Feature = {
       // La rangée du titre (celle de la fermeture du site, sinon le titre lui-même) garde sa mise en page ; seul son
       // bord droit recule pour ne pas passer sous la croix.
       const parent = close.parentElement;
-      const row = parent && parent !== host ? parent : host.querySelector<HTMLElement>('h1, h2, h3');
+      const row = (parent && parent !== host ? parent : host.querySelector<HTMLElement>('h1, h2, h3')) ?? undefined;
       if (row) {
         const needed = CROSS_REACH - (host.getBoundingClientRect().right - row.getBoundingClientRect().right);
         if (needed > Number.parseFloat(getComputedStyle(row).paddingRight)) {
@@ -107,7 +115,7 @@ export const siteModals: Feature = {
       const controller = childController(signal);
       const target = { close };
       const ui = mountUi(cross(target), { parent: host, before: host.firstChild, inline: true, signal: controller.signal });
-      placed.set(frame, { ui, controller, host, target });
+      placed.set(frame, { ui, controller, host, target, row });
     }
 
     watchDom(

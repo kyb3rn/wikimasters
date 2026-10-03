@@ -118,6 +118,39 @@ describe('createRuntime', () => {
     expect(partout.events).toEqual(['monte /pulls']);
   });
 
+  it("traite une vue (?vue=…) comme une autre page : la page d'origine démontée, celle de la vue montée", () => {
+    const collection = probe('collection', ['/collection']);
+    const revente = probe('revente', ['/collection?vue=revente']);
+    const { runtime } = setup([collection.feature, revente.feature]);
+
+    runtime.update('/collection');
+    runtime.update('/collection?vue=revente');
+    runtime.update('/collection');
+
+    expect(collection.events).toEqual(['monte /collection', 'démonte', 'monte /collection']);
+    expect(revente.events).toEqual(['monte /collection?vue=revente', 'démonte']);
+  });
+
+  it('route et onRouteChange : la page affichée, et ses changements tant que la fonctionnalité reste montée', () => {
+    const seen: string[] = [];
+    let route: (() => string) | undefined;
+    const partout = probe('partout', 'all', (ctx) => {
+      route = () => ctx.route();
+      ctx.onRouteChange((path) => seen.push(path));
+    });
+    const paquets = probe('paquets', ['/pulls'], (ctx) => ctx.onRouteChange((path) => seen.push(`paquets ${path}`)));
+    const { runtime } = setup([partout.feature, paquets.feature]);
+
+    runtime.update('/pulls');
+    expect(route?.()).toBe('/pulls');
+    runtime.update('/collection');
+    runtime.update('/collection');
+    runtime.update('/collection?vue=revente');
+
+    expect(route?.()).toBe('/collection?vue=revente');
+    expect(seen).toEqual(['/collection', '/collection?vue=revente']);
+  });
+
   it('interrompt le signal au démontage', () => {
     let signal: AbortSignal | undefined;
     const fiche = probe('fiche', ['/pulls'], (ctx) => {

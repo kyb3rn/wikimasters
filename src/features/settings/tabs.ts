@@ -11,6 +11,8 @@ export const ABOUT = 'À propos';
 export const TAB_ICONS: Readonly<Record<string, IconName>> = {
   Général: 'settings',
   'Défaussage rapide': 'trash',
+  // Version de dev seulement.
+  ...(__DEV__ ? { Revente: 'coins' as const } : {}),
   Paquets: 'puzzle',
   'Modale de carte': 'window',
   Enchères: 'gavel',

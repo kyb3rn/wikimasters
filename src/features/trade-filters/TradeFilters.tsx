@@ -11,12 +11,17 @@ export interface TradeFiltersProps {
   /** Filtre du site (étiquettes, liste de souhaits) ; `undefined` : illisible. */
   readonly filter: TradeFilter | undefined;
   readonly onTag: (id: string | null) => void;
+  /** « Sans étiquette » choisie ; `undefined` : pas proposée (seulement « Mes cartes »). */
+  readonly untagged: boolean | undefined;
+  readonly onUntagged: () => void;
   readonly onWishlist: () => void;
   readonly tagsClass: string;
 }
 
+const UNTAGGED = '__untagged__';
+
 /** Cases de rareté, liste des étiquettes et liste de souhaits, comme la Collection ; chaque contrôle appelle celui du site. */
-export function TradeFilters({ rarities, onRarities, filter, onTag, onWishlist, tagsClass }: TradeFiltersProps) {
+export function TradeFilters({ rarities, onRarities, filter, onTag, untagged, onUntagged, onWishlist, tagsClass }: TradeFiltersProps) {
   return (
     <>
       {rarities && (
@@ -37,12 +42,13 @@ export function TradeFilters({ rarities, onRarities, filter, onTag, onWishlist, 
         <Listbox
           ariaLabel="Filtrer par étiquette"
           class={tagsClass}
-          value={filter.activeTagId ?? ''}
+          value={untagged ? UNTAGGED : (filter.activeTagId ?? '')}
           options={[
             { value: '', label: 'Toutes les étiquettes' },
+            ...(untagged === undefined ? [] : [{ value: UNTAGGED, label: 'Sans étiquette' }]),
             ...filter.tags.map((tag) => ({ value: tag.id, label: `#${tag.name} (${tag.cardCount})`, chipStyle: tagChipStyle(tag.color) })),
           ]}
-          onChange={(value) => onTag(value || null)}
+          onChange={(value) => (value === UNTAGGED ? onUntagged() : onTag(value || null))}
         />
       )}
       {filter && (

@@ -37,6 +37,15 @@ const HEADER = `
   <button type="button" class="${BALANCE_CLASSES} pointer-events-auto" aria-label="Ouvrir la boutique WikiBidous">12 660</button>
 </div>`;
 
+/**
+ * Le site rend l'en-tête sur le serveur, puis React le reprend (hydratation) : il note alors son fiber sur chaque nœud.
+ * Le script attend ce moment pour poser ses boutons devant le solde ; ici, l'en-tête est repris aussitôt.
+ */
+const HYDRATE_HEADER = `
+for (const node of document.querySelectorAll('body > .fixed, body > .fixed *')) {
+  if (!Object.keys(node).some((key) => key.startsWith('__reactFiber$'))) node.__reactFiber$test = { return: null, memoizedProps: {}, stateNode: node };
+}`;
+
 const LAYOUT_CSS = `
 body { margin: 0; padding-top: 64px; background: #0d1117; color: #e6edf3; font-family: sans-serif; }
 .fixed { position: fixed; } .top-0 { top: 0; } .right-0 { right: 0; } .left-0 { left: 0; } .inset-0 { inset: 0; }
@@ -56,7 +65,7 @@ body { margin: 0; padding-top: 64px; background: #0d1117; color: #e6edf3; font-f
 export function sitePage(main = '<h1>Page de test</h1>', script = ''): string {
   return (
     `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>WikiMasters (test)</title>` +
-    `<style>${LAYOUT_CSS}</style></head><body>${HEADER}<main>${main}</main>` +
+    `<style>${LAYOUT_CSS}</style></head><body>${HEADER}<script>${HYDRATE_HEADER}</script><main>${main}</main>` +
     (script ? `<script>${KIT_SCRIPT}</script><script>${script}</script>` : '') +
     `</body></html>`
   );

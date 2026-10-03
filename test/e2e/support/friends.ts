@@ -350,6 +350,8 @@ export interface FriendsPageOptions {
   readonly answer?: Handler;
   readonly acceptAll?: (route: Route) => Promise<void>;
   readonly send?: (route: Route) => Promise<void>;
+  /** Script ajouté à celui de la page (cloche du site imitée…). */
+  readonly script?: string;
 }
 
 /** Amitiés de départ sans ami accepté : seulement les demandes en attente. */
@@ -368,7 +370,7 @@ export async function openFriendsPage(page: Page, options: FriendsPageOptions = 
   const incoming = (f: FakeFriendship) => f.status === 'pending' && f.addressee_id === 'me';
   const accept = (f: FakeFriendship): FakeFriendship => ({ ...f, status: 'accepted' });
   await openSite(page, '/friends', {
-    html: sitePage(PAGE, SCRIPT.replace('__INITIAL__', JSON.stringify(initial))),
+    html: sitePage(PAGE, SCRIPT.replace('__INITIAL__', JSON.stringify(initial)) + (options.script ?? '')),
     handle: async (route, url) => {
       const method = route.request().method();
       const match = /^\/api\/friends\/([^/]+)$/.exec(url.pathname);

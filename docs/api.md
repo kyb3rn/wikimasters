@@ -30,8 +30,8 @@ Colonne « Script » : ce qui, dans `src/`, reconnaît la requête du site (obse
 | Requête | Réponse | Script |
 |---|---|---|
 | `GET /api/notifications` | `{ notifications: [50 dernières] }` ; pas de pagination connue (`?offset=` sans effet, essai de l'utilisateur, 30/09) | `isNotificationsList`, `parseNotificationList` |
-| `PATCH /api/notifications` `{ ids: [id] }` | `{ success }` : notifications marquées lues (clic sur une non lue) | `markNotificationsRead` |
-| `PATCH /api/notifications` `{}` | `{ success }` : toutes marquées lues | `markNotificationsRead` |
+| `PATCH /api/notifications` `{ ids: [id] }` | `{ success }` : notifications marquées lues (clic sur une non lue) | `markNotificationsRead`, `readNotificationsMarkRead` |
+| `PATCH /api/notifications` `{}` | `{ success }` : toutes marquées lues | `markNotificationsRead`, `readNotificationsMarkRead` |
 
 Notification : `{ id, user_id, type, data, read, created_at }` ; `data.title` et `data.message` présents dans toutes les captures (le code du site prévoit leur absence). Nouvelles notifications : canal `notifications:<uid>`.
 
@@ -48,7 +48,7 @@ Titres entre guillemets : captures du 29/09 ; libellés, champs lus et pages ouv
 | `trade_offer` | Offre d'échange (« 🔄 Nouvelle offre d'échange ! ») | `trade_id, initiator_id, initiator_username` | `/trades` |
 | `trade_countered` | Contre-offre reçue (« ↩️ Contre-offre reçue ! ») | `trade_id, initiator_id, initiator_username` | `/trades` |
 | `trade_accepted`, `trade_declined` | Échange accepté, refusé | `recipient_username` | `/trades` |
-| `friend_request` | Demande d'ami | `requester_username` | `/friends` |
+| `friend_request` | Demande d'ami (« Nouvelle demande d'ami ! ») | `requester_id, requester_username, message` (pas l'id de l'amitié) | `/friends` |
 | `chat_message` | Message (« 💬 <pseudo> ») | `sender_id, sender_username, preview` | `/dms` |
 | `admin_cheat_warning` | Contrôle anti-triche | `message` | `/dms` |
 | `admin_sanction` | Sanction | `sanction_id, title, message, preview` | fenêtre du site (texte complet, contestation : `POST /api/appeals`) |
@@ -94,11 +94,18 @@ Relevé : 29/09 (captures et code du site), essais de l'utilisateur du 30/09.
 - `sort` : `rarity` (L → C, puis ajout le plus récent d'abord ; aussi sans `sort`), `name` (A → Z), `starred`, `added` (plus récent d'abord). Toute autre valeur : tri par nom, sans erreur. **Aucun sens de tri** : 15 écritures essayées (`order=desc`, `dir=`, `name_desc`, `-name`, `name.desc`…), toutes ignorées.
 - Filtres : `q` (titre ou catégorie), `tag_id`, `untagged=1`, `rarity` (répétable : `rarity=SR&rarity=R` ; rareté de l'**exemplaire**, `snapshot_rarity`, pas celle de la carte aujourd'hui), `owned_by=<pseudo>` (marque `owned_by_peer`), `wishlisted_by=<pseudo>` (liste de souhaits de ce joueur).
 - **Une seule étiquette** : `tag_id` répété → seul le premier compte ; `tag_id=A,B` → 0 ligne ; `tag_ids`, `tags`, `exclude_tag_id`, `not_tag_id` ignorés ; `untagged=1` l'emporte sur `tag_id`. Pas de filtre favori ni shiny (`starred=1`, `favorites=1`, `shiny=1`, `is_shiny=1` ignorés).
-- `/stats` : `rarityCounts` suit `q`, ignore `rarity` et `untagged` (compteurs de toute la collection), vide avec `tag_id`.
+- `/stats` : `rarityCounts` suit `q`, ignore `rarity` et `untagged` (compteurs de toute la collection), vide avec `tag_id`. `total` suit `untagged` et `tagOptions` reste complet (capture du 02/10 : 85 cartes sans étiquette, toutes les étiquettes).
 
 ### Supabase en direct : collection
 
-Sonde de lecture du 30/09 (outil de dev retiré depuis ; résultats bruts : `test/fixtures/captures/wm-sonde-collection-20260930-002148.json`, hors git). Rien de tout ceci n'est utilisé par le script.
+Sonde de lecture du 30/09 (outil de dev retiré depuis ; résultats bruts : `test/fixtures/captures/wm-sonde-collection-20260930-002148.json`, hors git). Seule la lecture des cartes sans étiquette sert au script (page Revente, version de dev ; forme optimisée validée par l'utilisateur le 03/10) :
+
+| Requête | Réponse | Script |
+|---|---|---|
+| `GET SB /rest/v1/user_cards?select=id,card_id,starred,is_shiny,obtained_at,snapshot_rarity,snapshot_atk,snapshot_def,card:cards(wikipedia_title,wikipedia_url,category,image_url,hide_image,rarity,atk,def,q_score,pageviews),user_card_tags(tag_id)&user_id=eq.<uid>&user_card_tags=is.null&order=obtained_at.desc,id.desc&limit=1000&offset=<n>` | exemplaires sans étiquette, carte jointe (le filtre exige la jointure dans `select`), sans comptage ; tranches de 1 000 (plafond `max-rows` supposé) jusqu'à une tranche incomplète | `fetchUntaggedCopies`, `parseOwnedCopy` |
+| `PATCH SB /rest/v1/user_cards?id=eq.<exemplaire>` `{ starred }` | favori d'un exemplaire, comme la Collection du site (son étoile, sa modale) | `setCopyStarred` |
+
+Relevés de la sonde :
 
 - Avec la session du site, les tables de la collection se lisent comme n'importe quelle table PostgREST, filtres et tris compris : 0,5 à 1 s, contre 2 à 5 s pour `/api/my-collection`.
 - `user_cards` : `id, user_id, card_id, count, starred, obtained_at, is_shiny, snapshot_rarity, snapshot_atk, snapshot_def, snapshot_title, snapshot_category, eff_rarity_order` (colonnes `snapshot_*` et `eff_rarity_order` absentes des lignes de `/api/my-collection`) ; `user_card_tags` : `user_card_id, tag_id` ; `tags` : `id, user_id, name, created_at, color` ; `cards` : champs de la carte plus `summary, content_length, rarity_order, search_document, in_global_collection, nsfw_*, …_refreshed_at`.
@@ -125,7 +132,7 @@ Relevé : code du site, 30/09.
 
 | Requête | Réponse | Script |
 |---|---|---|
-| `GET /api/marketplace?page=&limit=50&sort=[&rarity=…][&q=][&mine=1]` | `{ auctions: [annonce], page, limit, hasMore }` ; avec `mine=1`, en plus `mine: true`, `selling, bidding, won, history` (annonces) et `maxConcurrentAuctions` | `isMarketplaceList`, `marketplaceList` ; `limit=1` : `isMarketplaceMineRefresh` |
+| `GET /api/marketplace?page=&limit=50&sort=[&rarity=…][&q=][&mine=1]` | `{ auctions: [annonce], page, limit, hasMore }` ; avec `mine=1`, en plus `mine: true`, `selling, bidding, won, history` (annonces) et `maxConcurrentAuctions` | `isMarketplaceList`, `marketplaceList` ; `limit=1` : `isMarketplaceMineRefresh` ; `page=1&limit=1&mine=1` (ses ventes en cours, page Revente) : `fetchMySales`, `parseMySales` |
 | `GET /api/marketplace/<auctionId>` | `{ auction, bids: [mise] }` ; `auction` : `card_id`, `snapshot_rarity` (rareté de l'exemplaire en vente), `card` (la carte : `id`, `wikipedia_title`, `rarity`…), `seller`, `effective_bid`… (capture du 30/09) | `readAuctionRequest`, `parseAuctionCard` |
 | `GET /api/marketplace/mine` | `{ sellingCount, maxConcurrentAuctions }` (modale de carte, mise aux enchères) | |
 | `POST /api/marketplace` `{ card_id: <user_card_id>, base_amount, duration_minutes }` | 201 `{ auction_id }` ; vérification due (depuis le 02/10) : 403 `{ error: "Vérification anti-bot requise.", code: "human_verification_required" }` | `readAuctionCreation` |
@@ -171,16 +178,16 @@ Relevé : 29/09. Cartes de la fenêtre d'échange : `GET /api/my-collection?…&
 
 | Requête | Réponse | Script |
 |---|---|---|
-| `GET /api/profile/<pseudo>` | `{ profile: joueur + is_public, created_at, activity_blocked_until, isOwn, isFriend, friendshipId, pendingRequest, lastSeenAt }` | |
+| `GET /api/profile/<pseudo>` | `{ profile: joueur + is_public, created_at, activity_blocked_until, isOwn, isFriend, friendshipId, pendingRequest, lastSeenAt }` (`pendingRequest` toujours `null` dans les captures) | `isProfileRead`, `parseProfileFriendship` (notifications : id de l'amitié d'une demande reçue) |
 | `GET /api/profile/<pseudo>/stats` | `{ total }` | |
 | `GET /api/profile/<pseudo>/showcase` | `{ showcase: [{ position, user_card_id, user_card }], galleries: [{ gallery_index, name }] }` | |
 | `GET /api/profile/<pseudo>/collection?page=&sort=&stats=[&q=][&rarity=…][&tag_id=]&pending=1` (dans cet ordre ; code du 30/09) | `{ collection, total, rarityCounts, tagOptions, pendingTradeCardIds, profileId }` ; exemplaires avec `owned_by_viewer` ; 50 par page, `page` à partir de 0 ; `stats=1` en page 0 seulement ; tri `rarity`, `name`, `added`. `wishlisted_by_me=1` : seulement dans la fenêtre d'échange | `profileCollectionList` (pseudo du profil affiché seulement) ; fenêtre d'échange : `tradeCardsSide` |
 | `GET /api/showcase`, `PUT /api/showcase` `{ position, user_card_id }`, `DELETE /api/showcase` `{ position }` | sa propre vitrine ; `{ ok }` | |
-| `GET /api/friends` | `{ friendships: [{ id, status, requester_id, addressee_id, requester, addressee, created_at, … }], counts: { accepted, incoming, outgoing } }` : **tout d'un coup**, amis et demandes (aucun paramètre, pas de pagination ; captures : 20 amitiés = 17 + 0 + 3 des compteurs) | `isFriendsList` (`friends-layout` la resservit sans réseau), `fetchFriendships` (même requête), `parseFriendships` ; joueur connecté (`trackMe`) |
+| `GET /api/friends` | `{ friendships: [{ id, status, requester_id, addressee_id, requester, addressee, created_at, … }], counts: { accepted, incoming, outgoing } }` : **tout d'un coup**, amis et demandes (aucun paramètre, pas de pagination ; captures : 20 amitiés = 17 + 0 + 3 des compteurs) | `isFriendsList` (`friends-layout` la resservit sans réseau), `fetchFriendships` (même requête), `parseFriendships`, `parseFriendsList` (illisible : `undefined`) ; joueur connecté (`trackMe`) ; demandes d'ami des notifications |
 | `GET /api/friends/search?q=` | `{ users: [{ id, username, avatar_url, avatar_pos_x, avatar_pos_y }] }` (à partir de 2 caractères ; 10 pour « ed » le 01/10, limite probable) | `isPlayerSearch`, `parsePlayerSearch` ; `player-search` suit sa durée |
 | `POST /api/friends` `{ addressee_id }` | 201 `{ friendship }` (`status: "pending"` ; joueurs `requester` / `addressee` joints ou non : pas encore vu) ; « Ajouter » de « Rechercher un joueur », réponse non lue par le site | `readFriendshipAction`, `parseSentFriendship` |
 | `DELETE /api/friends/<friendshipId>` | `{ success }` : retirer un ami, annuler une demande | `removeFriendship` (même requête), `isFriendshipDelete`, `readFriendshipAction` |
-| `PATCH /api/friends/<friendshipId>` `{ action: "accept" \| "decline" }` | demande reçue acceptée ou refusée (réponse non lue par le site) | `readFriendshipAction` |
+| `PATCH /api/friends/<friendshipId>` `{ action: "accept" \| "decline" }` (`Content-Type: application/json`) | `{ status: "accepted" }` (capture du 30/09) : demande reçue acceptée ou refusée (page Amis, profil ; réponse non lue par le site) | `answerFriendRequest` (même requête), `readFriendshipAction` |
 | `POST /api/friends/accept-all` | toutes les demandes reçues acceptées | `readFriendshipAction` |
 | `POST /api/reports` `{ reportedUserId, reason, details }` | `{ ok }` | |
 | `GET /api/reports?reportedUserId=<uid>` | `{ report: { reason, details, created_at } }` : son signalement déjà fait sur ce joueur | |

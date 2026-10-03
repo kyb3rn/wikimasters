@@ -32,6 +32,7 @@ _Relevé : code du site, 29/09._
 
 - Dans l'ordre : exemplaires affichés, total, compteurs des étiquettes (`tagOptions`), étiquettes de l'utilisateur (lues dans Supabase, `null` avant), échanges en cours (`Set`), chargements, recherche, tri, raretés (`Set`), étiquette, « Sans étiquette », page, carte ouverte, mode sélection, cochés (`Set`)…
 - La page est le premier composant à états au-dessus de son « tirer pour rafraîchir ».
+- Carte ouverte (code du 03/10) : la ligne de la liste (`card` aux valeurs de l'exemplaire, `effectiveCardListItem`) ; la modale reçoit `count` = lignes de la même carte dans la liste affichée. Rien n'est rendu (ni la modale) tant que la première liste n'est pas arrivée : rond de page à la place.
 - Une étiquette changée dans la modale de carte met à jour l'exemplaire dans la liste et ajoute une nouvelle étiquette au catalogue, sans rien recharger (les compteurs restent tels quels).
 - Piège : une réponse gardée puis resservie à la page (rechargement évité, changement retenu) date d'avant ces changements faits sur place ; resservie telle quelle, elle efface les étiquettes posées depuis.
 - Lecture : `src/site/collection/page-state.ts` (`applyTagChange` : même chose pour plusieurs exemplaires, compteurs compris ; `shownCollectionReply` : réponse gardée ramenée aux étiquettes affichées).

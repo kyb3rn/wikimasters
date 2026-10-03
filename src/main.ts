@@ -12,6 +12,7 @@ import { balanceBottom } from '@/site/header';
 import { trackGuildMembership } from '@/site/guild';
 import { trackMe } from '@/site/me';
 import { trackProStatus } from '@/site/pro';
+import { ROUTE_VIEW_KEYS } from '@/site/routes';
 import { configureToasts } from '@/ui/toast';
 
 const log = createLogger();
@@ -40,7 +41,7 @@ function start(): void {
   trackProStatus();
   trackMe();
   trackGuildMembership();
-  const router = createRouter(window, createLogger('navigation'));
+  const router = createRouter(window, createLogger('navigation'), { viewKeys: ROUTE_VIEW_KEYS });
   configureToasts({ topOffset: () => Math.round((balanceBottom(document) ?? BALANCE_BOTTOM_FALLBACK) + TOAST_GAP) });
 
   const runtime = createRuntime({

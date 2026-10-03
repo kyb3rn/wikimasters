@@ -9,6 +9,8 @@ const log = createLogger('stockage');
  */
 export interface IdbStore {
   get(id: string): Promise<unknown>;
+  /** Plusieurs d'un coup, dans l'ordre de `ids` (`undefined` : absent), en une transaction. */
+  getMany(ids: readonly string[]): Promise<unknown[]>;
   put<T extends { readonly id: string }>(value: T): Promise<void>;
   delete(id: string): Promise<void>;
   values(): Promise<unknown[]>;
@@ -104,6 +106,29 @@ export function idbStore(options: IdbStoreOptions): IdbStore {
 
   return {
     get: (id) => run<unknown>('readonly', (objects) => objects.get(id), () => memory.get(id)),
+    async getMany(ids) {
+      const fromMemory = () => ids.map((id) => memory.get(id));
+      const db = ids.length > 0 ? await open() : undefined;
+      if (!db) return fromMemory();
+      return new Promise<unknown[]>((resolve) => {
+        try {
+          const transaction = db.transaction(store, 'readonly');
+          const objects = transaction.objectStore(store);
+          const results: unknown[] = [];
+          ids.forEach((id, index) => {
+            const request = objects.get(id);
+            request.onsuccess = () => {
+              results[index] = request.result as unknown;
+            };
+          });
+          transaction.oncomplete = () => resolve(ids.map((_, index) => results[index]));
+          transaction.onerror = () => resolve(fromMemory());
+          transaction.onabort = () => resolve(fromMemory());
+        } catch {
+          resolve(fromMemory());
+        }
+      });
+    },
     async put(value) {
       memory.set(value.id, value);
       await run('readwrite', (objects) => objects.put(value), nothing);

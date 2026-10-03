@@ -13,6 +13,7 @@ export {
 export { findPlayerSearch, type PlayerSearch } from './player-search';
 export {
   applyFriendsChange,
+  changeFriendsPage,
   dropFriendship,
   friendsOwner,
   readFriendRow,

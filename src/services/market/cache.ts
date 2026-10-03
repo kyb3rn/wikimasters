@@ -52,6 +52,19 @@ export async function readEntry(cardId: string): Promise<MarketEntry | undefined
   return parseStoredEntry(await store.get(cardId));
 }
 
+/** Ventes en cache de plusieurs cartes, en une lecture ; absentes du cache : pas dans le résultat. */
+export async function readEntries(cardIds: readonly string[]): Promise<Map<string, MarketEntry>> {
+  const unique = [...new Set(cardIds)];
+  const values = await store.getMany(unique);
+  const entries = new Map<string, MarketEntry>();
+  values.forEach((value, index) => {
+    const entry = parseStoredEntry(value);
+    const cardId = unique[index];
+    if (entry && entry.cardId === cardId) entries.set(cardId, entry);
+  });
+  return entries;
+}
+
 export function writeEntry(entry: MarketEntry): Promise<void> {
   return store.put(storedEntry(entry));
 }

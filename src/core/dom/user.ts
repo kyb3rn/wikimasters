@@ -7,3 +7,9 @@ export function isPlainClick(event: MouseEvent): boolean {
 export function prefersReducedMotion(): boolean {
   return matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
+
+/** Saisie en cours (champ, zone de texte, liste, texte modifiable) : les touches servent au texte, pas aux raccourcis. */
+export function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName);
+}

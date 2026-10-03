@@ -6,7 +6,7 @@ Routes et données : [`../api.md`](../api.md). Anciens relevés, plus détaillé
 
 | Fichier | Contenu |
 |---|---|
-| README.md (ici) | règles, stack, pages, joueur connecté, cartes et raretés, face, grilles, modale de carte, mise aux enchères, défausse, listes filtrées, temps réel, modales, champs, boutons, onglets, en-tête et cloche |
+| README.md (ici) | règles, stack, pages, menu latéral, joueur connecté, cartes et raretés, face, grilles, modale de carte, mise aux enchères, défausse, listes filtrées, temps réel, modales, champs, boutons, onglets, en-tête et cloche |
 | [pulls.md](pulls.md) | Paquets `/pulls` : ouverture, pack PRO, vérification humaine, carrousel, sons |
 | [collection.md](collection.md) | Collection `/collection` : filtres, pagination, sélection, étiquettes |
 | [global-collection.md](global-collection.md) | Toutes les cartes `/global-collection`, liste de souhaits |
@@ -26,6 +26,7 @@ Routes et données : [`../api.md`](../api.md). Anciens relevés, plus détaillé
 - **Horloge du PC parfois décalée** : calculer les temps restants avec l'en-tête `Date` des réponses. Le site, lui, compte sur l'horloge du PC (comptes à rebours du marché, jour du pack PRO).
 - **Navigation Next.js** : la page suivante est chargée (requête RSC) **avant** `pushState`.
 - **Le script peut démarrer après la page** : malgré `document-start`, Tampermonkey l'injecte parfois en retard après un F5 (capture du 01/10 : aucune requête du chargement vue, ni l'ouverture du WebSocket). Ce que la page affiche dès son chargement se lit dans son état React ou son DOM, pas seulement dans ses requêtes.
+- **Rien d'ajouté dans un nœud rendu par le serveur avant que React l'ait repris** (hydratation) : la page arrive en HTML (menu, `<main>`…), puis React la reprend nœud par nœud. Un élément à nous déjà posé dedans lui fait méconnaître la page : erreur React 418 (« Hydration failed because the server rendered HTML didn't match the client », vue le 03/10 au F5 de toutes les pages : engrenage et cloche posés devant le solde, rendu par le serveur), et il la redessine entière. Attendre son fiber (`isHydrated`, `hydrationGate`). Classes, attributs et CSS ne gênent pas. Rendus par le serveur, relevé dans le code du 03/10 : le menu latéral, la barre du haut du téléphone et le solde (le menu reçoit le solde de départ, `initialWikibidousBalance`) ; une page dont les données arrivent ensuite (Collection) n'y a que son rond de chargement.
 - **`<html>` et `<body>` sont rendus par React** : une classe posée dessus est effacée (constaté le 30/09). Un conteneur posé dans `<body>` pendant le chargement est retiré quand React y affiche la page.
 - **Le code JavaScript du site se lit** (chunks `/_next/static/chunks/…?dpl=dpl_…`, minifiés mais clairs, renommés à chaque déploiement) : y chercher les paramètres réels d'une route plutôt que deviner.
 - **Ne jamais toucher à la boutique ni aux paiements.**
@@ -37,6 +38,7 @@ _Relevé : 29/09 (`card-frame` : 30/09)._
 - **Next.js App Router** (Vercel) : navigation sans rechargement (`history.pushState`), chaque page chargée par `GET /<page>?_rsc=…` avant le changement d'adresse. Le site navigue par `router.push(…)` du routeur de `useRouter()`, trouvé dans l'état React (`src/site/router.ts` : `guardRouterPush`, `navigateTo`).
 - **React** (19 : éléments `react.transitional.element`) : props et états lisibles par `__reactFiber$…` ; la plupart des données passent aussi par des routes `/api/…` lisibles dans le réseau.
 - **Modules assemblés par Turbopack** (relevé du 02/10) : registre `globalThis.TURBOPACK`, où un module à nous peut s'inscrire et lire ceux du site (React, react-dom/client, un composant chargé à la demande). Identifiants numériques tirés du chemin des fichiers, stables d'un déploiement à l'autre jusqu'ici (`273271` : fenêtre d'échange, du 29/09 au 02/10) ; on reconnaît plutôt un module à son code. Une partie des composants n'est chargée qu'à la demande (`e.A(<chargeur>)`, import dynamique). Lecture : `src/core/turbopack.ts` (`pageModules`), `src/core/page-react.ts`.
+- **Code d'une autre page** (code du 03/10, Next.js 16.2) : une page n'a que les morceaux de ses composants (listés pour chacun dans la réponse RSC : `I[<module>,[morceaux…],"default"]`). `router.prefetch(page, { kind: 'full' })` (comme un lien préchargé) demande `GET <page>?_rsc=…` ; React, en lisant la réponse, charge les morceaux de chaque composant client (`e.L(<morceau>)` : un `<script>` posé dans `<head>`), qui inscrivent leurs modules sans rien afficher. Un module demandé (`e.i`) avant que ses dépendances soient inscrites échoue, et Turbopack garde cet échec dans son cache. Lecture : `src/site/windows.ts` (`openSiteWindow`).
 - **Tailwind v4** : ses utilitaires sont dans `@layer utilities`, une règle hors couche l'emporte sans `!important`. Icônes **lucide** (`svg.lucide-<nom>`, presque partout), polices Outfit (titres) et Inter.
 - **`card-frame`**, cadre de presque tous les panneaux : `backdrop-filter: blur(14px)`, fond `#131615e0`, bordure `1px solid #c8d0cb1f`, `border-radius: 16px` ; thème clair (`html.light`) : fond `#f7f8f7eb`, bordure `#0f172a14`. Il existe aussi `card-frame-solid` (Gérer les étiquettes).
 - **Supabase** : REST (`/rest/v1/…`), RPC (`/rest/v1/rpc/…`), authentification (`/auth/v1/…`), Realtime (WebSocket). Le client du site y envoie la clé publique et le jeton de session ([api.md](../api.md#conventions)).
@@ -46,7 +48,7 @@ _Relevé : 29/09 (`card-frame` : 30/09)._
 
 _Relevé : 29/09 (guilde : 01/10)._
 
-Menu : Paquets, Collection, Échanges, Marché, Profil, Toutes les cartes, Guilde, Amis, Messages, Bataille, Succès, Classement, Paramètres. Pas d'accueil à part : c'est `/pulls`. Routes utilisées par le script : `src/site/routes.ts`.
+Menu ([Menu latéral](#menu-latéral)) : Paquets, Collection, Échanges, Marché, Profil, Toutes les cartes, Guilde, Amis, Messages, Bataille, Succès, Classement, Paramètres. Pas d'accueil à part : c'est `/pulls`. Le script ajoute « Revente » en tête : sa page à lui, posée sur la Collection ([architecture.md](../architecture.md#pages-à-nous)). Routes utilisées par le script : `src/site/routes.ts`.
 
 | Page | Adresse | Fichier |
 |---|---|---|
@@ -63,6 +65,26 @@ Menu : Paquets, Collection, Échanges, Marché, Profil, Toutes les cartes, Guild
 | Boutique | modale du bouton du solde | « Acheter des WikiBidous » (2 500 WB à 4,99 $, 5 000 WB à 8,99 $…) : paiement réel, ne jamais y toucher |
 
 Non relevées en détail : Bataille et Succès (captures du 29/09 : leurs modales seulement, voir [Modales](#modales)), Paramètres, Classement (en maintenance le 29/09). Les capturer quand une fonctionnalité en a besoin.
+
+### Menu latéral
+
+_Relevé : capture du 03/10 (/pulls)._
+
+Sur ordinateur (à partir de 768 px), dans la mise en page commune : `div.flex.h-dvh.max-h-dvh.flex-col.overflow-hidden.md:flex-row` › menu, barre du bas du téléphone (`nav.md:hidden.order-last…`, liens en colonne icône + texte), `<main>`.
+
+```
+nav.hidden.w-64.shrink-0.flex-col.gap-2.overflow-y-auto.border-r.border-[var(--color-border)].bg-[var(--color-surface)].p-6.md:flex
+  div.flex.items-center.justify-between.gap-2.mb-8       a[href=/pulls] > h1 « WikiMasters » · cloche
+  a.flex.items-center.gap-3.px-4.py-3.rounded-xl.text-sm.font-medium.transition-all.duration-200   × 13
+    span.flex.shrink-0.items-center.justify-center.text-[var(--color-foreground)] > svg.lucide.lucide-<nom>.w-5.h-5.md:w-6.md:h-6.shrink-0
+    texte
+    div.ml-auto.w-1.5.h-1.5.rounded-full.bg-[var(--color-accent)]   (lien allumé seulement)
+```
+
+- Liens : Paquets (`puzzle`), Collection (`book-open`), Échanges (`handshake`), Marché (`gavel`), Profil (`user`), Toutes les cartes (`globe`), Guilde (`castle`), Amis (`users`), Messages (`message-circle`), Bataille (`swords`), Succès (`trophy`), Classement (`medal`), Paramètres (`settings`).
+- Éteint : `text-[var(--color-foreground)]/60 hover:text-[var(--color-foreground)] hover:bg-[var(--color-surface-light)]` ; allumé : `bg-[var(--color-accent)]/10 text-[var(--color-accent)]` et le point. Le lien allumé est choisi d'après le début du chemin (requête ignorée : sur `/collection?vue=revente`, c'est « Collection »).
+- Même chemin, autre requête (`/collection` → `/collection?vue=revente`) : Next.js remonte la page, qui recharge ses données (supposé d'après Next.js, à confirmer sur le vrai site).
+- Lecture : `src/site/nav.ts` (`findSideNav`, `sideNavHead`, `sideNavLink`, `SIDE_NAV_DOT`).
 
 ### Chargement d'une page
 
@@ -124,7 +146,7 @@ div[class*="glow-"].relative.rounded-2xl.overflow-hidden     face (onClick : mod
 - Halo `glow-<rareté>` : ombres floues de 10 px (C) à 28 px (L), 30 px en shiny.
 - Shiny : `glow-shiny shiny-card` au lieu de `glow-l`, fond `/shiny/onyx-art.webp` et couches `shiny-onyx-*`, reflet qui suit la souris (`--shiny-mx`, `--shiny-my`, classe `shiny-hover`, inclinaison), badge « L✦ » (`shiny-badge`), texte blanc.
 - Étoile du favori (modale, grille de la Collection, carrousel) : « Ajouter aux favoris » (contour, `text-amber-200/65`) ou « Retirer des favoris » (remplie, `fill="currentColor"`, `text-amber-200`).
-- Image (`loading="lazy"`, `crossOrigin="anonymous"`), cadrage choisi à son chargement : transparente (réduite à 96 px au plus sur un canevas, un pixel non opaque suffit) : `object-contain object-center`, `transform: scale(0.9)` ; sinon portrait (`naturalHeight >= naturalWidth`) : `object-cover`, `object-position: center 28%` ; sinon `object-cover object-center` (aussi avant le chargement). Image en erreur : vignette de remplacement. Reproduit par `src/features/market-search/face-image.ts`.
+- Image (`loading="lazy"`, `crossOrigin="anonymous"`), cadrage choisi à son chargement : transparente (réduite à 96 px au plus sur un canevas, un pixel non opaque suffit) : `object-contain object-center`, `transform: scale(0.9)` ; sinon portrait (`naturalHeight >= naturalWidth`) : `object-cover`, `object-position: center 28%` ; sinon `object-cover object-center` (aussi avant le chargement). Image en erreur : vignette de remplacement. Reproduit par `src/services/card-face/` (`CardFace`, `face-image.ts`).
 - Lecture : `src/site/cards/face.ts` (`FACE`, `SMALL_FACE`, `FACE_TEXT`, `FACE_BOTTOM`, `FACE_STATS`, `findFaceImage`, `findFaceBottomPlace`, `cloneSiteFace`), `findStarButton`.
 
 ## Grilles de cartes
@@ -171,7 +193,11 @@ div.fixed.inset-0.z-50 … bg-black/70 (fond)
 - Actions seulement si la carte a un exemplaire associé et pas d'offre d'échange en cours (sinon « Carte réservée dans un échange »).
 - À l'ouverture, `GET /api/marketplace/mine` : limite d'enchères atteinte, « Mettre aux enchères » est désactivé (info-bulle « Maximum n enchères actives », texte « Enchères actives : n/max — annulez une vente… »).
 - Onglet Marché : vue du site (`GET /api/marketplace/cards/<card_id>/sales`), badge « PRO » sans compte PRO ([marketplace.md](marketplace.md#historique-des-ventes-et-offre-pro)).
-- **État React** : le composant reçoit `{ card, starred, count, onClose, userCardId, tags, tagsCatalog, … }` (`card` : `id`, `wikipedia_title`, `rarity`…) et rend lui-même son fond (`createPortal`). Pas de fermeture par Échap.
+- **État React** (code du 03/10, module 515678) : le composant reçoit `{ card, starred, count, onClose, onToggleStar, userCardId, tags = [], tagsCatalog, tagsReadOnly, onTagsChange, friendUsername, friendProfileId, friendOfferPending, ownOfferPending, onCollectionChange, catalogView, wishlisted, onToggleWishlist }` (`card` : `id`, `wikipedia_title`, `wikipedia_url`, `category`, `rarity`, `atk`, `def`, `q_score`, `pageviews`, `image_url`, `hide_image`, `is_shiny`) et rend lui-même son fond (`createPortal`). Pas de fermeture par Échap.
+  - Rangée d'actions seulement si `!catalogView && !friendUsername && count > 0 && !ownOfferPending && userCardId` ; « Exemplaires : n » si `count` est donné ; la confirmation de défausse dit « Vous en avez n » ou « dernière copie » selon `count`.
+  - Défausse : `POST /api/user-cards/<id>/discard`, puis solde rafraîchi, `onCollectionChange`, `onClose`. Mise aux enchères : une enveloppe charge la modale d'enchère à la demande (`e.A(422455)`) ; `onListed` la ferme et appelle `onCollectionChange`.
+  - Étiquettes : son éditeur fait lui-même les requêtes et donne la nouvelle liste à `onTagsChange` ; sans `tagsCatalog`, il lit les étiquettes du joueur (catalogue partagé au niveau du module, déjà lu par la Collection). Favori : `onToggleStar`, la requête est faite par la page (Collection : `update({ starred }).eq('id', exemplaire)` sur `user_cards`).
+  - Le script la rend lui-même pour la page Revente (`openCardModal`, `src/site/cards/open-modal.ts`).
 - **Vue catalogue** (Toutes les cartes, `catalogView`) : même modale sans exemplaire, donc ni favori (aucune étoile sur la face), ni étiquettes, ni rangée d'actions. Dans la colonne de droite, bloc `div.space-y-2` : « Proposer un échange » (lucide `handshake`, fond accent léger) si un ami possède la carte (`friendUsername` : le premier), ou à sa place « Échange en attente » (`div[role=status]`, lucide `refresh-cw`, ambre) si une offre est déjà en cours avec lui ; puis `div.space-y-1.5 > (bouton, p d'aide)` : « Ajouter à la liste de souhaits » (pleine largeur, fond accent léger, « Recevez une alerte si cette carte est mise en vente. » dessous) ou « Retirer de la liste de souhaits » (bordure accent, sans le texte), lucide `bell`. Comportement : [global-collection.md](global-collection.md#liste-de-souhaits).
 - **Exemplaire d'un ami** (onglet Collection de son profil ; code du 02/10) : props `{ card, userCardId, starred, count, tags, tagsReadOnly: true, onClose, friendUsername, friendProfileId, friendOfferPending }`. Favori sur la face ; ses étiquettes en lecture seule (« Étiquettes » et pastilles, sans champ ni « Retirer ») ; même bloc d'échange qu'en vue catalogue, sans liste de souhaits ; ni rangée d'actions (réservée à `!catalogView && !friendUsername`). Offre en cours : « Échange en attente » aussi sur la face (`pendingTradeLabel`).
 - Une offre d'échange s'ouvre par-dessus, **dans le fond de la modale** (`div.fixed.inset-0.z-[60]`), comme la confirmation de défausse (`z-[70]`) : les contrôles d'une modale de carte se cherchent hors de ces fonds.
@@ -311,10 +337,10 @@ _Relevé : code du site, 30/09 ; marché : captures du 29/09._
 
 _Relevé : solde 29/09 ; cloche : code du site, 30/09._
 
-- **Solde** (`aria-label="Ouvrir la boutique WikiBidous"`, ouvre la boutique) en deux exemplaires : barre du haut sur mobile (`md:hidden fixed top-0 …`) et boîte fixe en haut à droite sur ordinateur (`hidden md:block fixed top-0 right-0 … pointer-events-none`, padding 0,75 rem en style, bouton `pointer-events-auto`, aucun autre bouton du site). Son parent direct est son cadre : la boîte elle-même sur ordinateur, la rangée `flex h-11 … justify-end gap-1` sur mobile (avec la cloche du site). Lecture : `src/site/header.ts`.
+- **Solde** (`aria-label="Ouvrir la boutique WikiBidous"`, ouvre la boutique) en deux exemplaires : barre du haut sur mobile (`md:hidden fixed top-0 …`) et boîte fixe en haut à droite sur ordinateur (`hidden md:block fixed top-0 right-0 … pointer-events-none`, padding 0,75 rem en style, bouton `pointer-events-auto`, aucun autre bouton du site). Son parent direct est son cadre : la boîte elle-même sur ordinateur, la rangée `flex h-11 … justify-end gap-1` sur mobile (avec la cloche du site). Rendus par le serveur (solde de départ passé au menu, code du 03/10) : rien n'y est posé avant l'hydratation. Lecture : `src/site/header.ts`.
 - **Cloches** : deux `button[aria-label="Notifications"]` (`aria-expanded`), une dans le menu latéral à côté du logo (ordinateur), une après le solde dans la barre du haut (mobile). Icône `svg.w-5.h-5` sans classe `lucide`. Pastille rouge du nombre de non lues (« 9+ » au-delà).
 - **État** : un fournisseur React autour de toute la navigation (`NotificationsProvider`, props `userId`) garde la liste (50 dernières, triées par date) et ses actions `{ markAsRead(ids), markAllAsRead(), fetchNotifications() }`, qui ne changent que l'état local. Liste relue par `GET /api/notifications` au montage, à chaque abonnement réussi au canal `notifications:<uid>` et à chaque ouverture de la liste ; une diffusion `INSERT` l'ajoute en tête ; une relecture ne rend pas « non lue » une notification lue localement.
-- **La cloche**, seule à lire ce fournisseur, fait les `PATCH` : clic sur une ligne non lue → `PATCH { ids }` attendu, puis fermeture et `router.push` vers sa page (une sanction ouvre une fenêtre à lui : texte complet, contestation) ; « Tout marquer lu » (seulement s'il y a des non lues) → `markAllAsRead()` puis `PATCH {}`.
+- **La cloche**, seule à lire ce fournisseur, fait les `PATCH` : clic sur une ligne non lue → `PATCH { ids }` attendu, puis fermeture et `router.push` vers sa page (une sanction ouvre une fenêtre à lui : texte complet, contestation) ; « Tout marquer lu » (seulement s'il y a des non lues) → `markAllAsRead()` puis `PATCH {}`. Rien ne passe d'un onglet à l'autre : les autres gardent leur pastille jusqu'à leur prochaine relecture.
 - Liste en portail dans `body` (`card-frame fixed z-[100]`, 320 px, 24 rem au plus, sous la cloche, calée dans l'écran), lignes `button` à clé React = id, fermée par un `mousedown` ailleurs.
 - Types, textes et pages ouvertes : [api.md](../api.md#notifications).
 - Lecture : `src/site/notifications/` (`findSiteBells`, `readSiteNotifications`, `openSiteNotification`, `notificationLabel`, `notificationText`, `notificationPath`, `wishlistCardOf`).

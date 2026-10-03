@@ -2,7 +2,8 @@ import { h } from 'preact';
 import { watchDom } from '@/core/dom';
 import { net, type NetRequest } from '@/core/net';
 import type { Feature } from '@/core/runtime';
-import { NETWORK_ERROR, readFriendshipAction, watchSiteRefusal } from '@/site/api';
+import { chatWindowButton, tradeWindowButton } from '@/services/site-window';
+import { readFriendshipAction, watchSiteRefusal } from '@/site/api';
 import {
   findProfileFriendRequest,
   findProfileHeader,
@@ -11,9 +12,9 @@ import {
   readProfilePlayer,
   type ProfileFriendRequest,
   type ProfileHeader as SiteHeader,
+  type ProfilePlayer,
 } from '@/site/profile';
 import { MY_PROFILE_ROUTE, PROFILE_ROUTE } from '@/site/routes';
-import { openTradeComposer, type OpenedTradeComposer } from '@/site/trades';
 import { ICON_NAMES, type IconName } from '@/ui/icons';
 import { createSlot } from '@/ui/mount';
 import { tokens } from '@/ui/theme';
@@ -40,7 +41,7 @@ const CSS = `
   text-align: center;
 }
 .wm-profile-request > p { margin: 0; }
-.wm-profile-trade { display: flex; justify-content: center; min-width: 0; padding-top: 1.5rem; }
+.wm-profile-friend { display: flex; justify-content: center; gap: .5rem; min-width: 0; padding-top: 1.5rem; }
 .wm-profile-request-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem; }
 .wm-profile-identity {
   display: flex; flex-direction: column; align-items: center; min-width: 0; text-align: center;
@@ -69,9 +70,10 @@ const CSS = `
   .wm-profile-stat { padding-top: .75rem; }
   /* « sept. 2026 » en grand ne tient pas à côté de la photo ; sur un écran plus étroit encore, il passe à la ligne. */
   .wm-profile-stat > :first-child { font-size: 1.125rem; line-height: 1.5rem; white-space: normal; }
-  /* Trop étroit à côté de la photo : la demande d'ami (comme chez le site) et « Échanger » passent en bas, sur toute la largeur. */
-  .wm-profile-request, .wm-profile-trade { grid-column: 1 / -1; padding-top: .75rem; }
-  .wm-profile-request > button, .wm-profile-trade > button { width: 100%; }
+  /* Trop étroit à côté de la photo : la demande d'ami (comme chez le site), « Message » et « Échanger » passent en bas, sur toute la largeur. */
+  .wm-profile-request, .wm-profile-friend { grid-column: 1 / -1; padding-top: .75rem; }
+  .wm-profile-request > button { width: 100%; }
+  .wm-profile-friend > button { flex: 1; }
 }
 `;
 
@@ -92,16 +94,11 @@ const isRequestAction = (request: NetRequest): boolean =>
 /** Ami : le site ne lui met « Retirer des amis » (lucide `user-minus`) que s'il l'est. */
 const isFriend = (header: SiteHeader): boolean => header.actions.some((action) => action.icon === 'user-minus');
 
-const TRADE_ERROR = "La fenêtre d'échange du site n'a pas pu s'ouvrir.";
-
-/** Morceau de code du site pas reçu (Turbopack) : panne réseau, comme une requête sans réponse. */
-const isChunkLoadError = (error: unknown): boolean => error instanceof Error && error.name === 'ChunkLoadError';
-
 export const profileHeader: Feature = {
   id: 'profile-header',
   name: 'En-tête du profil',
   description:
-    "En-tête des profils sur un fond : photo au centre, pseudo et ligne du site dessous (et la dernière activité d'un ami), nombre de cartes à gauche ; à droite, les cartes uniques (le sien), « Échanger » (un ami : fenêtre d'échange du site, sur place) ou la demande d'ami (les autres) ; étiquettes en bas ; visibilité du sien en haut à droite ; « Signaler » et « Retirer des amis » d'un autre joueur en bas à droite.",
+    "En-tête des profils sur un fond : photo au centre, pseudo et ligne du site dessous (et la dernière activité d'un ami), nombre de cartes à gauche ; à droite, les cartes uniques (le sien), « Message » et « Échanger » (un ami : conversation et fenêtre d'échange du site, sur place) ou la demande d'ami (les autres) ; étiquettes en bas ; visibilité du sien en haut à droite ; « Signaler » et « Retirer des amis » d'un autre joueur en bas à droite.",
   category: 'Profil',
   routes: [MY_PROFILE_ROUTE, PROFILE_ROUTE],
   required: true,
@@ -113,10 +110,33 @@ export const profileHeader: Feature = {
     let pending = 0;
     /** Réponse à une demande reçue en cours : le site ne désactive pas ses boutons. */
     let answering: 'accept' | 'decline' | undefined;
-    /** « Échanger » : fenêtre en cours d'ouverture, puis ouverte (fermée avec la page). */
-    let tradeOpening = false;
-    let trade: OpenedTradeComposer | undefined;
-    ctx.onDispose(() => trade?.close());
+    /** Joueur du profil, au clic : son identifiant n'est que dans l'état de la page. */
+    function player(): { header: SiteHeader; player: ProfilePlayer } | undefined {
+      const header = findProfileHeader();
+      const found = header && readProfilePlayer(header);
+      return header && found ? { header, player: found } : undefined;
+    }
+    // « Message » et « Échanger » : fenêtres du site ouvertes sur place, fermées avec la page.
+    const chat = chatWindowButton({
+      signal,
+      log: ctx.log,
+      onChange: () => sync(),
+      target: () => {
+        const found = player();
+        return found && { peer: found.player, contextFrom: found.header.root };
+      },
+    });
+    const trade = tradeWindowButton({
+      signal,
+      log: ctx.log,
+      onChange: () => sync(),
+      target: () => {
+        const found = player();
+        return (
+          found && { friendUsername: found.player.username, friendProfileId: found.player.id, contextFrom: found.header.root }
+        );
+      },
+    });
 
     net.track(
       isProfileVisibilityChange,
@@ -207,46 +227,6 @@ export const profileHeader: Feature = {
       }
     }
 
-    function tradeFailed(error: unknown): void {
-      ctx.log.error("Fenêtre d'échange :", error);
-      toast.error(isChunkLoadError(error) ? NETWORK_ERROR : TRADE_ERROR, { title: 'Échanges' });
-    }
-
-    /** Fenêtre d'échange du site avec cet ami, ouverte ici comme sur la page Amis (pas de passage par /trades). */
-    async function openTrade(): Promise<void> {
-      if (tradeOpening || trade) return;
-      const header = findProfileHeader();
-      const player = header && readProfilePlayer(header);
-      if (!header || !player) {
-        tradeFailed(new Error('identifiant du joueur introuvable dans la page'));
-        return;
-      }
-      tradeOpening = true;
-      sync();
-      try {
-        const opened = await openTradeComposer(
-          { friendUsername: player.username, friendProfileId: player.id },
-          {
-            contextFrom: header.root,
-            onClosed: () => {
-              trade = undefined;
-            },
-            onError: (error) => {
-              trade = undefined;
-              tradeFailed(error);
-            },
-          },
-        );
-        if (signal.aborted) opened.close();
-        else trade = opened;
-      } catch (error) {
-        tradeFailed(error);
-      } finally {
-        tradeOpening = false;
-        sync();
-      }
-    }
-
     function sync(): void {
       if (signal.aborted) return;
       const header = findProfileHeader();
@@ -270,7 +250,10 @@ export const profileHeader: Feature = {
         left: header.cards,
         right: unique?.stat,
         request: request && requestOf(request),
-        trade: !own && isFriend(header) ? { busy: tradeOpening, onClick: () => void openTrade() } : undefined,
+        friend:
+          !own && isFriend(header)
+            ? { message: { busy: chat.busy, onClick: chat.open }, trade: { busy: trade.busy, onClick: trade.open } }
+            : undefined,
         tags: header.tags,
         visibility: visibility && {
           isPublic: visibility.isPublic,

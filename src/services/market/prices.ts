@@ -5,7 +5,7 @@ import type { CardRef } from '@/site/cards';
 import { toast } from '@/ui/toast';
 import type { MarketEntry } from './cache';
 import { ageText, plural } from './format';
-import { cachedMarket, fetchMarket, isStale, marketNeedsPro, onMarketChange } from './market';
+import { cachedMarket, cachedMarkets, fetchMarket, isStale, marketNeedsPro, onMarketChange } from './market';
 import { showMarketModal, showProOffer } from './open';
 import { marketPrice, PRICE_SALES, type MarketPrice } from './price';
 import { PriceButton, type PriceButtonProps, type PriceState } from './PriceButton';
@@ -18,6 +18,11 @@ export interface MarketPrices {
   price(card: CardRef): MarketPrice | undefined;
   /** Ventes de la carte en cache, même anciennes. */
   entry(card: CardRef): MarketEntry | undefined;
+  /**
+   * Lit le cache de toutes ces cartes d'un coup (`price` les connaît ensuite, sans attendre leur bouton) ; résolu une
+   * fois la lecture faite. Cartes déjà connues : relues quand même (une autre page a pu charger leurs ventes).
+   */
+  preload(cardIds: readonly string[]): Promise<void>;
 }
 
 export interface PriceButtonOptions {
@@ -131,6 +136,23 @@ export function trackPrices({ signal, log, onChange }: TrackPricesOptions): Mark
     },
     entry(card) {
       return known.get(card.id) ?? undefined;
+    },
+    async preload(cardIds) {
+      let entries: Map<string, MarketEntry>;
+      try {
+        entries = await cachedMarkets(cardIds);
+      } catch (error) {
+        log.warn('cache des ventes illisible', error);
+        return;
+      }
+      for (const cardId of cardIds) {
+        const entry = entries.get(cardId) ?? null;
+        const current = known.get(cardId);
+        // Une demande au site a pu aboutir pendant la lecture : plus récente que le cache lu.
+        if (current && (!entry || current.fetchedAt > entry.fetchedAt)) continue;
+        known.set(cardId, entry);
+      }
+      changed();
     },
   };
 }

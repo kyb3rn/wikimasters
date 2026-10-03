@@ -3,8 +3,19 @@
  * application Next.js : ces adresses changent sans rechargement (voir `core/router`).
  */
 
+/**
+ * Paramètre d'adresse d'une page à nous posée sur une page du site (`/collection?vue=revente`) : le site l'ignore et
+ * affiche sa page, qui reste là, cachée, avec son menu et ses contextes React. Le routeur en fait une autre page :
+ * les motifs sans `?vue=…` ne la reconnaissent pas.
+ */
+export const VIEW_PARAM = 'vue';
+/** Paramètres d'adresse qui changent de page, pour le routeur. */
+export const ROUTE_VIEW_KEYS: readonly string[] = [VIEW_PARAM];
+
 export const PULLS_ROUTE = '/pulls';
 export const COLLECTION_ROUTE = '/collection';
+/** Revente : page à nous, sur la Collection du site. */
+export const RESALE_ROUTE = `${COLLECTION_ROUTE}?${VIEW_PARAM}=revente`;
 /** Toutes les cartes. */
 export const GLOBAL_COLLECTION_ROUTE = '/global-collection';
 export const MARKETPLACE_ROUTE = '/marketplace';

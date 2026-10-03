@@ -9,7 +9,8 @@ import { openSite, sitePage, type Gated } from './site';
  * `{ filter, onChange }`, « Filtre » `{ tags, activeTagId, onSelect, wishlist… }`), champ des wikibidous sous la
  * rangée (`{ label, value, onChange, onClose, balanceHint, maxBalance }`, solde de 250), erreur `p[role=status]`,
  * zone des cartes (voile pendant un chargement, grille ou « Aucune carte »). Chaque côté se charge dans un
- * « effet » qui dépend de la page, des raretés (identité du `Set`), de l'étiquette et de la liste de souhaits ;
+ * « effet » qui dépend de la page, des raretés (identité du `Set`), de l'étiquette et de la liste de souhaits
+ * (« Mes cartes » en page 1 : compteurs `/api/my-collection/stats` juste avant la liste, réponse ignorée ici) ;
  * une réponse en erreur vide la grille avec un message, un échec réseau ne change rien. États dans les hooks du
  * composant (`friendUsername`) : raretés des deux côtés, puis montants.
  */
@@ -58,6 +59,7 @@ const SCRIPT = `
       for (const rarity of s.rarities) params.append('rarity', rarity);
       if (s.tag) params.set('tag_id', s.tag);
       if (s.wishlist) params.set('wishlisted_by', friend);
+      if (s.page === 1) fetch('/api/my-collection/stats?' + params).catch(() => {});
       params.set('page', String(s.page - 1));
       params.set('stats', '0');
       params.set('owned_by', friend);
@@ -234,13 +236,15 @@ type TradeSideName = 'mine' | 'theirs';
 export interface TradeServer extends Gated {
   /** Paramètres des listes demandées, par côté. */
   readonly requests: Record<TradeSideName, string[]>;
+  /** Paramètres des compteurs de « Mes cartes » demandés. */
+  readonly stats: string[];
   /** Échec voulu des prochaines requêtes d'un côté : réponse 500, 504, ou pas de réponse. */
   readonly fail: Partial<Record<TradeSideName, 500 | 504 | 'network'>>;
 }
 
 /** Ouvre /trades avec la fenêtre d'échange imitée ; une carte par réponse, dont le titre dit le côté et les filtres. */
 export async function openTradeComposer(page: Page): Promise<TradeServer> {
-  const server: TradeServer = { requests: { mine: [], theirs: [] }, fail: {}, gate: undefined };
+  const server: TradeServer = { requests: { mine: [], theirs: [] }, stats: [], fail: {}, gate: undefined };
   const answer = async (route: Route, side: TradeSideName, params: URLSearchParams) => {
     server.requests[side].push(params.toString());
     await server.gate;
@@ -256,6 +260,11 @@ export async function openTradeComposer(page: Page): Promise<TradeServer> {
     handle: async (route, url) => {
       if (url.pathname === '/api/my-collection') {
         await answer(route, 'mine', url.searchParams);
+        return true;
+      }
+      if (url.pathname === '/api/my-collection/stats') {
+        server.stats.push(url.searchParams.toString());
+        await route.fulfill({ json: { total: 1, rarityCounts: {}, tagOptions: [] } });
         return true;
       }
       if (url.pathname === '/api/profile/aelonka/collection') {

@@ -28,7 +28,7 @@ WM_DEV_BUNDLE=dist/<nom>.dev.js npx playwright test <specs> --workers=2 --output
 ### Le faux site : `support/site.ts`
 
 - `openSite(page, chemin, { html, api, files, handle })` : route tout `https://www.wiki-masters.com/**` (`SITE`) ; `handle(route, url)` d'abord (vrai = traitée), puis `api` (JSON par chemin, toute méthode), `files`, sons `/audio/…` (un WAV silencieux), le HTML pour un document, 404 sinon. Injecte la version de dev (`WM_DEV_BUNDLE` ou `dist/wikimasters.dev.js`) avant tout code de la page, comme Tampermonkey au `document-start` (`injectScript`).
-- `sitePage(main, script)` : en-tête du site (bouton du solde en barre mobile et en boîte ordinateur, classes relevées), un peu de CSS à la place de Tailwind pour la mise en page, `<main>`, puis le script de la page avec `window.kit`.
+- `sitePage(main, script)` : en-tête du site (bouton du solde en barre mobile et en boîte ordinateur, classes relevées ; repris par React aussitôt : un fiber sur chaque nœud, comme après l'hydratation), un peu de CSS à la place de Tailwind pour la mise en page, `<main>`, puis le script de la page avec `window.kit`.
 - `presetSettings(page, { features, values })` : réglages posés dans `wm-settings-v1` avant le premier chargement seulement (ce que le test change ensuite reste) ; plusieurs appels s'additionnent.
 - `expectDomIdle(page, { settle, quiet })` : **test de repos**. Exige d'abord `wm.debug.domSyncs()` (version de dev), puis vérifie que le nombre de passes de synchronisation ne bouge plus pendant `quiet` ms. Toute fonctionnalité qui écrit dans le DOM en a un.
 - `letTimePass(page, ms)` : la seule attente fixe, pour vérifier qu'il ne se passe **rien** pendant ce temps (aucune requête, rien d'affiché ni de retiré). Toute autre attente porte sur une condition (`expect(…).toBe…`, `waitForFunction`, `waitForRequest`).
@@ -54,9 +54,11 @@ Chacun imite une page d'après le code et les captures du site (dates en tête d
 | `marketplace.ts` | onglet « Parcourir » : `<select>` du tri, « Charger la suite », `onRefresh`, retour d'une annonce | `openMarketplace` |
 | `profile-collection.ts` | profil d'un ami, onglets Vitrine et Collection (recréé à chaque ouverture, toute réponse affichée), modale de carte de ses exemplaires | `openFriendCollection` |
 | `pulls.ts` | carrousel de /pulls (face recréée à chaque carte, sons Web Audio, étoile, props React, révélation des shiny, clic ignoré après un glissement, modale d'enchère chargée à sa première ouverture, avec ses props React), cadre des paquets, pack PRO du jour | `openPulls`, `openCard`, `packFaces`, `PACK`, `PRO_PACK`, `CAROUSEL`, `recordSounds`, `playedSounds` |
-| `friends.ts` | page Amis : amitiés, demandes, liste vide (`NO_FRIENDS`), fenêtre « Rechercher un joueur » (recherche 350 ms après la frappe ; `hold` retient ses réponses) | `openFriendsPage` |
+| `friends.ts` | page Amis : amitiés, demandes, liste vide (`NO_FRIENDS`), fenêtre « Rechercher un joueur » (recherche 350 ms après la frappe ; `hold` retient ses réponses) ; `script` ajouté à celui de la page (cloche) | `openFriendsPage` |
+| `bell.ts` | pas une page : la cloche du site (état du fournisseur React, pastille, `__push` d'une notification comme le temps réel), à ajouter au script de n'importe quel faux site | `fakeBellProvider` |
 | `friend-picker.ts` | /trades et « Choisir un ami » | `openFriendPickerPage` |
 | `trades.ts` | fenêtre « Échanger avec » : onglets, filtres, wikibidous, zone des cartes | `openTradeComposer` |
+| `shell.ts` | le site autour de ses pages : menu latéral d'ordinateur (allumé d'après le chemin), routeur Next.js, page remontée quand l'adresse change ; hydratation du menu et de `<main>` retardable (`hydrateLater`, `window.__hydrate()`) ; session Supabase lue au chargement, réponses de Supabase données par le test (`supabase`), modules du site imités avant la page (`modules`, `SITE_MODULES` : un nouveau rendu d'une racine remplace le précédent) | `openShell` |
 | `market-db.ts` | pas une page : la base IndexedDB `wm-market` du script (même version, mêmes magasins), remplie ou relue depuis la page | `putMarketRecords`, `readMarketRecords` |
 
 Les tests du carrousel désactivent « toutes les cartes d'un coup » (`presetSettings(page, CAROUSEL)`).

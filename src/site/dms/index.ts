@@ -1,4 +1,5 @@
-export { findChatWindows, GUILD_CHAT_CLASS, type ChatPeer, type ChatWindow } from './chat';
+export { findChatWindows, GUILD_CHAT_CLASS, readChatPeer, type ChatPeer, type ChatWindow } from './chat';
+export { locateChatWindow, openChatWindow, type ChatWindowOptions, type ChatWindowPeer } from './open';
 export {
   CHAT_ROW_DATA,
   findChatList,

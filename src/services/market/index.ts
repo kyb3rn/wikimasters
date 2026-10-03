@@ -2,6 +2,7 @@ export { cacheInfo, clearCache, MARKET_DATABASE, type MarketEntry } from './cach
 export { ageText, formatNumber, formatTime, plural, shortDate } from './format';
 export {
   cachedMarket,
+  cachedMarkets,
   fetchMarket,
   isStale,
   marketNeedsPro,

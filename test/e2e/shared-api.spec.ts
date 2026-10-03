@@ -233,7 +233,7 @@ test('Listbox : menu dans un calque à nous au bout de body, au-dessus des modal
   await expect(page.getByRole('button', { name: 'Tri' })).toHaveText(/Bêta/);
 });
 
-test('placeHeaderItem : nos boutons devant chaque solde, par rang, reposés si retirés, retirés quand ils ne sont plus voulus', async ({ page }) => {
+test('placeHeaderItem : nos boutons devant chaque solde une fois son cadre repris par React, par rang, reposés si retirés, retirés quand ils ne sont plus voulus', async ({ page }) => {
   const balance = '<button aria-label="Ouvrir la boutique WikiBidous">Solde</button>';
   await loadSharedApi(page, `<div id="mobile">${balance}</div><div id="desktop"><span>logo</span>${balance}</div>`);
   const steps = await page.evaluate(async () => {
@@ -250,6 +250,14 @@ test('placeHeaderItem : nos boutons devant chaque solde, par rang, reposés si r
     });
     placeHeaderItem(HEADER_RANKS.gear, () => h('button', null, 'Engrenage'), { signal });
     await frames();
+    // Rendu par le serveur, pas encore repris par React (hydratation) : rien n'y est posé.
+    const before = [labels('mobile'), labels('desktop')];
+    const hydrate = (id: string) => Reflect.set(document.getElementById(id) ?? {}, '__reactFiber$test', { return: null, memoizedProps: {} });
+    hydrate('mobile');
+    await frames();
+    const mobileOnly = [labels('mobile'), labels('desktop')];
+    hydrate('desktop');
+    await frames();
     const placed = [labels('mobile'), labels('desktop')];
     document.querySelector('#desktop .wm-root')?.remove();
     await frames();
@@ -257,9 +265,11 @@ test('placeHeaderItem : nos boutons devant chaque solde, par rang, reposés si r
     bellShown = false;
     bells.sync();
     const hidden = labels('mobile');
-    return { placed, reposed, hidden };
+    return { before, mobileOnly, placed, reposed, hidden };
   });
   expect(steps).toEqual({
+    before: [['Solde'], ['Solde']],
+    mobileOnly: [['Engrenage', 'Cloche', 'Solde'], ['Solde']],
     placed: [
       ['Engrenage', 'Cloche', 'Solde'],
       ['Engrenage', 'Cloche', 'Solde'],

@@ -2,9 +2,10 @@ import { tokens } from '@/ui/theme';
 
 // Mise en page de l'historique : la modale, la croix, les boutons et l'interrupteur sont ceux de la base.
 export const CSS = `
-/* Offre PRO (compte sans PRO) : l'encadré du site, avec la marge de nos modales ; icône du titre en accent. */
+/* Offre PRO (compte sans PRO) : l'encadré du site, avec la marge de nos modales. */
 .wm-pro-offer { flex: 1; min-width: 0; padding: 16px 20px 20px; }
-.wm-pro-offer-icon { flex: none; color: ${tokens.accent}; }
+/* Icône du titre de l'offre PRO et de la vue du site recopiée, en accent. */
+.wm-market-heading-icon { flex: none; color: ${tokens.accent}; }
 
 .wm-market { flex: 1; min-width: 0; overflow: auto; display: flex; flex-direction: column; gap: 10px;
   padding: 14px 16px 16px; font-size: 13px; }

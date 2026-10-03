@@ -51,7 +51,7 @@ const shortcut =
 /**
  * Toasts du script, partout sur le site. Erreurs et avertissements (`show` avec `variant: 'warning'`) en haut à
  * droite (sous le solde), 8 s ; succès et informations en bas à droite, 6 s ; `position`, `durationMs` ou `sticky`
- * (jusqu'à fermeture) pour changer ; `action` pour un lien (« Voir l'enchère »).
+ * (jusqu'à fermeture) pour changer ; `action` pour un lien (« Voir l'enchère »), `content` pour des contrôles à nous.
  */
 export const toast = {
   show(options: ToastOptions): number {

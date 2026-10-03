@@ -10,10 +10,10 @@ describe('liste de la cloche', () => {
       ],
       [{ id: 'l1', title: 'Enchère publiée', message: '« Opale » est aux enchères.', variant: 'success', createdAt: Date.parse('2026-09-30T11:00:00Z'), read: false }],
     );
-    expect(entries.map((e) => [e.key, e.icon, e.label, e.text, e.read])).toEqual([
-      ['site:s2', 'trophy', 'Enchère gagnée', 'Vous avez remporté « Opale » !', false],
-      ['local:l1', 'success', 'Enchère publiée', '« Opale » est aux enchères.', false],
-      ['site:s1', 'message', 'inconnu', 'Nouvelle notification', true],
+    expect(entries.map((e) => [e.key, e.icon, e.category, e.label, e.text, e.read])).toEqual([
+      ['site:s2', 'trophy', 'bids', 'Enchère gagnée', 'Vous avez remporté « Opale » !', false],
+      ['local:l1', 'success', 'other', 'Enchère publiée', '« Opale » est aux enchères.', false],
+      ['site:s1', 'message', 'other', 'inconnu', 'Nouvelle notification', true],
     ]);
   });
 
@@ -30,6 +30,14 @@ describe('liste de la cloche', () => {
       ],
       [],
     );
-    expect(entry).toMatchObject({ icon: 'bookmark', label: 'Liste de souhaits', wishlistCard: 'c1', href: '/marketplace/a1' });
+    expect(entry).toMatchObject({ icon: 'bookmark', category: 'wishlist', label: 'Liste de souhaits', wishlistCard: 'c1', href: '/marketplace/a1' });
+  });
+
+  it('notification du script avec un genre : sa catégorie', () => {
+    const [entry] = mergeEntries(
+      [],
+      [{ id: 'l1', type: 'auction-published', message: '« Opale » est aux enchères.', variant: 'success', createdAt: 1, read: false }],
+    );
+    expect(entry?.category).toBe('listings');
   });
 });

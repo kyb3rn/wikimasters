@@ -202,10 +202,11 @@ test('paramètres : durée par défaut au choix, historique, sans interrupteur ;
   await presetSettings(page, { features: { 'auction-modal-layout': false }, values: {} });
   await openPulls(page);
   const settings = await openSettings(page, 'Enchères');
-  // Une seule section « Mise aux enchères » : la modale (sans interrupteur), puis rester sur la carte.
-  await expect(settings.locator('.wm-settings-heading')).toHaveText(['Mise aux enchères']);
+  // Section « Mise aux enchères » : la modale (sans interrupteur), puis rester sur la carte ; en dev, le prix souhaité
+  // de la Revente à part.
+  await expect(settings.locator('.wm-settings-heading')).toHaveText(['Mise aux enchères', 'Prix souhaité']);
   const [layout, stay] = [settings.locator('.wm-settings-feature').first(), settings.locator('.wm-settings-feature').nth(1)];
-  await expect(settings.locator('.wm-settings-feature')).toHaveCount(2);
+  await expect(settings.locator('.wm-settings-feature')).toHaveCount(3);
   // Pas d'interrupteur pour la modale : seulement ceux de l'historique, la reprise grisée quand il est masqué.
   await expect(layout.getByRole('switch')).toHaveCount(2);
   const show = layout.getByRole('switch', { name: "Afficher l'historique" });

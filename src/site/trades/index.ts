@@ -1,5 +1,6 @@
 export {
   findTradeComposer,
+  isTradeMineStats,
   parseTradeSummarySide,
   readTradeFilter,
   readTradeRarities,
@@ -18,15 +19,9 @@ export {
   type TradeSummarySide,
   type TradeTag,
   type TradeWikibidousEditor,
+  withUntaggedFilter,
 } from './composer';
 export { acceptedFriends, findFriendPicker, friendshipDates, type FriendPicker, type PickerFriend } from './friend-picker';
 export { parseTradeWikibidous, TRADE_WIKIBIDOUS_MAX } from './wikibidous';
 export { findTradesPage, type TradesPage } from './page';
-export {
-  locateTradeComposer,
-  openTradeComposer,
-  TradeComposerUnavailable,
-  type OpenedTradeComposer,
-  type TradeComposerOptions,
-  type TradeComposerTarget,
-} from './open';
+export { locateTradeComposer, openTradeComposer, type TradeComposerOptions, type TradeComposerTarget } from './open';

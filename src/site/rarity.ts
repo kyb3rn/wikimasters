@@ -12,6 +12,16 @@ export const RARITY_NAMES: Readonly<Record<Rarity, string>> = {
   C: 'Commune',
 };
 
+/** Libellés de son code (`RARITY_CONFIG`, 02/10/2026) : pastilles et badges de sa vue du marché. */
+export const SITE_RARITY_LABELS: Readonly<Record<Rarity, string>> = {
+  L: 'Légendaire',
+  UR: 'Ultra Rare',
+  SR: 'Super Rare',
+  R: 'Rare',
+  PC: 'Peu Commun',
+  C: 'Commun',
+};
+
 /** Couleur de la rareté (variable du thème du site). */
 export const rarityColor = (rarity: Rarity): string => `var(--color-rarity-${rarity.toLowerCase()})`;
 

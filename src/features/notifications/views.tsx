@@ -2,12 +2,15 @@ import type { ComponentChildren } from 'preact';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { isPlainClick } from '@/core/dom';
 import { formatNotificationDate } from '@/site/notifications';
-import { buttonClass } from '@/ui/button';
-import { Icon } from '@/ui/icons';
+import { buttonClass, type ButtonTone } from '@/ui/button';
+import { CaseFilter, CountBadge } from '@/ui/controls';
+import { Icon, type IconName } from '@/ui/icons';
 import { siteClass } from '@/ui/site';
 import { AGE_REFRESH_MS, notificationAge } from './age';
+import { CATEGORIES, filtered, unreadByCategory, type NotificationCategory } from './categories';
 import type { Entry } from './entries';
-import { useCenter, type CenterStore } from './store';
+import type { FriendRequestState } from './friend-requests';
+import { useCenter, type CenterStore, type FriendAnswer } from './store';
 import { wishedIn } from './wishlist';
 
 export const BELL_CLASS = 'wm-notifications-bell';
@@ -17,8 +20,12 @@ export const DATE_CLASS = 'wm-notification-date';
 /** Ligne avec des boutons : son lien (ou bouton) est étalé dessous, sans contenu (`OPENER_CLASS`). */
 export const ACTION_ROW_CLASS = 'wm-notification-action-row';
 export const OPENER_CLASS = 'wm-notification-opener';
-/** Boutons de la ligne, au-dessus de son lien. */
+/** Boutons de la ligne, au-dessus de son lien ; aussi ceux d'un toast. */
 export const ACTIONS_CLASS = 'wm-notification-actions';
+/** Ce qu'il est advenu d'une demande d'ami (`data-state`), à la place de ses boutons. */
+export const FRIEND_STATUS_CLASS = 'wm-friend-request-status';
+/** Rangée des cases de filtre, sous l'en-tête. */
+export const FILTERS_CLASS = 'wm-notifications-filters';
 const WIDTH = 460;
 const HEIGHT = 550;
 /** Écart avec la cloche et marge minimale avec les bords de l'écran, comme la liste du site. */
@@ -39,7 +46,7 @@ export function Bell({ store, onToggle }: { readonly store: CenterStore; readonl
       onClick={() => button.current && onToggle(button.current)}
     >
       <Icon name="bell" size={18} />
-      {unread > 0 && <span class={siteClass.notificationCount}>{unread > 9 ? '9+' : unread}</span>}
+      <CountBadge count={unread} />
     </button>
   );
 }
@@ -50,11 +57,14 @@ interface Handlers {
   readonly onOpenElsewhere: (entry: Entry) => void;
   /** Ajoute ou retire la carte de la liste de souhaits, selon son état. */
   readonly onWish: (cardId: string) => void;
+  /** Accepte ou refuse la demande d'ami de la notification. */
+  readonly onAnswer: (notificationId: string, answer: FriendAnswer) => void;
 }
 
 interface PanelProps extends Handlers {
   readonly store: CenterStore;
   readonly onMarkAll: () => void;
+  readonly onFilter: (filter: ReadonlySet<NotificationCategory>) => void;
   readonly onClose: () => void;
 }
 
@@ -74,8 +84,8 @@ function placeUnder(anchor: HTMLElement): Place {
 }
 
 /** Liste des notifications (site et script mêlés), ouverte sous la cloche cliquée. */
-export function Panel({ store, onMarkAll, onClose, ...handlers }: PanelProps) {
-  const { entries, unread, anchor, marking, removed, wishing } = useCenter(store);
+export function Panel({ store, onMarkAll, onFilter, onClose, ...handlers }: PanelProps) {
+  const { entries, unread, anchor, marking, removed, wishing, friendRequests, answering, filter } = useCenter(store);
   const frame = useRef<HTMLDivElement>(null);
   const [place, setPlace] = useState<Place>();
   const [now, setNow] = useState(Date.now);
@@ -118,6 +128,13 @@ export function Panel({ store, onMarkAll, onClose, ...handlers }: PanelProps) {
   }, [anchor, onClose]);
 
   if (!anchor || !place) return null;
+  const shown = filtered(entries, filter);
+  const unreadIn = unreadByCategory(entries);
+  const toggle = (category: NotificationCategory) => {
+    const next = new Set(filter);
+    if (!next.delete(category)) next.add(category);
+    onFilter(next);
+  };
   return (
     <div
       ref={frame}
@@ -144,14 +161,27 @@ export function Panel({ store, onMarkAll, onClose, ...handlers }: PanelProps) {
           Tout marquer comme lu
         </button>
       </div>
+      <div class={`${siteClass.notificationsHead} ${FILTERS_CLASS}`}>
+        <CaseFilter
+          label="Types de notification"
+          resetLabel="Afficher tous les types"
+          options={CATEGORIES.map((category) => ({ ...category, badge: unreadIn.get(category.value) ?? 0 }))}
+          checked={filter}
+          onToggle={toggle}
+          onReset={() => onFilter(new Set())}
+        />
+      </div>
       <div class={siteClass.notificationsList}>
-        {entries.length === 0 ? (
-          <p class={siteClass.notificationsEmpty}>Aucune notification</p>
+        {shown.length === 0 ? (
+          <p class={siteClass.notificationsEmpty}>{emptyText(filter.size)}</p>
         ) : (
-          entries.map((entry) => {
+          shown.map((entry) => {
             const card = entry.wishlistCard;
             const wish = card === undefined ? undefined : { wished: wishedIn(removed, card), busy: wishing.has(card) };
-            return <Row key={entry.key} entry={entry} now={now} wish={wish} {...handlers} />;
+            const id = entry.kind === 'site' ? entry.notification.id : undefined;
+            const request = id === undefined ? undefined : friendRequests[id];
+            const friend = id !== undefined && request ? { state: request.state, busy: answering.get(id) } : undefined;
+            return <Row key={entry.key} entry={entry} now={now} wish={wish} friend={friend} {...handlers} />;
           })
         )}
       </div>
@@ -159,31 +189,48 @@ export function Panel({ store, onMarkAll, onClose, ...handlers }: PanelProps) {
   );
 }
 
+function emptyText(checked: number): string {
+  if (checked === 0) return 'Aucune notification';
+  return checked === 1 ? 'Aucune notification de ce type' : 'Aucune notification de ces types';
+}
+
 interface RowProps extends Handlers {
   readonly entry: Entry;
   readonly now: number;
   /** Carte de ma liste de souhaits : bouton pour l'en retirer (ou l'y remettre). */
   readonly wish: { readonly wished: boolean; readonly busy: boolean } | undefined;
+  /** Demande d'ami arrivée sous les yeux du script : Accepter / Refuser. */
+  readonly friend: FriendRequestView | undefined;
 }
 
 /** Une notification. Avec des boutons, son lien est étalé sous la ligne : un bouton ne se met pas dans un lien. */
-function Row({ entry, now, wish, onOpen, onOpenElsewhere, onWish }: RowProps) {
+function Row({ entry, now, wish, friend, onOpen, onOpenElsewhere, onWish, onAnswer }: RowProps) {
   const className = `${siteClass.notificationRow} ${ROW_CLASS}${entry.read ? '' : ` ${siteClass.notificationUnread}`}`;
   const card = entry.wishlistCard;
-  const actions = wish && card !== undefined && (
-    <div class={ACTIONS_CLASS}>
-      <button
-        type="button"
-        class={buttonClass('standard', { size: 'sm', tone: 'accent', fill: wish.wished ? 'solid' : 'outline' })}
-        disabled={wish.busy}
-        aria-busy={wish.busy}
-        onClick={() => onWish(card)}
-      >
-        <Icon name="bookmark" size={14} busy={wish.busy} />
-        {wish.wished ? 'Retirer de la liste de souhaits' : 'Ajouter à la liste de souhaits'}
-      </button>
-    </div>
-  );
+  let actions: ComponentChildren;
+  if (wish && card !== undefined) {
+    actions = (
+      <div class={ACTIONS_CLASS}>
+        <button
+          type="button"
+          class={buttonClass('standard', { size: 'sm', tone: 'accent', fill: wish.wished ? 'solid' : 'outline' })}
+          disabled={wish.busy}
+          aria-busy={wish.busy}
+          onClick={() => onWish(card)}
+        >
+          <Icon name="bookmark" size={14} busy={wish.busy} />
+          {wish.wished ? 'Retirer de la liste de souhaits' : 'Ajouter à la liste de souhaits'}
+        </button>
+      </div>
+    );
+  } else if (friend && entry.kind === 'site') {
+    const { id } = entry.notification;
+    actions = (
+      <div class={ACTIONS_CLASS}>
+        <FriendRequestActions request={friend} onAnswer={(answer) => onAnswer(id, answer)} />
+      </div>
+    );
+  }
   const content = (
     <>
       <Icon name={entry.icon} size={20} class={siteClass.notificationIcon} />
@@ -210,6 +257,69 @@ function Row({ entry, now, wish, onOpen, onOpenElsewhere, onWish }: RowProps) {
     <div class={`${className} ${ACTION_ROW_CLASS}`}>
       <Opener entry={entry} class={OPENER_CLASS} label={`${entry.label} : ${entry.text}`} onOpen={onOpen} onOpenElsewhere={onOpenElsewhere} />
       {content}
+    </div>
+  );
+}
+
+interface FriendRequestView {
+  readonly state: FriendRequestState;
+  /** Réponse en attente du site. */
+  readonly busy: FriendAnswer | undefined;
+}
+
+const FRIEND_STATUS: Readonly<Record<Exclude<FriendRequestState, 'pending'>, { readonly icon: IconName; readonly text: string }>> = {
+  accepted: { icon: 'check', text: 'Demande acceptée' },
+  declined: { icon: 'close', text: 'Demande refusée' },
+  gone: { icon: 'info', text: 'Demande plus en attente' },
+};
+
+/** Accepter (vert) / Refuser (rouge) en contour, comme la page Amis ; une fois répondue, ce qu'il en est advenu. */
+function FriendRequestActions({ request, onAnswer }: { readonly request: FriendRequestView; readonly onAnswer: (answer: FriendAnswer) => void }) {
+  if (request.state !== 'pending') {
+    const { icon, text } = FRIEND_STATUS[request.state];
+    return (
+      <p class={FRIEND_STATUS_CLASS} data-state={request.state}>
+        <Icon name={icon} size={14} />
+        {text}
+      </p>
+    );
+  }
+  const button = (answer: FriendAnswer, tone: ButtonTone, icon: IconName, label: string) => (
+    <button
+      type="button"
+      class={buttonClass('standard', { size: 'sm', tone, fill: 'outline' })}
+      disabled={request.busy !== undefined}
+      aria-busy={request.busy === answer}
+      onClick={() => onAnswer(answer)}
+    >
+      <Icon name={icon} size={14} busy={request.busy === answer} />
+      {label}
+    </button>
+  );
+  return (
+    <>
+      {button('accept', 'accent', 'check', 'Accepter')}
+      {button('decline', 'danger', 'close', 'Refuser')}
+    </>
+  );
+}
+
+/** Boutons d'une demande d'ami dans son toast : les mêmes que dans la liste, qu'ils suivent (et les autres onglets). */
+export function FriendRequestToast({
+  store,
+  id,
+  onAnswer,
+}: {
+  readonly store: CenterStore;
+  readonly id: string;
+  readonly onAnswer: Handlers['onAnswer'];
+}) {
+  const { friendRequests, answering } = useCenter(store);
+  const request = friendRequests[id];
+  if (!request) return null;
+  return (
+    <div class={ACTIONS_CLASS}>
+      <FriendRequestActions request={{ state: request.state, busy: answering.get(id) }} onAnswer={(answer) => onAnswer(id, answer)} />
     </div>
   );
 }

@@ -62,6 +62,11 @@ export function parseFriendships(body: unknown): Friendship[] {
   return isRecord(body) && Array.isArray(body.friendships) ? body.friendships.filter(isFriendship) : [];
 }
 
+/** Comme `parseFriendships`, mais `undefined` pour une réponse illisible : une liste vide dit qu'il n'y a aucune amitié. */
+export function parseFriendsList(body: unknown): Friendship[] | undefined {
+  return isRecord(body) && Array.isArray(body.friendships) ? parseFriendships(body) : undefined;
+}
+
 /** L'autre joueur d'une amitié de `me` (joint par le site), et son id. */
 export function friendOf(friendship: Friendship, me: string): { readonly id: unknown; readonly player: unknown } {
   return friendship.requester_id === me
@@ -71,7 +76,19 @@ export function friendOf(friendship: Friendship, me: string): { readonly id: unk
 
 /** Amitiés du joueur, amis et demandes (`GET /api/friends`, comme le site) ; réponse en erreur ou illisible : `SiteApiError`. */
 export function fetchFriendships(): Promise<Friendship[]> {
-  return siteRequest('/api/friends', {}, (raw) => (isRecord(raw) && Array.isArray(raw.friendships) ? parseFriendships(raw) : undefined));
+  return siteRequest('/api/friends', {}, parseFriendsList);
+}
+
+/**
+ * Accepte ou refuse une demande d'ami reçue (id de l'amitié, pas du joueur) : même requête qu'Accepter / Refuser de
+ * la page Amis et du profil. Réponse `{ status: "accepted" }` (capture du 30/09/2026).
+ */
+export async function answerFriendRequest(friendshipId: string, action: 'accept' | 'decline'): Promise<void> {
+  await siteRequest(
+    `/api/friends/${encodeURIComponent(friendshipId)}`,
+    { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) },
+    () => true,
+  );
 }
 
 /**
@@ -136,4 +153,27 @@ export function parseSentFriendship(body: unknown): Friendship | undefined {
 /** Lecture des amis et des demandes (`GET /api/friends`) : page Amis (après chaque action), « Choisir un ami »… */
 export function isFriendsList(request: NetRequest): boolean {
   return request.method === 'GET' && request.url.pathname === '/api/friends';
+}
+
+/** Lecture d'un profil par sa page (`GET /api/profile/<pseudo>`). */
+export function isProfileRead(request: NetRequest): boolean {
+  return request.method === 'GET' && /^\/api\/profile\/[^/]+$/.test(request.url.pathname);
+}
+
+/** Amitié avec le joueur d'un profil, d'après `{ profile: { id, isFriend, friendshipId, … } }`. */
+export interface ProfileFriendship {
+  readonly playerId: string;
+  readonly isFriend: boolean;
+  /** Amitié ou demande en cours ; absente sans lien. */
+  readonly friendshipId: string | undefined;
+}
+
+export function parseProfileFriendship(body: unknown): ProfileFriendship | undefined {
+  const profile = isRecord(body) ? body.profile : undefined;
+  if (!isRecord(profile) || typeof profile.id !== 'string') return undefined;
+  return {
+    playerId: profile.id,
+    isFriend: profile.isFriend === true,
+    friendshipId: typeof profile.friendshipId === 'string' && profile.friendshipId ? profile.friendshipId : undefined,
+  };
 }

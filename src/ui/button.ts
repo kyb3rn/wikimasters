@@ -8,8 +8,8 @@ import { alpha, DISABLED_OPACITY, palette, tokens } from './theme';
  * des couches de Tailwind : elle l'emporte sur les classes d'un bouton du site qu'on habille (`applyButtonClass`).
  */
 export type ButtonShape = 'standard' | 'window' | 'wide' | 'square' | 'round';
-/** Gris, rouge, bleu, vert (l'accent du site), ambre, mauve dégradé (PRO). */
-export type ButtonTone = 'neutral' | 'danger' | 'info' | 'accent' | 'warning' | 'pro';
+/** Gris, rouge, bleu, vert (l'accent du site), ambre, mauve (prix souhaité), mauve dégradé (PRO). */
+export type ButtonTone = 'neutral' | 'danger' | 'info' | 'accent' | 'warning' | 'violet' | 'pro';
 /** Plein, contour, ou `ghost` : la couleur du texte seule, le fond teinté au survol. */
 export type ButtonFill = 'solid' | 'outline' | 'ghost';
 /** Hauteurs communes à toutes les formes : grand 48 px, moyen = champs (≈ 45 px), petit 30 px, très petit (« tiny ») 20 px. */
@@ -23,7 +23,7 @@ export interface ButtonStyle {
   readonly pill?: boolean;
 }
 
-export const BUTTON_TONES: readonly ButtonTone[] = ['neutral', 'danger', 'info', 'accent', 'warning', 'pro'];
+export const BUTTON_TONES: readonly ButtonTone[] = ['neutral', 'danger', 'info', 'accent', 'warning', 'violet', 'pro'];
 export const BUTTON_FILLS: readonly ButtonFill[] = ['solid', 'outline', 'ghost'];
 export const BUTTON_SIZES: readonly ButtonSize[] = ['lg', 'md', 'sm', 'xs'];
 
@@ -71,6 +71,8 @@ const tones = (): Readonly<Record<ButtonTone, Tone>> => ({
   // Plein : ses boutons verts (« Lancer l'enchère ») ; ghost : son bouton du son allumé.
   accent: hue(tokens.accent, tokens.accent, tokens.accent, tokens.accentLight, tokens.accentForeground),
   warning: hue(amber[400], amber[500], amber[500], amber[600], amber[950]),
+  // Le violet du site (son PRO), en couleur unie : le prix souhaité de la Revente.
+  violet: hue(violet[300], violet[500], violet[500], violet[600], '#fff'),
   // Plein : son bouton du pack PRO (dégradé violet → fuchsia, plus clair au survol).
   pro: hue(violet[300], violet[500], PRO_GRADIENT, PRO_GRADIENT, '#fff'),
 });

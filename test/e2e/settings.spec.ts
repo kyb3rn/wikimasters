@@ -42,6 +42,8 @@ test('un engrenage juste à gauche du solde ouvre la fenêtre de paramètres', a
   await expect(dialog).toBeVisible();
   await expect(dialog.locator('.wm-settings-tab')).toHaveText([
     'Défaussage rapide',
+    // Version de dev : la Revente.
+    'Revente',
     'Paquets',
     'Modale de carte',
     'Enchères',
@@ -59,7 +61,7 @@ test('un engrenage juste à gauche du solde ouvre la fenêtre de paramètres', a
   await expect(dialog.getByRole('button', { name: 'Défaussage rapide' })).toHaveAttribute('aria-current', 'page');
   await expect(dialog.getByRole('button', { name: 'Par défaut' })).toHaveCount(0);
   // Chaque onglet a son icône (Paquets : le puzzle de la navigation du site).
-  await expect(dialog.locator('.wm-settings-tab > svg')).toHaveCount(14);
+  await expect(dialog.locator('.wm-settings-tab > svg')).toHaveCount(15);
   await expect(dialog.getByRole('button', { name: 'Paquets' }).locator('svg path')).toHaveAttribute('d', /^M15\.39 4\.39/);
   // 960 × 620, colonne des catégories de 240 px.
   const panel = await rect(dialog);

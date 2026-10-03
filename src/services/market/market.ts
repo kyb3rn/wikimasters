@@ -4,7 +4,7 @@ import { net } from '@/core/net';
 import { fetchCardSales, parseCardSales, readSalesRequest, type CardSales } from '@/site/api';
 import type { CardRef } from '@/site/cards';
 import { proStatus } from '@/site/pro';
-import { readEntry, writeEntry, type MarketEntry } from './cache';
+import { readEntries, readEntry, writeEntry, type MarketEntry } from './cache';
 import { marketSettings } from './settings';
 
 const HOUR = 3_600_000;
@@ -29,6 +29,11 @@ export function isStale(entry: MarketEntry, now = Date.now()): boolean {
 /** Ventes en cache, même anciennes, sans réseau. */
 export function cachedMarket(cardId: string): Promise<MarketEntry | undefined> {
   return readEntry(cardId);
+}
+
+/** Ventes en cache de plusieurs cartes, même anciennes, sans réseau, en une lecture. */
+export function cachedMarkets(cardIds: readonly string[]): Promise<Map<string, MarketEntry>> {
+  return readEntries(cardIds);
 }
 
 async function store(cardId: string, sales: CardSales, fallbackTitle: string): Promise<MarketEntry> {

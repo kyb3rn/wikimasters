@@ -43,6 +43,10 @@ export function createRuntime(options: RuntimeOptions): Runtime {
   const failures = new Map<string, { key: string; message: string }>();
   const listeners = createListeners(options.createLogger('fonctionnalités'), 'écouteur du catalogue');
   let currentPath: string | undefined;
+  const route = {
+    current: () => currentPath ?? '',
+    changes: createListeners<[route: string]>(options.createLogger('fonctionnalités'), 'écouteur de page'),
+  };
 
   const isEnabled = (feature: Feature) => feature.required === true || options.isEnabled(feature);
 
@@ -68,7 +72,7 @@ export function createRuntime(options: RuntimeOptions): Runtime {
     const log = options.createLogger(feature.id);
     mounted.set(feature.id, { key, controller });
     failures.delete(feature.id);
-    const ctx = createContext(feature.id, controller.signal, log, catalog);
+    const ctx = createContext(feature.id, controller.signal, log, catalog, route);
 
     const fail = (error: unknown) => {
       log.error('échec du démarrage', error);
@@ -85,6 +89,7 @@ export function createRuntime(options: RuntimeOptions): Runtime {
   }
 
   function update(path: string): void {
+    const changed = currentPath !== undefined && path !== currentPath;
     currentPath = path;
     for (const feature of features) {
       const key = isEnabled(feature) ? routeKey(feature, path) : undefined;
@@ -99,6 +104,9 @@ export function createRuntime(options: RuntimeOptions): Runtime {
       if (failures.get(feature.id)?.key === key) continue;
       mount(feature, key);
     }
+    // Celles qui viennent de partir ne l'apprennent pas (signal interrompu) ; une qui s'inscrit dès son montage
+    // l'apprend pour la page où elle arrive.
+    if (changed) route.changes.emit(path);
     listeners.emit();
   }
 

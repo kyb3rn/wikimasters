@@ -12,6 +12,7 @@ import type { CardRef } from '@/site/cards';
 import { fetchMarket, onMarketChange } from './market';
 import { MarketView } from './MarketView';
 import { marketSettings } from './settings';
+import { SiteMarketModal } from './SiteMarketModal';
 
 export interface MarketModalProps {
   readonly card: CardRef;
@@ -30,12 +31,16 @@ function Subtitle({ entry }: { entry: MarketEntry }) {
   );
 }
 
-/** Historique des ventes d'une carte, en modale ; « Actualiser » redemande les ventes au site. */
+/**
+ * Historique des ventes d'une carte, en modale ; « Actualiser » redemande les ventes au site, le bouton d'à côté
+ * ouvre par-dessus la vue du marché du site, recopiée, sur les mêmes ventes.
+ */
 export function MarketModal({ card, entry: initial, onClose }: MarketModalProps) {
   const [entry, setEntry] = useState(initial);
   const [selection, setSelection] = useState<readonly string[]>();
   const [refreshing, setRefreshing] = useState(false);
   const [showAverages, setShowAverages] = useState(() => marketSettings.get('movingAverages'));
+  const [siteView, setSiteView] = useState(false);
 
   // Ventes rechargées ailleurs (le site, un autre bouton) : affichées aussitôt.
   useEffect(() => {
@@ -53,43 +58,57 @@ export function MarketModal({ card, entry: initial, onClose }: MarketModalProps)
   };
 
   return (
-    <Modal
-      title={card.title || entry.title}
-      titleBefore={
-        card.rarity && (
-          <span class={siteClass.rarityBadge} style={rarityBadgeStyle(card.rarity)} title={`Rareté actuelle : ${RARITY_NAMES[card.rarity]}`}>
-            {card.rarity}
-          </span>
-        )
-      }
-      subtitle={<Subtitle entry={entry} />}
-      width={880}
-      onClose={onClose}
-      actions={
-        <button
-          type="button"
-          class={buttonClass('standard')}
-          disabled={refreshing}
-          aria-busy={refreshing}
-          title="Recharger depuis le site"
-          onClick={refresh}
-        >
-          <Icon name="reload" busy={refreshing} size={16} />
-          Actualiser
-        </button>
-      }
-    >
-      <MarketView
-        card={card}
-        entry={entry}
-        selection={selection}
-        onSelect={setSelection}
-        showAverages={showAverages}
-        onShowAverages={(on) => {
-          setShowAverages(on);
-          marketSettings.set('movingAverages', on);
-        }}
-      />
-    </Modal>
+    <>
+      <Modal
+        title={card.title || entry.title}
+        titleBefore={
+          card.rarity && (
+            <span class={siteClass.rarityBadge} style={rarityBadgeStyle(card.rarity)} title={`Rareté actuelle : ${RARITY_NAMES[card.rarity]}`}>
+              {card.rarity}
+            </span>
+          )
+        }
+        subtitle={<Subtitle entry={entry} />}
+        width={880}
+        onClose={onClose}
+        actions={
+          <>
+            <button
+              type="button"
+              class={buttonClass('square')}
+              title="Vue du marché du site"
+              aria-label="Vue du marché du site"
+              onClick={() => setSiteView(true)}
+            >
+              <Icon name="market" size={18} />
+            </button>
+            <button
+              type="button"
+              class={buttonClass('standard')}
+              disabled={refreshing}
+              aria-busy={refreshing}
+              title="Recharger depuis le site"
+              onClick={refresh}
+            >
+              <Icon name="reload" busy={refreshing} size={16} />
+              Actualiser
+            </button>
+          </>
+        }
+      >
+        <MarketView
+          card={card}
+          entry={entry}
+          selection={selection}
+          onSelect={setSelection}
+          showAverages={showAverages}
+          onShowAverages={(on) => {
+            setShowAverages(on);
+            marketSettings.set('movingAverages', on);
+          }}
+        />
+      </Modal>
+      {siteView && <SiteMarketModal card={card} entry={entry} onClose={() => setSiteView(false)} />}
+    </>
   );
 }

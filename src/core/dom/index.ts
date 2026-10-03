@@ -5,5 +5,5 @@ export { classMarks, type ClassMarks } from './marks';
 export { whenBody } from './ready';
 export { injectStyle, removeStyle, toggleStyle, writeStyle } from './style';
 export { renameText } from './text';
-export { isPlainClick, prefersReducedMotion } from './user';
+export { isPlainClick, isTypingTarget, prefersReducedMotion } from './user';
 export { domSyncRounds, watchDom } from './watch';

@@ -1,3 +1,4 @@
+import type { ComponentChild } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Rarity } from '@/site/rarity';
 import { buttonClass } from '@/ui/button';
@@ -33,9 +34,11 @@ export interface SaleHistory {
   readonly onShowAll: () => void;
 }
 
-/** Mise et durée à reprendre d'une mise en vente. */
+/** Mise (et durée) à mettre dans les champs : reprise d'une mise en vente, ou prix souhaité (version de dev). */
 export interface SaleFill {
-  readonly record: SaleRecord;
+  readonly price: number;
+  /** Absente : la durée choisie reste. */
+  readonly minutes: number | undefined;
   /** Change à chaque demande : la même mise en vente peut être reprise deux fois. */
   readonly seq: number;
   /** Reprise à l'ouverture : abandonnée si la mise ou la durée ont déjà été changées. */
@@ -60,6 +63,11 @@ export interface SalePanelProps extends SaleActions {
   /** Absent : historique masqué (réglage), ou carte illisible. */
   readonly history: SaleHistory | undefined;
   readonly fill: SaleFill | undefined;
+  /**
+   * Sous la mise de départ (version de dev : prix souhaité de la Revente) : de quoi suivre la mise saisie et en
+   * reprendre une.
+   */
+  readonly renderBelowPrice?: (bid: string, take: (price: number) => void, disabled: boolean) => ComponentChild;
 }
 
 /** Mise en vente : la carte à gauche ; à droite enchères actives, mise de départ, durée, Annuler / Confirmer. */
@@ -100,8 +108,8 @@ export function SalePanel(props: SalePanelProps) {
 
   useEffect(() => {
     if (!fill || (fill.auto && touched.current)) return;
-    change(String(fill.record.price));
-    if (fill.record.minutes !== undefined) props.onDuration(fill.record.minutes);
+    change(String(fill.price));
+    if (fill.minutes !== undefined) props.onDuration(fill.minutes);
     input.current?.focus();
     input.current?.select();
     // Une fois par demande (`seq`), pas à chaque rendu.
@@ -189,6 +197,15 @@ export function SalePanel(props: SalePanelProps) {
                   <Icon name="plus" size={16} />
                 </button>
               </div>
+              {props.renderBelowPrice?.(
+                price,
+                (value) => {
+                  edit(String(value));
+                  input.current?.focus();
+                  input.current?.select();
+                },
+                busy,
+              )}
             </div>
             <div class="wm-sale-field">
               <span class={siteClass.fieldLabel}>Durée</span>

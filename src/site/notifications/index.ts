@@ -1,5 +1,6 @@
 export {
   formatNotificationDate,
+  friendRequesterOf,
   notificationLabel,
   notificationPath,
   notificationText,

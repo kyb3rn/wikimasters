@@ -1,3 +1,5 @@
+import { normalizeSearchText } from '@/site/search-text';
+
 /**
  * Étiquettes telles que le site les dessine (code du site, 29/09/2026) : pastille `rounded-full border`
  * teintée de leur couleur (`siteClass.tagChip`, style `tagChipStyle`), couleur tirée au hasard d'une palette pour
@@ -31,5 +33,5 @@ export function tagChipStyle(color: string | undefined): string {
 
 /** Nom comparable (`normalizeCardSearchText` du site) : sans accents ni casse, espaces réduits. */
 export function normalizeTagName(name: string): string {
-  return name.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim().split(/\s+/).filter(Boolean).join(' ');
+  return normalizeSearchText(name);
 }

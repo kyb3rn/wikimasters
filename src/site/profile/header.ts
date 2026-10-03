@@ -189,7 +189,13 @@ export interface ProfilePlayer {
   readonly id: string;
   /** Pseudo exact (l'en-tête le donne normalisé). */
   readonly username: string;
+  /** Photo et son cadrage, tels que le site les passe à une conversation (`avatar_url`, `avatar_pos_x`, `avatar_pos_y`). */
+  readonly avatarUrl: string | null;
+  readonly avatarPosX: number | undefined;
+  readonly avatarPosY: number | undefined;
 }
+
+const numberOr = (value: unknown): number | undefined => (typeof value === 'number' ? value : undefined);
 
 /**
  * Joueur d'un profil, pris dans l'état de la page du site (`profile` de `GET /api/profile/<pseudo>` : `{ id, username,
@@ -199,7 +205,14 @@ export function readProfilePlayer(header: Pick<ProfileHeader, 'root' | 'name'>):
   for (const fiber of currentFiberAncestors(header.root)) {
     for (const { value } of stateHooks(fiber)) {
       if (!isRecord(value) || typeof value.id !== 'string' || typeof value.username !== 'string') continue;
-      if (normalizeText(value.username) === header.name) return { id: value.id, username: value.username };
+      if (normalizeText(value.username) !== header.name) continue;
+      return {
+        id: value.id,
+        username: value.username,
+        avatarUrl: typeof value.avatar_url === 'string' ? value.avatar_url : null,
+        avatarPosX: numberOr(value.avatar_pos_x),
+        avatarPosY: numberOr(value.avatar_pos_y),
+      };
     }
   }
   return undefined;

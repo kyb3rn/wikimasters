@@ -1,7 +1,8 @@
+import type { ComponentChildren } from 'preact';
 import { defineSettings } from '@/core/settings';
 import { navigateTo } from '@/site/router';
 import { toast, type ToastAction, type ToastVariant } from '@/ui/toast';
-import { addLocalNotification, markLocalRead, type LocalVariant } from './local';
+import { addLocalNotification, markLocalRead, type LocalType, type LocalVariant } from './local';
 
 export const notificationsSettings = defineSettings('notifications', {
   toasts: {
@@ -18,6 +19,8 @@ export interface NotificationToast {
   readonly title?: string;
   readonly variant: ToastVariant;
   readonly action?: ToastAction;
+  /** Contrôles à nous sous le message, à la place de `action`. */
+  readonly content?: ComponentChildren;
 }
 
 /** Toast d'une notification (du site ou du script), en bas à droite, sauf si l'utilisateur les a coupés. */
@@ -28,6 +31,8 @@ export function toastNotification(notification: NotificationToast): void {
 
 export interface NotifyOptions {
   readonly message: string;
+  /** Genre, pour les filtres de la cloche ; sans genre : « Autres ». */
+  readonly type?: LocalType;
   readonly title?: string;
   readonly variant?: LocalVariant;
   /** Page ouverte par le lien du toast et par un clic dans la liste. */

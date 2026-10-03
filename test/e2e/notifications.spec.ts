@@ -1,4 +1,6 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, type Route } from '@playwright/test';
+import { fakeBellProvider } from './support/bell';
+import { openFriendsPage } from './support/friends';
 import { FAKE_JWT, letTimePass, openSite, presetSettings, rect, sitePage, SUPABASE } from './support/site';
 
 const BELL = '.wm-root button[aria-label="Notifications"]';
@@ -6,30 +8,6 @@ const SITE_BELL = 'button[aria-label="Notifications"]:not(.wm-root *)';
 const PANEL = '.wm-notifications-panel';
 const DESKTOP_BOX = 'div.hidden.md\\:block';
 const MOBILE_BAR = 'div.fixed.left-0.right-0';
-
-/**
- * Cloche du site imitée : son état est celui d'un fournisseur React (liste, puis actions plus bas), lu par le
- * script sur le fiber de la cloche ; la pastille (texte de la cloche) suit le nombre de non lues, comme chez lui.
- */
-const fakeProvider = (list: readonly unknown[]) => `
-const state = { list: ${JSON.stringify(list)} };
-window.__fetches = 0;
-const bell = document.querySelector('button[aria-label="Notifications"]');
-const rerender = () => {
-  const unread = state.list.filter((n) => !n.read).length;
-  bell.textContent = unread > 0 ? '🔔' + unread : '🔔';
-};
-const actions = {
-  markAsRead(ids) { state.list = state.list.map((n) => (ids.includes(n.id) ? { ...n, read: true } : n)); rerender(); },
-  markAllAsRead() { state.list = state.list.map((n) => ({ ...n, read: true })); rerender(); },
-  fetchNotifications() { window.__fetches++; },
-};
-const listFiber = { memoizedProps: { get value() { return state.list; } }, return: null };
-const actionsFiber = { memoizedProps: { value: actions }, return: listFiber };
-bell['__reactFiber$test'] = { memoizedProps: {}, stateNode: bell, return: actionsFiber };
-window.__push = (n) => { state.list = [n, ...state.list]; rerender(); };
-rerender();
-`;
 
 const SOLD = {
   id: 's1',
@@ -64,15 +42,18 @@ const LOCAL = [
   },
 ];
 
-async function openWithBell(page: Page, list: readonly unknown[] = SITE_LIST): Promise<unknown[]> {
+/** Réponse du faux serveur à une requête autre que `/api/notifications` ; faux : laissée aux réponses par défaut. */
+type Handle = (route: Route, url: URL) => Promise<boolean>;
+
+async function openWithBell(page: Page, list: readonly unknown[] = SITE_LIST, other?: Handle): Promise<unknown[]> {
   const patches: unknown[] = [];
   await page.addInitScript((local) => {
     if (!localStorage.getItem('wm-notifications-v1')) localStorage.setItem('wm-notifications-v1', local);
   }, JSON.stringify(LOCAL));
   await openSite(page, '/pulls', {
-    html: sitePage('<h1>Paquets</h1>', fakeProvider(list)),
+    html: sitePage('<h1>Paquets</h1>', fakeBellProvider(list)),
     handle: async (route, url) => {
-      if (url.pathname !== '/api/notifications') return false;
+      if (url.pathname !== '/api/notifications') return other ? other(route, url) : false;
       if (route.request().method() === 'PATCH') patches.push(route.request().postDataJSON());
       await route.fulfill({ json: { success: true } });
       return true;
@@ -152,6 +133,37 @@ test('la liste de 460 × 550 mêle site et script, « Tout marquer comme lu » l
 
   await page.keyboard.press('Escape');
   await expect(panel).toHaveCount(0);
+});
+
+test('une lecture vaut aussi dans les autres onglets, sans requête de leur part', async ({ page }) => {
+  const other = await page.context().newPage();
+  const otherPatches = await openWithBell(other);
+  await openWithBell(page);
+  const otherBell = other.locator(DESKTOP_BOX).locator(BELL);
+  await expect(otherBell).toContainText('3');
+  // Arrivée là-bas après le départ de la requête : le serveur l'a laissée non lue.
+  await other.evaluate(() =>
+    (window as unknown as { __push: (n: unknown) => void }).__push({
+      id: 's3',
+      user_id: 'u',
+      type: 'friend_request',
+      data: { requester_username: 'Léa' },
+      read: false,
+      created_at: '2099-01-01T00:00:00Z',
+    }),
+  );
+  await expect(otherBell).toContainText('4');
+
+  await page.locator(DESKTOP_BOX).locator(BELL).click();
+  await page.locator(PANEL).getByText('Votre carte « Tourmaline » a été vendue !').click();
+  await page.waitForURL('**/marketplace/a1');
+  await expect(otherBell).toContainText('3');
+
+  await page.locator(DESKTOP_BOX).locator(BELL).click();
+  await page.locator(PANEL).getByRole('button', { name: 'Tout marquer comme lu' }).click();
+  await expect(otherBell).toContainText('1');
+  expect(otherPatches).toEqual([]);
+  expect(await other.evaluate(() => (window as unknown as { __fetches: number }).__fetches)).toBe(0);
 });
 
 test('une notification du site lue au clic ouvre sa page', async ({ page }) => {
@@ -280,6 +292,70 @@ test('toast : clic simple sur « Voir », navigation du site et notification lue
   await page.locator('.wm-toast').getByRole('link', { name: 'Voir' }).click();
   await page.waitForURL('**/marketplace/a5');
   expect(patches).toEqual([{ ids: ['s3'] }]);
+});
+
+test('filtres par type : cases à icône, plusieurs à la fois, gardés d’une ouverture à l’autre', async ({ page }) => {
+  const unknown = { id: 's9', user_id: 'u', type: 'jamais_vu', data: { message: 'Nouveauté' }, read: true, created_at: '2026-09-30T09:00:00Z' };
+  const patches = await openWithBell(page, [...SITE_LIST, unknown]);
+  const bell = page.locator(DESKTOP_BOX).locator(BELL);
+  await bell.click();
+  const panel = page.locator(PANEL);
+  const rows = panel.locator(':scope > div:last-child > *');
+  await expect(rows).toHaveCount(4);
+
+  const filters = panel.getByRole('group', { name: 'Types de notification' });
+  const cases = filters.locator('button[aria-pressed]');
+  await expect(cases).toHaveCount(8);
+  expect(await cases.evaluateAll((buttons) => buttons.map((b) => [b.getAttribute('aria-label'), b.getAttribute('title'), b.querySelector('svg') !== null]))).toEqual(
+    [
+      'Messages',
+      'Enchères gagnées et surenchères',
+      'Mises en vente',
+      'Cartes vendues',
+      'Liste de souhaits',
+      "Demandes d'ami",
+      'Échanges',
+      'Autres',
+    ].map((name) => [name, name, true]),
+  );
+
+  // Pastille rouge des non lues de chaque catégorie, s'il y en a.
+  const badges = () => cases.evaluateAll((buttons) => buttons.map((b) => b.querySelector('.wm-case-badge')?.textContent ?? ''));
+  expect(await badges()).toEqual(['', '1', '1', '1', '', '', '', '']);
+
+  const sold = filters.getByRole('button', { name: 'Cartes vendues' });
+  await sold.click();
+  await expect(sold).toHaveAttribute('aria-pressed', 'true');
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText('Tourmaline');
+  // Notification du script gardée d'avant les genres : reconnue à son titre.
+  await filters.getByRole('button', { name: 'Mises en vente' }).click();
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(0)).toContainText('Enchère publiée');
+  // La pastille compte toujours toutes les non lues, et « Tout marquer comme lu » les lit toutes (choix de l'utilisateur).
+  await expect(bell).toContainText('3');
+
+  await page.keyboard.press('Escape');
+  await bell.click();
+  await expect(rows).toHaveCount(2);
+  await expect(filters.getByRole('button', { name: 'Mises en vente' })).toHaveAttribute('aria-pressed', 'true');
+  expect(await page.evaluate(() => localStorage.getItem('wm-notifications-filter-v1'))).toBe('["listings","sales"]');
+  await panel.getByRole('button', { name: 'Tout marquer comme lu' }).click();
+  await expect(bell).not.toContainText(/\d/);
+  expect(patches).toEqual([{}]);
+  await expect.poll(badges).toEqual(['', '', '', '', '', '', '', '']);
+
+  await filters.getByRole('button', { name: 'Afficher tous les types' }).click();
+  await expect(rows).toHaveCount(4);
+  await expect(cases.and(page.locator('[aria-pressed="true"]'))).toHaveCount(0);
+  await filters.getByRole('button', { name: 'Autres' }).click();
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText('Nouveauté');
+  await filters.getByRole('button', { name: 'Autres' }).click();
+  await filters.getByRole('button', { name: 'Messages' }).click();
+  await expect(panel).toContainText('Aucune notification de ce type');
+  await filters.getByRole('button', { name: 'Échanges' }).click();
+  await expect(panel).toContainText('Aucune notification de ces types');
 });
 
 /** Carte de ma liste de souhaits mise en vente (texte du site, 01/10/2026). */
@@ -416,4 +492,263 @@ test('liste de souhaits : retrait retenu au rechargement, oublié quand la carte
   await expect(rows).toHaveCount(2);
   await expect(rows.getByRole('button', { name: 'Retirer de la liste de souhaits' })).toHaveCount(2);
   expect(await page.evaluate(() => localStorage.getItem('wm-wishlist-removed-v1'))).toBe('{}');
+});
+
+/** Demande d'ami telle que le site la notifie (capture du 01/10/2026) : le joueur, pas l'id de l'amitié. */
+const FRIEND_REQUEST = {
+  id: 'fr1',
+  user_id: 'u',
+  type: 'friend_request',
+  data: { title: "Nouvelle demande d'ami !", message: 'Léa souhaite devenir votre ami.', requester_id: 'u7', requester_username: 'Léa' },
+  read: false,
+  created_at: '2026-09-30T13:00:00Z',
+};
+
+const STATUS = '.wm-friend-request-status';
+const STORED_REQUESTS = 'wm-friend-requests-v1';
+
+const push = (page: Page, notification: unknown) =>
+  page.evaluate((n) => (window as unknown as { __push: (n: unknown) => void }).__push(n), notification);
+
+interface FriendsApi {
+  /** Amitiés rendues par `GET /api/friends` (par défaut : la demande de Léa, en attente). */
+  friendships: { id: string; status: string; requester_id: string; addressee_id: string }[];
+  /** `GET /api/friends` reçus. */
+  listed: number;
+  /** `PATCH /api/friends/<id>` reçus. */
+  readonly answered: { id: string; body: unknown }[];
+  /** Réponse au `PATCH` retenue jusqu'à `release()`. */
+  hold: boolean;
+  release: () => void;
+  status: number;
+}
+
+/** Routes des amitiés (et du profil de Léa), comme le site. */
+function friendsApi(): { api: FriendsApi; handle: Handle } {
+  const api: FriendsApi = {
+    friendships: [{ id: 'r7', status: 'pending', requester_id: 'u7', addressee_id: 'u0' }],
+    listed: 0,
+    answered: [],
+    hold: false,
+    release: () => {},
+    status: 200,
+  };
+  const handle: Handle = async (route, url) => {
+    const method = route.request().method();
+    if (url.pathname === '/api/friends' && method === 'GET') {
+      api.listed++;
+      await route.fulfill({ json: { friendships: api.friendships, counts: { accepted: 0, incoming: 1, outgoing: 0 } } });
+      return true;
+    }
+    if (url.pathname === '/api/profile/L%C3%A9a') {
+      await route.fulfill({ json: { profile: { id: 'u7', username: 'Léa', isOwn: false, isFriend: false, friendshipId: 'r7', pendingRequest: {} } } });
+      return true;
+    }
+    const id = /^\/api\/friends\/([^/]+)$/.exec(url.pathname)?.[1];
+    if (id === undefined || method !== 'PATCH') return false;
+    api.answered.push({ id, body: route.request().postDataJSON() });
+    if (api.hold) await new Promise<void>((resolve) => (api.release = resolve));
+    if (api.status >= 400) await route.fulfill({ status: api.status, json: { error: 'Demande introuvable' } });
+    else await route.fulfill({ json: { status: 'accepted' } });
+    return true;
+  };
+  return { api, handle };
+}
+
+const storedRequests = (page: Page) => page.evaluate((key) => localStorage.getItem(key) ?? '', STORED_REQUESTS);
+
+test("demande d'ami arrivée : Accepter / Refuser dans son toast ; Accepter lit l'amitié puis répond comme la page Amis", async ({ page }) => {
+  const { api, handle } = friendsApi();
+  const patches = await openWithBell(page, SITE_LIST, handle);
+  const bell = page.locator(DESKTOP_BOX).locator(BELL);
+  await expect(bell).toContainText('3');
+  await push(page, FRIEND_REQUEST);
+  const toast = page.locator('.wm-toaster[data-position="bottom-right"] .wm-toast');
+  await expect(toast).toContainText("Demande d'ami");
+  await expect(toast).toContainText('Léa veut être votre ami');
+  await expect(toast.getByRole('link', { name: 'Voir' })).toHaveCount(0);
+  await expect(bell).toContainText('4');
+
+  const accept = toast.getByRole('button', { name: 'Accepter' });
+  const decline = toast.getByRole('button', { name: 'Refuser' });
+  await expect(accept).toHaveClass(/wm-button-standard/);
+  await expect(accept).not.toHaveClass(/wm-solid/);
+  api.hold = true;
+  await accept.click();
+  await expect(accept).toBeDisabled();
+  await expect(accept).toHaveAttribute('aria-busy', 'true');
+  await expect(decline).toBeDisabled();
+  await expect(decline).toHaveAttribute('aria-busy', 'false');
+  await expect.poll(() => api.answered).toEqual([{ id: 'r7', body: { action: 'accept' } }]);
+  expect(api.listed).toBe(1);
+  api.release();
+
+  await expect(toast.locator(STATUS)).toHaveText('Demande acceptée');
+  await expect(toast.getByRole('button', { name: /Accepter|Refuser/ })).toHaveCount(0);
+  await expect.poll(() => patches).toEqual([{ ids: ['fr1'] }]);
+  await expect(bell).toContainText('3');
+  expect(JSON.parse(await storedRequests(page))).toEqual({
+    fr1: { requesterId: 'u7', state: 'accepted', friendshipId: 'r7', at: expect.any(Number) as unknown },
+  });
+});
+
+test("liste : boutons sur les seules demandes arrivées sous les yeux du script ; Refuser sans relecture si l'amitié est connue", async ({ page }) => {
+  const { api, handle } = friendsApi();
+  const old = {
+    ...FRIEND_REQUEST,
+    id: 'fr0',
+    data: { ...FRIEND_REQUEST.data, requester_id: 'u6', requester_username: 'Max' },
+    created_at: '2026-09-30T09:00:00Z',
+  };
+  const patches = await openWithBell(page, [...SITE_LIST, old], handle);
+  await expect(page.locator(DESKTOP_BOX).locator(BELL)).toContainText('4');
+  await push(page, FRIEND_REQUEST);
+  await expect(page.locator('.wm-toast')).toContainText('Léa veut être votre ami');
+  // Amitiés lues par le site (page Amis, « Choisir un ami ») : l'id de la demande est retenu.
+  await page.evaluate(() => fetch('/api/friends'));
+  await expect.poll(() => storedRequests(page)).toContain('"friendshipId":"r7"');
+
+  await page.locator(DESKTOP_BOX).locator(BELL).click();
+  const panel = page.locator(PANEL);
+  const row = panel.locator('.wm-notification-action-row');
+  await expect(row).toHaveCount(1);
+  await expect(row).toContainText('Léa veut être votre ami');
+  // Déjà là au chargement : le script ne sait pas ce qu'il en est advenu.
+  await expect(panel.getByRole('link', { name: /Max veut être votre ami/ })).toBeVisible();
+
+  const decline = row.getByRole('button', { name: 'Refuser' });
+  await expect(decline).toHaveClass(/wm-button-standard/);
+  await decline.click();
+  await expect(row.locator(STATUS)).toHaveText('Demande refusée');
+  await expect(row.getByRole('button')).toHaveCount(0);
+  expect(api.answered).toEqual([{ id: 'r7', body: { action: 'decline' } }]);
+  expect(api.listed).toBe(1);
+  await expect.poll(() => patches).toEqual([{ ids: ['fr1'] }]);
+  await expect(panel).toBeVisible();
+  expect(new URL(page.url()).pathname).toBe('/pulls');
+});
+
+test("demande d'ami retenue d'une visite précédente : ses boutons reviennent au chargement", async ({ page }) => {
+  await page.addInitScript((key) => {
+    localStorage.setItem(key, JSON.stringify({ fr1: { requesterId: 'u7', state: 'pending', friendshipId: 'r7', at: 1 } }));
+  }, STORED_REQUESTS);
+  const { api, handle } = friendsApi();
+  await openWithBell(page, [FRIEND_REQUEST, ...SITE_LIST], handle);
+  await page.locator(DESKTOP_BOX).locator(BELL).click();
+  const row = page.locator(PANEL).locator('.wm-notification-action-row');
+  await row.getByRole('button', { name: 'Accepter' }).click();
+  await expect(row.locator(STATUS)).toHaveText('Demande acceptée');
+  expect(api.answered).toEqual([{ id: 'r7', body: { action: 'accept' } }]);
+  expect(api.listed).toBe(0);
+});
+
+test("demande d'ami : refus du site en toast, ses boutons reviennent", async ({ page }) => {
+  const { api, handle } = friendsApi();
+  api.status = 403;
+  const patches = await openWithBell(page, SITE_LIST, handle);
+  await expect(page.locator(DESKTOP_BOX).locator(BELL)).toContainText('3');
+  await push(page, FRIEND_REQUEST);
+  await page.locator(DESKTOP_BOX).locator(BELL).click();
+  const row = page.locator(PANEL).locator('.wm-notification-action-row');
+  await row.getByRole('button', { name: 'Accepter' }).click();
+  const error = page.getByRole('alert');
+  await expect(error).toContainText('Acceptation impossible');
+  await expect(error).toContainText('Demande introuvable');
+  await expect(row.getByRole('button', { name: 'Accepter' })).toBeEnabled();
+  await expect(row.getByRole('button', { name: 'Refuser' })).toBeEnabled();
+  expect(patches).toEqual([]);
+});
+
+test("demande d'ami plus en attente (annulée, traitée ailleurs) : dit au clic, aucune réponse envoyée", async ({ page }) => {
+  const { api, handle } = friendsApi();
+  api.friendships = [];
+  await openWithBell(page, SITE_LIST, handle);
+  await expect(page.locator(DESKTOP_BOX).locator(BELL)).toContainText('3');
+  await push(page, FRIEND_REQUEST);
+  await page.locator(DESKTOP_BOX).locator(BELL).click();
+  const row = page.locator(PANEL).locator('.wm-notification-action-row');
+  await row.getByRole('button', { name: 'Accepter' }).click();
+  await expect(page.getByRole('alert')).toContainText("Cette demande n'est plus en attente.");
+  await expect(row.locator(STATUS)).toHaveText('Demande plus en attente');
+  expect(api.listed).toBe(1);
+  expect(api.answered).toEqual([]);
+});
+
+test("demande d'ami refusée depuis le profil du joueur : la notification suit", async ({ page }) => {
+  const { api, handle } = friendsApi();
+  await openWithBell(page, SITE_LIST, handle);
+  await expect(page.locator(DESKTOP_BOX).locator(BELL)).toContainText('3');
+  await push(page, FRIEND_REQUEST);
+  await expect(page.locator('.wm-toast')).toContainText('Léa veut être votre ami');
+  await page.evaluate(() => fetch('/api/profile/L%C3%A9a'));
+  await expect.poll(() => storedRequests(page)).toContain('"friendshipId":"r7"');
+  await page.evaluate(() =>
+    fetch('/api/friends/r7', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'decline' }) }),
+  );
+  await expect(page.locator('.wm-toast').locator(STATUS)).toHaveText('Demande refusée');
+  await page.locator(DESKTOP_BOX).locator(BELL).click();
+  await expect(page.locator(PANEL).locator(STATUS)).toHaveText('Demande refusée');
+  expect(api.answered).toHaveLength(1);
+  expect(api.listed).toBe(0);
+});
+
+test("demande d'ami : la réponse donnée dans un onglet vaut dans les autres, sans requête de leur part", async ({ page }) => {
+  const other = await page.context().newPage();
+  const elsewhere = friendsApi();
+  const otherPatches = await openWithBell(other, SITE_LIST, elsewhere.handle);
+  await openWithBell(page, SITE_LIST, friendsApi().handle);
+  for (const tab of [other, page]) {
+    await expect(tab.locator(DESKTOP_BOX).locator(BELL)).toContainText('3');
+    await push(tab, FRIEND_REQUEST);
+  }
+  await other.locator(DESKTOP_BOX).locator(BELL).click();
+  const otherRow = other.locator(PANEL).locator('.wm-notification-action-row');
+  await expect(otherRow.getByRole('button', { name: 'Accepter' })).toBeEnabled();
+  // Déjà lue partout : la réponse ne passe pas par l'annonce d'une lecture, qui ferait relire la liste là-bas.
+  await other.locator(PANEL).getByRole('button', { name: 'Tout marquer comme lu' }).click();
+  await expect(page.locator(DESKTOP_BOX).locator(BELL)).not.toContainText(/\d/);
+
+  await page.locator(DESKTOP_BOX).locator(BELL).click();
+  await page.locator(PANEL).getByRole('button', { name: 'Accepter' }).click();
+  await expect(otherRow.locator(STATUS)).toHaveText('Demande acceptée');
+  expect(elsewhere.api.listed).toBe(0);
+  expect(elsewhere.api.answered).toEqual([]);
+  expect(otherPatches).toEqual([{}]);
+});
+
+test('liste de souhaits : un retrait fait dans un autre onglet change le bouton de sa liste ouverte', async ({ page }) => {
+  const other = await page.context().newPage();
+  await openWithWishlist(other);
+  await openWithWishlist(page);
+  await other.locator(DESKTOP_BOX).locator(BELL).click();
+  await expect(other.locator(PANEL).getByRole('button', { name: 'Retirer de la liste de souhaits' })).toBeEnabled();
+  await page.locator(DESKTOP_BOX).locator(BELL).click();
+  await page.locator(PANEL).getByRole('button', { name: 'Retirer de la liste de souhaits' }).click();
+  await expect(other.locator(PANEL).getByRole('button', { name: 'Ajouter à la liste de souhaits' })).toBeEnabled();
+});
+
+test("demande d'ami acceptée sur la page Amis ouverte : la page suit sans relecture", async ({ page }) => {
+  const server = await openFriendsPage(page, { script: fakeBellProvider([SOLD]) });
+  await expect(page.locator(DESKTOP_BOX).locator(BELL)).toContainText('1');
+  await push(page, { ...FRIEND_REQUEST, data: { ...FRIEND_REQUEST.data, requester_username: 'Mastonin' } });
+  await page.locator('.wm-toast').getByRole('button', { name: 'Accepter' }).click();
+  await expect(page.locator('.wm-toast').locator(STATUS)).toHaveText('Demande acceptée');
+  await expect(page.locator('[data-incoming="Mastonin"]')).toHaveCount(0);
+  await expect(page.locator('[data-friend="Mastonin"]')).toHaveCount(1);
+  await expect(page.locator('#friends-section > h2')).toHaveText('Amis (5)');
+  await expect(page.locator('#incoming-section h2')).toHaveText('Demandes reçues (1)');
+  expect(server.answered).toEqual([{ id: 'r1', action: 'accept' }]);
+  // La lecture de l'id de l'amitié par le script, pas une relecture de la page.
+  expect(server.listed).toBe(1);
+});
+
+test("page Amis : sa relecture servie sans réseau, faite d'avant la demande, ne la dit pas plus en attente", async ({ page }) => {
+  const server = await openFriendsPage(page, { script: fakeBellProvider([SOLD]) });
+  await expect(page.locator(DESKTOP_BOX).locator(BELL)).toContainText('1');
+  await push(page, { ...FRIEND_REQUEST, data: { ...FRIEND_REQUEST.data, requester_id: 'u30', requester_username: 'Zed' } });
+  await page.locator('[data-incoming="el_lokomotiv"]').getByRole('button', { name: 'Refuser' }).click();
+  await expect(page.locator('[data-incoming="el_lokomotiv"]')).toHaveCount(0);
+  expect(server.listed).toBe(0);
+  await page.locator(DESKTOP_BOX).locator(BELL).click();
+  await expect(page.locator(PANEL).locator('.wm-notification-action-row').getByRole('button', { name: 'Accepter' })).toBeEnabled();
 });

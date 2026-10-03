@@ -408,6 +408,25 @@ const PATHS = {
       <path d="M12 5v14" />
     </>
   ),
+  /** Sens d'un tri : décroissant (lucide `arrow-down-wide-narrow`), croissant (`arrow-up-narrow-wide`). */
+  sortDescending: (
+    <>
+      <path d="m3 16 4 4 4-4" />
+      <path d="M7 20V4" />
+      <path d="M11 4h10" />
+      <path d="M11 8h7" />
+      <path d="M11 12h4" />
+    </>
+  ),
+  sortAscending: (
+    <>
+      <path d="m3 8 4-4 4 4" />
+      <path d="M7 4v16" />
+      <path d="M11 12h4" />
+      <path d="M11 16h7" />
+      <path d="M11 20h10" />
+    </>
+  ),
   close: (
     <>
       <path d="M18 6 6 18" />

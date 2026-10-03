@@ -1,6 +1,32 @@
 import { describe, expect, it } from 'vitest';
-import { parseTradeSummarySide, tradeCardsSide } from '@/site/trades';
+import { isTradeMineStats, parseTradeSummarySide, tradeCardsSide, withUntaggedFilter } from '@/site/trades';
 import { netRequest } from '../../support';
+
+describe('isTradeMineStats', () => {
+  it('compteurs de « Mes cartes » : triés par rareté, en lecture', () => {
+    expect(isTradeMineStats(netRequest('/api/my-collection/stats?sort=rarity'))).toBe(true);
+    expect(isTradeMineStats(netRequest('/api/my-collection/stats?sort=rarity&rarity=SR&tag_id=t1&wishlisted_by=aelonka'))).toBe(true);
+    expect(isTradeMineStats(netRequest('/api/my-collection/stats?sort=added'))).toBe(false);
+    expect(isTradeMineStats(netRequest('/api/my-collection?sort=rarity&page=0&stats=0&owned_by=aelonka'))).toBe(false);
+    expect(isTradeMineStats(netRequest('/api/my-collection/stats?sort=rarity', { method: 'POST' }))).toBe(false);
+  });
+});
+
+describe('withUntaggedFilter', () => {
+  const query = (path: string) => withUntaggedFilter(new URL(path, 'https://www.wiki-masters.com')).search;
+
+  it("à la place de l'étiquette, dans l'ordre du site", () => {
+    expect(query('/api/my-collection?sort=rarity&page=0&stats=0&owned_by=aelonka')).toBe('?sort=rarity&untagged=1&page=0&stats=0&owned_by=aelonka');
+    expect(query('/api/my-collection?sort=rarity&q=paris&rarity=SR&rarity=R&tag_id=t1&wishlisted_by=aelonka&page=2&stats=0&owned_by=aelonka')).toBe(
+      '?sort=rarity&q=paris&rarity=SR&rarity=R&untagged=1&wishlisted_by=aelonka&page=2&stats=0&owned_by=aelonka',
+    );
+  });
+
+  it('compteurs : au bout, une seule fois', () => {
+    expect(query('/api/my-collection/stats?sort=rarity&rarity=L')).toBe('?sort=rarity&rarity=L&untagged=1');
+    expect(query('/api/my-collection/stats?sort=rarity&untagged=1')).toBe('?sort=rarity&untagged=1');
+  });
+});
 
 describe('tradeCardsSide', () => {
   it('mes cartes : ma collection proposée à cet ami', () => {

@@ -26,6 +26,8 @@ export interface PageModules {
   sources(): Generator<readonly [ModuleId, string]>;
   /** Exports des modules déjà instanciés. */
   loaded(): Generator<unknown>;
+  /** Fabrique inscrite (morceau de code reçu). */
+  has(id: ModuleId): boolean;
   /** Import d'un module inscrit (instancié au besoin) : son espace de noms. */
   require(id: ModuleId): unknown;
   /** Import dynamique du site par l'identifiant de son chargeur : l'espace de noms du module visé. */
@@ -70,6 +72,7 @@ function wrap(context: TurbopackContext): PageModules {
         if (isRecord(module)) yield module.exports;
       }
     },
+    has: (id) => context.M.has(id),
     require: (id) => context.i(id),
     load: (loaderId) => context.A(loaderId),
   };

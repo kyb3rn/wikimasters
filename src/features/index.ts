@@ -6,6 +6,7 @@ import { auctionModalLayout } from './auction-modal';
 import { auctionReport } from './auction-report';
 import { auctionResult } from './auction-result';
 import { auctionStay } from './auction-stay';
+import { auctionWishedPrice } from './auction-wished-price';
 import { cardFaces } from './card-faces';
 import { cardModalLayout } from './card-modal';
 import { cardModalDiscard } from './card-modal-discard';
@@ -26,6 +27,7 @@ import { debug } from './debug';
 import { disabledCursor } from './disabled-cursor';
 import { dmsLayout } from './dms-layout';
 import { dmsGroups } from './dms-groups';
+import { dmsTrade } from './dms-trade';
 import { guildChat } from './guild-chat';
 import { guildChatTab } from './guild-chat-tab';
 import { headerBar } from './header-bar';
@@ -48,6 +50,7 @@ import { marketplaceMemory } from './marketplace-memory';
 import { marketplaceSearch } from './marketplace-search';
 import { marketplaceSearchDelay } from './marketplace-search-delay';
 import { marketplacePrices } from './marketplace-prices';
+import { marketplaceWipeEnded } from './marketplace-wipe-ended';
 import { marketplaceTiles } from './marketplace-tiles';
 import { notifications } from './notifications';
 import { ownedBadge } from './owned-badge';
@@ -75,6 +78,8 @@ import { pullsPro } from './pulls-pro';
 import { pullsRemaining } from './pulls-remaining';
 import { pullsSound } from './pulls-sound';
 import { quickDiscard } from './quick-discard';
+import { resale } from './resale';
+import { resaleCardDisplay } from './resale-card-display';
 import { salesLimit } from './sales-limit';
 import { settingsPanel } from './settings';
 import { showcase } from './showcase';
@@ -150,6 +155,7 @@ export const features: readonly Feature[] = [
   guildLayout,
   dmsLayout,
   dmsGroups,
+  dmsTrade,
   guildChat,
   guildChatTab,
   collectionCardDisplay,
@@ -174,6 +180,7 @@ export const features: readonly Feature[] = [
   auctionNotFound,
   marketplaceTiles,
   marketplacePrices,
+  marketplaceWipeEnded,
   auctionLive,
   salesLimit,
   playerLinks,
@@ -197,5 +204,5 @@ export const features: readonly Feature[] = [
   notifications,
   // Développement seulement : en production, `__DEV__` vaut false et esbuild retire ces modules (build.mjs échoue
   // s'il en reste un octet dans le fichier).
-  ...(__DEV__ ? [debug, showcase, marketSearch] : []),
+  ...(__DEV__ ? [debug, showcase, marketSearch, resale, resaleCardDisplay, auctionWishedPrice] : []),
 ];

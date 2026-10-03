@@ -27,6 +27,7 @@ export const CSS = `
 .wm-sale-note { margin-top: -8px; font-size: 11px; opacity: 0.5; }
 .wm-sale-field { display: flex; flex-direction: column; gap: 6px; }
 .wm-sale-actions { display: flex; gap: 8px; margin-top: 2px; }
+.wm-sale-wished { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 
 /*
  * Historique des mises en vente (cadre et modale « Tout voir ») : lignes du site (siteClass.listRow), colonnes alignées ;

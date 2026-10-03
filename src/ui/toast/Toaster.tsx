@@ -54,7 +54,7 @@ ${(Object.keys(PALETTE) as ToastVariant[])
 .wm-toast-title { font-size: 14px; font-weight: 600; line-height: 18px; }
 .wm-toast-message { color: ${dim(90)}; line-height: 18px; }
 .wm-toast-title + .wm-toast-message { margin-top: 2px; color: ${dim(60)}; }
-.wm-toast-action { margin-top: 8px; }
+.wm-toast-action, .wm-toast-content { margin-top: 8px; }
 .wm-toast-progress { position: absolute; inset: auto 0 0; height: 3px; background: ${tint(70)}; transform-origin: left;
   animation-name: wm-toast-progress; animation-timing-function: linear; animation-fill-mode: forwards; }
 .wm-toast[data-paused] .wm-toast-progress { animation-play-state: paused; }
@@ -70,7 +70,6 @@ ${(Object.keys(PALETTE) as ToastVariant[])
 `;
 
 const ACTION_TONE: Record<ToastVariant, ButtonTone> = { error: 'danger', success: 'accent', warning: 'warning', info: 'info' };
-
 
 export interface ToasterProps {
   readonly store: ToastStore;
@@ -162,7 +161,11 @@ function ToastView({ toast, store, leaving, onGone }: ToastViewProps) {
       <div class="wm-toast-body">
         {toast.title && <div class="wm-toast-title">{toast.title}</div>}
         <div class="wm-toast-message">{toast.message}</div>
-        {toast.action && <ActionView action={toast.action} variant={toast.variant} onClose={onClose} />}
+        {toast.content !== undefined ? (
+          <div class="wm-toast-content">{toast.content}</div>
+        ) : (
+          toast.action && <ActionView action={toast.action} variant={toast.variant} onClose={onClose} />
+        )}
       </div>
       <button type="button" class={buttonClass('round', { fill: 'ghost', size: 'sm' })} aria-label="Fermer" onClick={onClose}>
         <Icon name="close" size={16} />

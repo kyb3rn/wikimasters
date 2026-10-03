@@ -85,6 +85,9 @@ describe('pageModules', () => {
       [3, page.toString()],
     ]);
     expect([...modules.loaded()]).toContainEqual({ createElement: expect.any(Function) as unknown });
+    expect([modules.has(3), modules.has(4)]).toEqual([true, false]);
+    site.registry.push(['autre.js', 4, page]);
+    expect(modules.has(4)).toBe(true);
     expect(await modules.load(2)).toEqual({ default: 'page' });
     expect(modules.require(3)).toEqual({ default: 'page' });
     expect([...site.factories.keys()].filter((id) => typeof id === 'string')).toEqual(['wikimasters-1']);

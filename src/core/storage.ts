@@ -51,3 +51,17 @@ export function jsonStore<T>(key: string, fallback: T, parse: (raw: unknown) => 
     },
   };
 }
+
+/**
+ * Prévenu quand `key` change dans un autre onglet du site (le navigateur ne le signale pas à l'onglet qui écrit), ou
+ * quand tout le stockage est vidé.
+ */
+export function onStorageChange(key: string, listener: () => void, options: { signal: AbortSignal }): void {
+  window.addEventListener(
+    'storage',
+    (event) => {
+      if (event.key === key || event.key === null) listener();
+    },
+    options,
+  );
+}

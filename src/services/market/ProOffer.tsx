@@ -23,7 +23,7 @@ export function ProOffer({ card, onClose }: ProOfferProps) {
   return (
     <Modal
       title="Vue du marché"
-      titleBefore={<Icon name="market" size={22} class="wm-pro-offer-icon" />}
+      titleBefore={<Icon name="market" size={22} class="wm-market-heading-icon" />}
       width={560}
       onClose={onClose}
     >

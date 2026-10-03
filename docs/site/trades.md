@@ -33,7 +33,7 @@ _Relevé : code du site, 30/09._
 
 _Relevé : code du site, 30/09._
 
-« Échanger avec … » / « Contre-offre avec … », ouverte depuis /trades, la page Amis (« Échanger ») et la modale de carte du catalogue (« Proposer un échange ») : elle peut apparaître sur toutes ces pages. Le script l'ouvre aussi sur le profil d'un ami ([Ouverte par le script](#ouverte-par-le-script)).
+« Échanger avec … » / « Contre-offre avec … », ouverte depuis /trades, la page Amis (« Échanger ») et la modale de carte du catalogue (« Proposer un échange ») : elle peut apparaître sur toutes ces pages. Le script l'ouvre aussi sur le profil d'un ami et dans une conversation de /dms ([Ouverte par le script](#ouverte-par-le-script)).
 
 - Portail dans `body`, fond `fixed inset-0 z-50` (`p-2`), cadre `max-w-5xl h-[90vh]` (modale « en-tête en barre », [README](README.md#modales)).
 - En-tête : `h2` avec le pseudo de l'ami dans un `span` accent. Résumé « Moi : n cartes · m wb ⇄ … ».
@@ -49,7 +49,7 @@ _Relevé : code du site, 30/09._
 - Recherche : filtre local de la page chargée, puis requête 300 ms après la frappe ; texte ambre sous 3 caractères.
 - « Ajouter des WB » : composant `{ value, onExpand }`, montant en badge ambre quand il y en a ([Wikibidous](#wikibidous)).
 - « Rareté » : liste à plusieurs choix, composant `{ filter: Set, onChange }` ; un changement revient en page 1.
-- « Filtre » : composant `{ tags, activeTagId, onSelect, wishlistLabel, wishlistTitle, wishlistActive, onWishlistToggle }` : « Souhaits de … » côté mes cartes, « Mes souhaits » côté ami, puis « Toutes les cartes » et les étiquettes `#nom` avec leur nombre.
+- « Filtre » : composant `{ tags, activeTagId, onSelect, wishlistLabel, wishlistTitle, wishlistActive, onWishlistToggle }` : « Souhaits de … » côté mes cartes, « Mes souhaits » côté ami, puis « Toutes les cartes » et les étiquettes `#nom` avec leur nombre. Pas de « Sans étiquette » (la route de « Mes cartes » l'accepte pourtant : `untagged=1`) ; un choix d'étiquette revient en page 1.
 - Menus en portail (`z-index: 70`) ; Échap ferme le menu **et** la fenêtre (les deux écoutent `window`).
 - Lecture : `readTradeRarities`, `readTradeFilter`.
 
@@ -62,7 +62,7 @@ _Relevé : code du site, 30/09._
 ### Chargement des cartes
 
 - Chaque côté se charge dans un effet : les deux à l'ouverture, puis à chaque changement de page, de recherche, de raretés (identité du `Set`), d'étiquette ou de liste de souhaits. 50 cartes par page.
-  - « Mes cartes » : `GET /api/my-collection?sort=rarity[&q][&rarity…][&tag_id][&wishlisted_by=<ami>]&page=&stats=0&owned_by=<ami>` (+ `/api/my-collection/stats` en page 1) ;
+  - « Mes cartes » : `GET /api/my-collection?sort=rarity[&q][&rarity…][&tag_id][&wishlisted_by=<ami>]&page=&stats=0&owned_by=<ami>`, et en page 1 ses compteurs, partis juste avant : `GET /api/my-collection/stats?sort=rarity[&mêmes filtres]` (sans `owned_by`, `fetchMyCollectionStats` ; code du 02/10, `isTradeMineStats`). Le total (pagination) et les étiquettes (`tagOptions`, si non vides) ne viennent que d'eux, lus après une liste reçue ;
   - « Cartes de … » : `GET /api/profile/<ami>/collection?page=&sort=rarity&stats=[&q][&rarity…][&tag_id][&wishlisted_by_me=1]&pending=1`.
 - Zone des cartes `div.relative.min-h-[200px]` : voile avec roue pendant un chargement, grille ([README](README.md#grilles-de-cartes)), pagination ← n / m →, ou « Aucune carte » / « Collection vide ».
 - **Réponse en erreur** : grille vidée, `p[role=status]` rouge sous la rangée (« Le chargement de tes cartes a échoué. Réessaie dans un instant. » ; 504 : « La recherche a pris trop de temps… »). **Échec réseau** : rien (exception non rattrapée, l'ancienne liste reste).
@@ -78,12 +78,12 @@ _Relevé : code du site, 30/09._
 
 ### Ouverte par le script
 
-_Relevé : code du site, 02/10._
+_Relevé : code du site, 02/10 et 03/10._
 
-- Composant `{ friendUsername, friendProfileId, preselectedFriendCard, preselectedFriendCards, parentTradeId, preselectedMyCards, preselectedMyWikibidous, preselectedFriendWikibidous, onClose, onSent }`, export par défaut de son module (`273271`), rendu en portail dans `body`. La page Amis lui passe `{ friendUsername, friendProfileId, onClose, onSent }` (`friendProfileId` : id du joueur) ; `onSent`, appelé après un envoi réussi, ferme la fenêtre comme `onClose`.
-- Importé directement par la page Amis et /trades. Sur un profil, seule la modale d'un exemplaire de l'ami le charge, par un import dynamique : enveloppe `function $({ friendUsername, friendProfileId, preselectedFriendCard, onClose })`, qui attend `e.A(<chargeur>)` (`799047`) puis rend le composant, avec une roue `fixed inset-0 z-[60]` en attendant. Le profil n'a pas d'autre bouton d'échange.
+- Composant `{ friendUsername, friendProfileId, preselectedFriendCard, preselectedFriendCards, parentTradeId, preselectedMyCards, preselectedMyWikibidous, preselectedFriendWikibidous, onClose, onSent }`, export par défaut de son module (`273271`, seul dans son morceau de code), rendu en portail dans `body`. La page Amis lui passe `{ friendUsername, friendProfileId, onClose, onSent }` (`friendProfileId` : id du joueur) ; `onSent`, appelé après un envoi réussi, ferme la fenêtre comme `onClose`.
+- Importé directement par la page Amis, /trades et la guilde ; /dms ne l'a pas. Sur un profil, seule la modale d'un exemplaire de l'ami le charge, par un import dynamique : enveloppe `function $({ friendUsername, friendProfileId, preselectedFriendCard, onClose })`, qui attend `e.A(<chargeur>)` (`799047`) puis rend le composant, avec une roue `fixed inset-0 z-[60]` en attendant. Le profil n'a pas d'autre bouton d'échange.
 - Contextes lus : le joueur connecté (`useUserId`, qui lève une erreur hors de son `AuthProvider`) et le réglage des images sensibles (cartes floutées). Aucun routeur.
-- Ouverte par le script (profil d'un ami) : React et react-dom/client de la page trouvés parmi ses modules, composant par son module s'il est déjà inscrit, sinon par le chargeur de l'enveloppe, rendu dans une racine React à nous, sous les contextes de l'arbre de la page (valeurs au moment de l'ouverture). Les fonctionnalités de la fenêtre (`routes: 'all'`) s'y appliquent comme ailleurs.
+- Ouverte par le script (profil d'un ami, conversation de /dms) : React et react-dom/client de la page trouvés parmi ses modules, composant par son module s'il est déjà inscrit, sinon par le chargeur de l'enveloppe, sinon page Amis préchargée par le routeur du site ([README](README.md#stack)) ; rendu dans une racine React à nous, sous les contextes de l'arbre de la page (valeurs au moment de l'ouverture). Les fonctionnalités de la fenêtre (`routes: 'all'`) s'y appliquent comme ailleurs.
 - Lecture : `src/site/trades/open.ts` (`openTradeComposer`, `locateTradeComposer`).
 
 ## Dans le script

@@ -70,6 +70,7 @@ export const auctionStay: Feature = {
         notify({
           message: title ? `« ${title} » est aux enchères.` : 'La carte est aux enchères.',
           title: 'Enchère publiée',
+          type: 'auction-published',
           variant: 'success',
           href: path,
           actionLabel: "Voir l'enchère",

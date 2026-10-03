@@ -105,6 +105,11 @@ export function notificationText(notification: SiteNotification): string {
   }
 }
 
+/** Joueur qui me demande en ami, pour une notification `friend_request` (`data` n'a pas l'id de l'amitié). */
+export function friendRequesterOf(notification: SiteNotification): string | undefined {
+  return notification.type === 'friend_request' ? text(notification.data.requester_id) : undefined;
+}
+
 /** Carte (modèle) de ma liste de souhaits mise en vente, pour une notification `marketplace_wishlist_listed`. */
 export function wishlistCardOf(notification: SiteNotification): string | undefined {
   return notification.type === 'marketplace_wishlist_listed' ? text(notification.data.card_id) : undefined;

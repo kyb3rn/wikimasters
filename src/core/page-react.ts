@@ -54,6 +54,8 @@ export interface PageComponentOptions {
 }
 
 export interface PageComponentHandle {
+  /** Rend le composant avec d'autres props (sous les mêmes contextes). */
+  update(props: Record<string, unknown>): void;
   /** Retire le composant (à la tâche suivante : jamais pendant un rendu de React). */
   unmount(): void;
 }
@@ -71,11 +73,17 @@ export function renderPageComponent(
   const root = page.dom.createRoot(document.createElement('div'), {
     onUncaughtError: (error: unknown) => onError?.(error),
   });
-  let element = page.react.createElement(component, props);
-  for (const { type, value } of [...contexts].reverse()) element = page.react.createElement(type, { value }, element);
-  root.render(element);
+  const element = (current: Record<string, unknown>) => {
+    let tree = page.react.createElement(component, current);
+    for (const { type, value } of [...contexts].reverse()) tree = page.react.createElement(type, { value }, tree);
+    return tree;
+  };
+  root.render(element(props));
   let mounted = true;
   return {
+    update(next) {
+      if (mounted) root.render(element(next));
+    },
     unmount() {
       if (!mounted) return;
       mounted = false;

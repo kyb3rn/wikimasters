@@ -226,7 +226,7 @@ test('paramètres : onglet Marché, option active par défaut, désactivée sur-
   await openMarketplace(page);
   await expect(titles(page)).toHaveText(['recent toutes p1']);
   const dialog = await openSettings(page, 'Marché');
-  await expect(dialog.locator('.wm-settings-heading')).toHaveText(['Recherche', 'Historique des ventes', 'Prix moyen', 'Mises en direct', 'Limite des historiques', 'Apparence']);
+  await expect(dialog.locator('.wm-settings-heading')).toHaveText(['Recherche', 'Historique des ventes', 'Prix moyen', 'Enchères terminées', 'Mises en direct', 'Limite des historiques', 'Apparence']);
   const toggle = dialog.getByRole('switch', { name: 'Recherche : Empêcher le rechargement automatique' });
   await expect(toggle).toHaveAttribute('aria-checked', 'true');
   await toggle.click();

@@ -42,6 +42,25 @@ export function savedFiltersStore<Q extends ListQuery>(key: string, shape: Saved
   return jsonStore<Saved<Q> | undefined>(key, undefined, (raw) => parseSavedFilters(raw, shape));
 }
 
+/** Dernière liste chargée en première page, avec ses filtres : réaffichée telle quelle à l'arrivée. */
+export interface SavedList<Q extends ListQuery> {
+  readonly filters: Saved<Q>;
+  readonly response: CachedResponse;
+}
+
+/** Liste gardée relue du stockage ; rien si sa forme n'est pas celle attendue. */
+export function parseSavedList<Q extends ListQuery>(raw: unknown, shape: SavedShape<Q>): SavedList<Q> | undefined {
+  if (!isRecord(raw) || !isRecord(raw.response)) return undefined;
+  const filters = parseSavedFilters(raw.filters, shape);
+  const { body, contentType } = raw.response;
+  return filters && typeof body === 'string' && typeof contentType === 'string' ? { filters, response: { body, contentType } } : undefined;
+}
+
+/** Stockage de la dernière liste chargée en première page (`wm-<page>-list-v<n>`). */
+export function savedListStore<Q extends ListQuery>(key: string, shape: SavedShape<Q>): JsonStore<SavedList<Q> | undefined> {
+  return jsonStore<SavedList<Q> | undefined>(key, undefined, (raw) => parseSavedList(raw, shape));
+}
+
 /** Remise des contrôles : faite, inutile (ils y sont déjà), ou impossible pour l'instant. */
 export type ApplyResult = 'applied' | 'unchanged' | 'unavailable';
 
@@ -95,6 +114,12 @@ export interface ListMemoryOptions<Q extends ListQuery> {
   siteRestore?(request: NetRequest): boolean;
   /** Une réponse a été servie à une requête d'autres filtres que les siens. */
   onMismatch?(): void;
+  /**
+   * Dernière liste chargée en première page (`firstPage`) gardée avec ses filtres : à l'arrivée, si ce sont les
+   * filtres retenus, elle est resservie telle quelle, sans requête, avant que les contrôles ne soient remis. Page
+   * sans compagne seulement.
+   */
+  readonly savedList?: { readonly store: JsonStore<SavedList<Q> | undefined>; readonly firstPage: number };
 }
 
 /** Délai pour remettre les contrôles du site (recherche comprise), après quoi on lâche. */
@@ -107,30 +132,44 @@ const SETTLE_DELAY = 500;
 
 /**
  * - `arrival` : rien encore ; la première requête dit si la page part d'autres filtres que ceux retenus ;
- * - `controls` : la première liste part avec les filtres retenus ; une fois affichée, les contrôles du site y
- *   sont remis, chacune de leurs requêtes reçoit la réponse déjà chargée, jusqu'à celle qui les a tous ;
+ * - `controls` : la première liste part avec les filtres retenus (ou reçoit la liste gardée) ; une fois affichée,
+ *   les contrôles du site y sont remis, chacune de leurs requêtes reçoit la réponse déjà chargée, jusqu'à celle
+ *   qui les a tous ;
  * - `direct` : première liste affichée sans requête (gardée par le site) : les contrôles sont remis, la page
- *   charge elle-même.
+ *   charge elle-même (ou reçoit la liste gardée).
  */
 type Phase = 'arrival' | 'controls' | 'direct';
 
+/** Requête de la page servie par nous : chargée avec les filtres retenus, ou réponse déjà chargée resservie. */
+interface Plan<Q> {
+  readonly kind: 'fetch' | 'serve';
+  readonly target: Q;
+}
+
 /**
  * Retient les filtres de la dernière liste chargée et y revient à l'arrivée sur la page : la première liste (et
- * sa compagne) est chargée avec eux (la requête par défaut ne part pas), puis les contrôles du site y sont remis,
- * leurs requêtes servies sans réseau.
+ * sa compagne) est chargée avec eux (la requête par défaut ne part pas), ou reçoit la liste gardée
+ * (`savedList`) sans requête, puis les contrôles du site y sont remis, leurs requêtes servies sans réseau.
  */
 export function trackListMemory<Q extends ListQuery>(options: ListMemoryOptions<Q>): void {
-  const { source, signal, log, store } = options;
+  const { source, signal, log, store, savedList } = options;
   const saved = store.get();
-  let restore: { readonly target: Q; phase: Phase; applied: boolean; settled: boolean } | undefined = saved
-    ? { target: { ...saved, page: undefined } as Q, phase: 'arrival', applied: false, settled: false }
-    : undefined;
+  const target = saved && ({ ...saved, page: undefined } as Q);
+  let restore: { readonly target: Q; phase: Phase; applied: boolean; settled: boolean } | undefined = target && {
+    target,
+    phase: 'arrival',
+    applied: false,
+    settled: false,
+  };
+  const kept = target && savedList?.store.get();
+  /** Liste gardée avec les filtres retenus : resservie aux requêtes de la première page pendant le retour. */
+  const keptList = kept && sameFilters(source, { ...kept.filters, page: undefined } as Q, target) ? kept.response : undefined;
   /** Réponses chargées avec les filtres retenus. */
-  let cached: CachedResponse | undefined;
+  let cached: CachedResponse | undefined = keptList;
   let cachedCompanion: CachedResponse | undefined;
   /** Chargement de la liste avec les filtres retenus : les requêtes suivantes l'attendent. */
-  let loaded: Promise<boolean> | undefined;
-  const plans = new WeakMap<NetRequest, 'fetch' | 'serve'>();
+  let loaded: Promise<boolean> | undefined = keptList && Promise.resolve(true);
+  const plans = new WeakMap<NetRequest, Plan<Q>>();
   let latest: NetRequest | undefined;
   let cancelTimer = () => {};
   const isRequest = isSourceRequest(source);
@@ -140,6 +179,12 @@ export function trackListMemory<Q extends ListQuery>(options: ListMemoryOptions<
     log.debug('filtres retenus :', reason);
     restore = undefined;
     cancelTimer();
+  }
+
+  /** La page affichera la réponse que nous servons : celle des filtres retenus, quelle que soit l'adresse. */
+  function takeOver(request: NetRequest, kind: Plan<Q>['kind'], target: Q): void {
+    plans.set(request, { kind, target });
+    markRestored(request, target);
   }
 
   net.track(
@@ -154,19 +199,21 @@ export function trackListMemory<Q extends ListQuery>(options: ListMemoryOptions<
       if (!restore) return undefined;
       const query = source.readQuery(request.url);
       const reached = sameFilters(source, query, restore.target);
+      const fromKept = keptList !== undefined && isList && query.page === savedList?.firstPage;
       if (restore.phase === 'arrival') {
-        if (reached) {
+        if (reached && !fromKept) {
           finish('la page part déjà de ces filtres');
           return undefined;
         }
         // La compagne part juste avant la liste : elle aussi, avec les filtres retenus.
         if (isList) restore.phase = 'controls';
-        plans.set(request, 'fetch');
-        markRestored(request, restore.target);
+        takeOver(request, fromKept ? 'serve' : 'fetch', restore.target);
+        if (reached) finish('liste gardée, la page part déjà de ces filtres');
         return undefined;
       }
       if (restore.phase === 'direct') {
-        markRestored(request, query);
+        if (fromKept) takeOver(request, 'serve', restore.target);
+        else markRestored(request, query);
         if (reached && isList) finish('contrôles remis');
         return undefined;
       }
@@ -175,8 +222,7 @@ export function trackListMemory<Q extends ListQuery>(options: ListMemoryOptions<
         finish('nouveau filtre');
         return undefined;
       }
-      markRestored(request, restore.target);
-      plans.set(request, 'serve');
+      takeOver(request, 'serve', restore.target);
       if (isList && reached && !restore.settled) {
         restore.settled = true;
         cancelTimer();
@@ -187,13 +233,22 @@ export function trackListMemory<Q extends ListQuery>(options: ListMemoryOptions<
     { signal },
   );
 
+  /** Liste chargée en première page : gardée avec ses filtres. */
+  function keepList(query: Q, response: CachedResponse): void {
+    if (savedList && query.page === savedList.firstPage) savedList.store.set({ filters: withoutPage(query), response });
+  }
+
   async function fetchRestored(request: NetRequest, target: Q): Promise<Response> {
     const response = await net.fetch(options.withFilters(request.url, target).href);
     const isList = source.isList(request);
     if (response.ok) {
       const body = await cacheResponse(response);
-      if (isList) cached = body;
-      else cachedCompanion = body;
+      if (isList) {
+        cached = body;
+        keepList({ ...target, page: source.readQuery(request.url).page }, body);
+      } else {
+        cachedCompanion = body;
+      }
     } else if (isList) {
       finish(`chargement en échec (${response.status})`);
     }
@@ -204,12 +259,11 @@ export function trackListMemory<Q extends ListQuery>(options: ListMemoryOptions<
     isRequest,
     async (request) => {
       const plan = plans.get(request);
-      const target = restore?.target;
-      if (!plan || !target) return undefined;
+      if (!plan) return undefined;
       const isList = source.isList(request);
-      if (!sameFilters(source, source.readQuery(request.url), target)) options.onMismatch?.();
-      if (plan === 'fetch') {
-        const fetched = fetchRestored(request, target);
+      if (!sameFilters(source, source.readQuery(request.url), plan.target)) options.onMismatch?.();
+      if (plan.kind === 'fetch') {
+        const fetched = fetchRestored(request, plan.target);
         if (isList) loaded = fetched.then((response) => response.ok, () => false);
         try {
           return await fetched;
@@ -228,9 +282,14 @@ export function trackListMemory<Q extends ListQuery>(options: ListMemoryOptions<
   // Dernière liste chargée par le site (pas une réponse resservie, ni une requête remplacée entre-temps).
   net.observe(
     (request) => !request.own && source.isList(request),
-    (exchange) => {
+    async (exchange) => {
       if (exchange.synthetic || !exchange.ok || exchange.request !== latest) return;
-      store.set(withoutPage(source.readQuery(exchange.request.url)));
+      const query = source.readQuery(exchange.request.url);
+      store.set(withoutPage(query));
+      if (!savedList || query.page !== savedList.firstPage) return;
+      const response = await cacheResponse(exchange);
+      // Une liste plus récente a pu être gardée entre-temps.
+      if (exchange.request === latest) keepList(query, response);
     },
     { signal },
   );

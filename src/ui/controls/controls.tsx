@@ -56,6 +56,12 @@ export interface CloseButtonProps {
   readonly class?: string;
 }
 
+/** Pastille rouge du nombre de non lues, celle de la cloche du site (« 9+ » au-delà) ; rien à 0. */
+export function CountBadge({ count, class: extra }: { readonly count: number; readonly class?: string }) {
+  if (count <= 0) return null;
+  return <span class={cx(siteClass.notificationCount, extra)}>{count > 9 ? '9+' : count}</span>;
+}
+
 /** Croix de fermeture des modales : petit rond gris ghost. */
 export function CloseButton({ onClick, disabled, class: extra }: CloseButtonProps) {
   const className = buttonClass('round', { fill: 'ghost', size: 'sm' });

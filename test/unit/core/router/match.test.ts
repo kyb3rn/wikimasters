@@ -31,4 +31,16 @@ describe('matchRoute', () => {
     expect(matchRoute('/profile/*', '/profile')).toEqual({ '*': '' });
     expect(matchRoute('/profile/*', '/pulls')).toBeNull();
   });
+
+  it("compare la requête d'une vue : mêmes paramètres des deux côtés, dans n'importe quel ordre", () => {
+    expect(matchRoute('/collection?vue=revente', '/collection?vue=revente')).toEqual({});
+    expect(matchRoute('/a?x=1&vue=b', '/a?vue=b&x=1')).toEqual({});
+    expect(matchRoute('/collection?vue=revente', '/collection?vue=autre')).toBeNull();
+    expect(matchRoute('/collection?vue=revente', '/collection')).toBeNull();
+  });
+
+  it('ne reconnaît pas une page affichée dans une vue avec un motif sans requête', () => {
+    expect(matchRoute('/collection', '/collection?vue=revente')).toBeNull();
+    expect(matchRoute('/profile/:name', '/profile/x?vue=y')).toBeNull();
+  });
 });

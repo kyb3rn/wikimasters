@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyRarities, parseSavedFilters } from '@/services/list-search/memory';
+import { applyRarities, parseSavedFilters, parseSavedList } from '@/services/list-search/memory';
 import type { CollectionQuery } from '@/site/collection';
 import type { GlobalCollectionQuery } from '@/site/global-collection';
 import type { MarketplaceQuery } from '@/site/marketplace';
@@ -33,6 +33,21 @@ describe('filtres retenus', () => {
       rarities: 'L,UR',
     });
     expect(parseSavedFilters<MarketplaceQuery>({ sort: 'recent' }, shape)).toBeUndefined();
+  });
+});
+
+describe('liste gardée', () => {
+  const shape = { sort: 'text', search: 'string', rarities: 'string', wishlist: 'boolean' } as const;
+  const filters = { sort: 'name', search: '', rarities: '', wishlist: false };
+  const response = { body: '{"cards":[]}', contentType: 'application/json' };
+
+  it('Toutes les cartes : filtres et réponse ; forme inattendue rejetée', () => {
+    expect(parseSavedList<GlobalCollectionQuery>({ filters, response }, shape)).toEqual({ filters, response });
+    expect(parseSavedList<GlobalCollectionQuery>({ filters: { ...filters, sort: '' }, response }, shape)).toBeUndefined();
+    expect(parseSavedList<GlobalCollectionQuery>({ filters, response: { body: {}, contentType: 'application/json' } }, shape)).toBeUndefined();
+    expect(parseSavedList<GlobalCollectionQuery>({ filters, response: { body: '' } }, shape)).toBeUndefined();
+    expect(parseSavedList<GlobalCollectionQuery>({ filters }, shape)).toBeUndefined();
+    expect(parseSavedList<GlobalCollectionQuery>(null, shape)).toBeUndefined();
   });
 });
 

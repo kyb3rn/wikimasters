@@ -1,8 +1,9 @@
 import { injectStyle } from '@/core/dom';
-import { Icon } from '@/ui/icons';
+import { Icon, type IconName } from '@/ui/icons';
 import { cx } from '@/ui/cx';
 import { siteClass } from '@/ui/site';
 import { alpha, tokens } from '@/ui/theme';
+import { CountBadge } from './controls';
 
 /*
  * Case cochée : bordure intérieure et texte de la couleur de l'option (`--wm-case`, posée sur chaque case ; l'accent
@@ -16,13 +17,19 @@ const css = () => `
   background-color: ${alpha('var(--wm-case)', 15, 'srgb')}; }
 .wm-case-filter > .wm-case[aria-pressed="true"] { color: var(--wm-case); box-shadow: inset 0 0 0 2px var(--wm-case); }
 .wm-case-filter > .wm-case:first-child { border-radius: calc(var(--radius-lg, 0.5rem) - 1px) 0 0 calc(var(--radius-lg, 0.5rem) - 1px); }
+.wm-case-face { position: relative; display: inline-flex; }
+.wm-case-face > .wm-case-badge { top: -10px; right: -12px; }
 `;
 
 export interface CaseOption<T extends string> {
   readonly value: T;
   readonly label: string;
+  /** Icône seule à la place du libellé, qui devient le nom et l'info-bulle de la case. */
+  readonly icon?: IconName;
   /** Info-bulle (le nom complet d'une abréviation). */
   readonly title?: string;
+  /** Pastille rouge du nombre (non lues), sur le coin haut droit de l'icône ou du libellé, sans déborder de la case. */
+  readonly badge?: number;
   /** Couleur de la case cochée ; l'accent par défaut. */
   readonly color?: string;
 }
@@ -53,10 +60,14 @@ export function CaseFilter<T extends string>({ label, options, checked, onToggle
           class={cx(siteClass.fieldSegment, index > 0 && siteClass.segmentSeparator, 'wm-case', caseClass)}
           style={{ '--wm-case': option.color ?? tokens.accent }}
           aria-pressed={checked.has(option.value)}
-          title={option.title}
+          aria-label={option.icon && option.label}
+          title={option.title ?? (option.icon && option.label)}
           onClick={() => onToggle(option.value)}
         >
-          {option.label}
+          <span class="wm-case-face">
+            {option.icon ? <Icon name={option.icon} size={18} /> : option.label}
+            <CountBadge count={option.badge ?? 0} class="wm-case-badge" />
+          </span>
         </button>
       ))}
       <button

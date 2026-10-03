@@ -34,9 +34,21 @@ describe('readProfilePlayer', () => {
   /** Nœud de l'en-tête, rendu sous ce composant. */
   const rootUnder = (page: object) => ({ '__reactFiber$test': { memoizedProps: {}, return: page } }) as unknown as HTMLElement;
 
-  it('le profil dans l’état de la page : identifiant et pseudo exact', () => {
+  it('le profil dans l’état de la page : identifiant, pseudo exact, photo et son cadrage', () => {
     const page = component(false, { id: 'u-autre', username: 'Autre' }, { id: 'u-ami', username: ' Ami  du  jeu ', avatar_url: null });
-    expect(readProfilePlayer({ root: rootUnder(page), name: 'Ami du jeu' })).toEqual({ id: 'u-ami', username: ' Ami  du  jeu ' });
+    expect(readProfilePlayer({ root: rootUnder(page), name: 'Ami du jeu' })).toEqual({
+      id: 'u-ami',
+      username: ' Ami  du  jeu ',
+      avatarUrl: null,
+      avatarPosX: undefined,
+      avatarPosY: undefined,
+    });
+    const framed = component({ id: 'u-ami', username: 'Ami', avatar_url: 'https://img/a.png', avatar_pos_x: 30, avatar_pos_y: 70 });
+    expect(readProfilePlayer({ root: rootUnder(framed), name: 'Ami' })).toMatchObject({
+      avatarUrl: 'https://img/a.png',
+      avatarPosX: 30,
+      avatarPosY: 70,
+    });
   });
 
   it('pas de profil de ce pseudo : rien', () => {

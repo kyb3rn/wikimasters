@@ -6,6 +6,8 @@ import { jsonStore } from '@/core/storage';
 /** Notification du script (« Enchère publiée »…), gardée avec celles du site dans la liste de la cloche. */
 export interface LocalNotification {
   readonly id: string;
+  /** Genre, pour les filtres de la cloche ; sans genre : « Autres ». */
+  readonly type?: LocalType;
   readonly title?: string;
   readonly message: string;
   readonly variant: LocalVariant;
@@ -20,17 +22,25 @@ export interface LocalNotification {
 
 export type LocalVariant = 'success' | 'info';
 
+const LOCAL_TYPES = ['auction-published'] as const;
+export type LocalType = (typeof LOCAL_TYPES)[number];
+
+const isLocalType = (value: unknown): value is LocalType => (LOCAL_TYPES as readonly unknown[]).includes(value);
+
 const KEY = 'wm-notifications-v1';
 /** Comme la liste du site : les 50 dernières. */
 const MAX = 50;
 
 function parseOne(raw: unknown): LocalNotification | undefined {
   if (!isRecord(raw)) return undefined;
-  const { id, title, message, variant, createdAt, read, href, actionLabel } = raw;
+  const { id, type, title, message, variant, createdAt, read, href, actionLabel } = raw;
   if (typeof id !== 'string' || typeof message !== 'string' || typeof createdAt !== 'number') return undefined;
   if (variant !== 'success' && variant !== 'info') return undefined;
+  // Gardée d'avant les genres (v0.4.0) : « Enchère publiée » était la seule à en mériter un.
+  const known = isLocalType(type) ? type : title === 'Enchère publiée' ? 'auction-published' : undefined;
   return {
     id,
+    ...(known !== undefined && { type: known }),
     ...(typeof title === 'string' && { title }),
     message,
     variant,

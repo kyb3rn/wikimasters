@@ -9,6 +9,7 @@ export {
   type AuctionModalCard,
 } from './auction-modal';
 export { findDiscardConfirm, type DiscardConfirm } from './discard-confirm';
+export { locateCardModal, openCardModal, type CardModalOptions, type CardModalProps, type OpenedCardModal } from './open-modal';
 export { findStarButton } from './dom';
 export {
   cloneSiteFace,

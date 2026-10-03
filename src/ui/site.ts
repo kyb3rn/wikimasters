@@ -14,6 +14,41 @@ export const siteClass = {
   notFoundIcon: 'size-12 text-[var(--color-foreground)]/30',
   notFoundLink: 'text-[var(--color-accent)] text-sm hover:underline',
 
+  // Menu latéral (ordinateur, capture du 03/10/2026) : lien, éteint ou allumé (teinte et texte accent, point à droite),
+  // boîte de son icône et l'icône ; trait de séparation (celui du haut de sa barre du bas, sur téléphone).
+  navLink: 'flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200',
+  navLinkIdle: 'text-[var(--color-foreground)]/60 hover:text-[var(--color-foreground)] hover:bg-[var(--color-surface-light)]',
+  navLinkActive: 'bg-[var(--color-accent)]/10 text-[var(--color-accent)]',
+  navLinkIconBox: 'flex shrink-0 items-center justify-center text-[var(--color-foreground)]',
+  navLinkIcon: 'w-5 h-5 md:w-6 md:h-6 shrink-0',
+  navLinkDot: 'ml-auto w-1.5 h-1.5 rounded-full bg-[var(--color-accent)]',
+  navSeparator: 'border-t border-[var(--color-border)]',
+
+  // Page d'une liste (Collection, code du 02/10/2026) : corps sous le menu, rangée du titre, titre (police des titres,
+  // en style).
+  pageBody: 'flex-1 p-4 md:p-6 space-y-6',
+  pageHeader: 'flex items-center justify-between gap-3 animate-fade-in-up',
+  pageTitle: 'text-2xl md:text-3xl font-bold',
+  /** Titre et ce qui le suit, à gauche (le haut à droite est sous le cadre du solde). */
+  pageTitleGroup: 'flex flex-wrap items-center gap-3',
+  /** Montant mis en avant à côté du titre (total des prix souhaités : mauve, comme eux) et sa pièce. */
+  pageTotal: 'inline-flex items-center gap-1 text-lg font-bold text-violet-300 tabular-nums',
+  pageTotalIcon: 'size-4 shrink-0',
+  /** Texte discret de la page, dans le ton de son « Page x / y ». */
+  pageNote: 'text-sm text-[var(--color-foreground)]/40',
+  /** Titre d'une section de la page, avec son nombre (« Batailles en cours (1) », code du 29/09/2026). */
+  sectionTitle: 'text-sm font-semibold text-[var(--color-foreground)]/50 uppercase tracking-wide',
+  /** Bloc des filtres, sous le titre. */
+  pageFilters: 'space-y-3 animate-fade-in-up',
+  /** Pagination et grille (le site fait défiler jusqu'à son haut au changement de page). */
+  pageList: 'scroll-mt-4 space-y-3',
+  /** Rangée de cartes de la Collection et case de chaque carte. */
+  cardGrid: 'flex flex-wrap justify-center gap-3 sm:gap-[22px] md:gap-[26px]',
+  cardCell: 'relative isolate group',
+  // Rond de chargement d'une page, à la place de son contenu (code du 29/09/2026).
+  pageSpinnerBox: 'flex-1 flex items-center justify-center',
+  pageSpinner: 'w-8 h-8 border-2 border-[var(--color-accent)] border-t-transparent rounded-full animate-spin',
+
   // Cadre des paquets disponibles (/pulls) : compteur, légende, temps restant.
   frame: 'card-frame px-6 py-3',
   counterValue: 'text-lg font-bold',
@@ -67,6 +102,43 @@ export const siteClass = {
   proBadgeIcon: 'size-2',
   proBadgeHost: 'relative',
 
+  // Vue du marché du site (son historique des ventes, code du 02/10/2026) : sections, pastilles de rareté (allumée :
+  // « Toutes » en accent, une rareté à sa couleur, en style), tuiles, cadre du graphique et son info-bulle, liste des
+  // dernières ventes. Titres des sections : `fieldLabel`.
+  marketView: 'space-y-5',
+  marketViewSection: 'space-y-2',
+  marketViewNote: 'normal-case font-normal text-[var(--color-foreground)]/40 ml-1',
+  marketViewPills: 'flex flex-wrap gap-1.5',
+  marketViewPill: 'px-2 py-0.5 rounded-full text-[10px] font-semibold border transition-colors cursor-pointer',
+  marketViewPillAll: 'border-[var(--color-accent)] text-[var(--color-accent)] bg-[var(--color-accent)]/10',
+  marketViewPillIdle:
+    'border-[var(--color-border)] text-[var(--color-foreground)]/55 hover:text-[var(--color-foreground)] ' +
+    'hover:border-[var(--color-foreground)]/25',
+  marketViewTiles: 'grid grid-cols-2 sm:grid-cols-5 gap-1.5 sm:gap-2',
+  marketViewTile:
+    'rounded-md sm:rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]/60 px-2 py-1 sm:px-3 sm:py-2 min-w-0',
+  marketViewTileLabel: 'text-[9px] sm:text-[10px] uppercase tracking-wide text-[var(--color-foreground)]/45 truncate leading-tight',
+  marketViewTileValue: 'text-[11px] sm:text-sm font-semibold tabular-nums text-[var(--color-foreground)]/90 mt-0.5 truncate leading-tight',
+  marketViewTilePrice:
+    'inline-flex items-center gap-0.5 sm:gap-1 text-[11px] sm:text-sm font-semibold text-[var(--color-accent)] tabular-nums ' +
+    'mt-0.5 truncate leading-tight',
+  marketViewTileCoin: 'size-3 sm:size-3.5 shrink-0',
+  marketViewChart: 'rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/40 p-2 pt-2.5',
+  /** Info-bulle du graphique (fond, trait et texte du thème en style). */
+  marketViewTip: 'rounded-lg border px-3 py-2.5 shadow-lg text-xs min-w-[11rem]',
+  marketViewTipDate: 'font-medium text-[var(--color-foreground)]/90 mb-1.5',
+  marketViewTipRow: 'flex items-center justify-between gap-3',
+  marketViewTipPrice: 'inline-flex items-center gap-1 font-bold tabular-nums text-[var(--color-accent)]',
+  /** Badge de rareté d'une vente (texte à la couleur de la rareté sur sa teinte, en style). */
+  marketViewRarity: 'inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide shrink-0',
+  marketViewList: 'rounded-xl border border-[var(--color-border)] divide-y divide-[var(--color-border)] overflow-hidden',
+  marketViewRow: 'flex items-center justify-between gap-3 px-4 py-2.5 text-sm bg-[var(--color-surface)]/30',
+  marketViewRowStart: 'flex items-center gap-2 min-w-0',
+  marketViewRowDate: 'text-xs text-[var(--color-foreground)]/40 tabular-nums',
+  marketViewRowPrice: 'inline-flex items-center gap-1 font-semibold text-[var(--color-accent)] tabular-nums shrink-0',
+  marketViewCoin: 'size-3.5',
+  marketViewEmpty: 'text-sm text-[var(--color-foreground)]/40',
+
   /** Choix entre deux options à icône : cadre du champ de mise, options en pastille active / inactive. */
   segmented: 'flex items-stretch rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] overflow-hidden',
   segment: 'flex h-9 items-center justify-center px-2.5 transition-colors cursor-pointer',
@@ -84,6 +156,7 @@ export const siteClass = {
   fadedWhenDisabled: 'disabled:opacity-40',
 
   // Mise de départ de la mise aux enchères : − · pièce · valeur · +.
+  /** Petit titre en capitales : « Mise de départ », sections de la vue du marché. */
   fieldLabel: 'text-xs font-semibold text-[var(--color-foreground)]/70 uppercase tracking-wide',
   stepper:
     'relative flex items-stretch rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] ' +

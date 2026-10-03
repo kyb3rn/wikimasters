@@ -23,6 +23,7 @@ const SAMPLES: Readonly<Record<ButtonTone, { readonly label: string; readonly ic
   info: { label: 'Détails', icon: 'info' },
   accent: { label: 'Valider', icon: 'check' },
   warning: { label: 'Attention', icon: 'warning' },
+  violet: { label: 'Prix souhaité', icon: 'pencil' },
   pro: { label: 'Débloquer', icon: 'sparkles' },
 };
 

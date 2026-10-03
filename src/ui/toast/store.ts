@@ -1,3 +1,5 @@
+import type { ComponentChildren } from 'preact';
+
 export type ToastVariant = 'info' | 'success' | 'warning' | 'error';
 
 /** Erreurs et avertissements en haut à droite, sous le solde ; notifications en bas à droite. */
@@ -24,6 +26,8 @@ export interface ToastOptions {
   /** Durée d'affichage ; par défaut 8 s pour une erreur ou un avertissement, 6 s sinon. */
   readonly durationMs?: number;
   readonly action?: ToastAction;
+  /** Sous le message, à la place du bouton d'action : contrôles à nous (Accepter / Refuser…), qui ne ferment rien. */
+  readonly content?: ComponentChildren;
 }
 
 export interface Toast {
@@ -33,6 +37,7 @@ export interface Toast {
   readonly variant: ToastVariant;
   readonly position: ToastPosition;
   readonly action?: ToastAction;
+  readonly content?: ComponentChildren;
   /** Durée d'affichage, absente pour un toast « sticky » (sans barre de progression). */
   readonly durationMs?: number;
 }
@@ -111,6 +116,7 @@ export function createToastStore(timers: Timers = BROWSER_TIMERS): ToastStore {
         variant,
         position: options.position ?? DEFAULT_POSITION[variant],
         ...(options.action && { action: options.action }),
+        ...(options.content !== undefined && { content: options.content }),
         ...(duration > 0 && { durationMs: duration }),
       };
       const samePosition = toasts.filter((t) => t.position === toast.position);
