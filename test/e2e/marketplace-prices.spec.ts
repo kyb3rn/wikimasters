@@ -93,7 +93,7 @@ async function openMarketplace(page: Page, server: SalesServer = newServer()): P
 const newServer = (): SalesServer => ({ requests: [], status: 200, gate: undefined });
 const priceButton = (page: Page, id: string) => page.locator(`#marketplace-auction-${id} .wm-tile-price button`);
 const badge = (page: Page, id: string) => page.locator(`#marketplace-auction-${id} .glow-sr > .wm-root > span`);
-const ring = (page: Page, id: string) => page.locator(`#marketplace-auction-${id} .wm-deal-ring`);
+const ring = (page: Page, id: string) => page.locator(`#marketplace-auction-${id} .wm-card-ring`);
 
 /** Ventes de la carte `c1` déjà en cache, chargées il y a `days` jours. */
 async function cacheSales(page: Page, days: number): Promise<void> {
@@ -218,6 +218,24 @@ test('compte sans PRO : badge PRO du site, le clic ouvre son offre sans rien dem
   expect(server.requests).toEqual([]);
 });
 
+test('compte sans PRO, ventes anciennes en cache (import) : prix sans badge, le clic ouvre l’historique sans rien demander', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('wm-pro-v1', 'false'));
+  const server = await openMarketplace(page);
+  await cacheSales(page, 3);
+  await page.reload();
+
+  const button = priceButton(page, 'a1');
+  await expect(button).toHaveText(/^\d+\(9\)$/);
+  await expect(button).not.toHaveClass(/wm-solid|wm-ghost/);
+  await expect(button.locator('.bg-violet-600')).toHaveCount(0);
+  await expect(button).toHaveAttribute('title', /chargées il y a 3 j\. Clic : historique du marché\.$/);
+  await button.click();
+  const history = page.getByRole('dialog', { name: 'Vitamine B8' });
+  await expect(history).toBeVisible();
+  await expect(history.getByRole('button', { name: 'Actualiser' }).locator('.bg-violet-600')).toBeAttached();
+  expect(server.requests).toEqual([]);
+});
+
 test('réglages : cadre et gain chacun désactivables, grisés quand le prix moyen est éteint', async ({ page }) => {
   await openMarketplace(page);
   await cacheSales(page, 0);
@@ -272,4 +290,19 @@ test('au repos, la page ne bouge plus (prix, gain et cadre posés)', async ({ pa
   await page.reload();
   await expect(badge(page, 'a1')).toHaveText(/^\+\d+$/);
   await expectDomIdle(page);
+});
+
+test('ventes supprimées depuis la Mémoire : les prix de la page reviennent aussitôt à « Charger le prix »', async ({ page }) => {
+  await openMarketplace(page);
+  await cacheSales(page, 0);
+  await page.reload();
+  await expect(badge(page, 'a1')).toHaveText(/^\+\d+$/);
+
+  await page.locator('button[aria-label="Mémoire WikiMasters"]:visible').click();
+  const memory = page.getByRole('dialog', { name: 'Mémoire' });
+  await memory.locator('.wm-side-tab', { hasText: 'Historique du marché' }).click();
+  await memory.getByRole('button', { name: 'Supprimer « Vitamine B8 »' }).click();
+  await memory.getByRole('button', { name: 'Confirmer ?' }).click();
+  await expect(priceButton(page, 'a1')).toHaveText('Charger le prix');
+  await expect(badge(page, 'a1')).toHaveCount(0);
 });

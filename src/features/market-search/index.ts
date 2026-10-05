@@ -1,7 +1,9 @@
 import { h } from 'preact';
+import { storedValueData } from '@/core/data';
 import { classMarks, watchDom } from '@/core/dom';
 import type { Feature } from '@/core/runtime';
 import { jsonStore } from '@/core/storage';
+import { FILTERS_TAB } from '@/services/list-search';
 import { findMarketplaceTabs } from '@/site/marketplace';
 import { navigateTo } from '@/site/router';
 import { MARKETPLACE_ROUTE } from '@/site/routes';
@@ -9,7 +11,7 @@ import { createSlot } from '@/ui/mount';
 import { siteClass } from '@/ui/site';
 import { alpha, tokens } from '@/ui/theme';
 import { Panel, panelCss, type PanelStore } from './Panel';
-import { DEFAULT_FILTERS, parseFilters } from './query';
+import { DEFAULT_FILTERS, filtersDetails, parseFilters } from './query';
 
 const TAB = 'wm-msearch-tab';
 /** Sur la rangée des onglets quand le nôtre est choisi : l'onglet choisi du site y paraît inactif. */
@@ -23,7 +25,8 @@ ${panelCss()}
 
 // Gardés tant que la page ne se recharge pas : au retour d'une annonce, la liste est là, telle quelle.
 // Filtres affichés, retrouvés après un rechargement de la page.
-const savedFilters = /* @__PURE__ */ jsonStore('wm-market-search-v1', DEFAULT_FILTERS, parseFilters);
+const FILTERS_KEY = 'wm-market-search-v1';
+const savedFilters = /* @__PURE__ */ jsonStore(FILTERS_KEY, DEFAULT_FILTERS, parseFilters);
 const store: PanelStore = {
   filters: DEFAULT_FILTERS,
   saveFilters: (filters) => savedFilters.set(filters),
@@ -46,6 +49,17 @@ export const marketSearch: Feature = {
   description: 'Un onglet du marché cherche les enchères directement dans Supabase, avec plus de filtres.',
   category: 'Développement',
   routes: [MARKETPLACE_ROUTE],
+  data: [
+    /* @__PURE__ */ storedValueData({
+      id: 'market-search-filters',
+      name: 'Recherche avancée',
+      tab: FILTERS_TAB,
+      description: 'Les filtres affichés dans la recherche avancée du marché.',
+      key: FILTERS_KEY,
+      store: savedFilters,
+      describe: (filters) => ({ details: filtersDetails(filters) }),
+    }),
+  ],
   async mount(ctx) {
     const { signal } = ctx;
     if (!(await ctx.ready())) return;

@@ -68,7 +68,7 @@ test('Confirmer met en vente avec la mise et la durée choisies', async ({ page 
 
   await expect(sale).toHaveCount(0);
   await expect(page.locator('#auction-modal')).toHaveCount(0);
-  expect(posted).toEqual([{ card_id: 'u1', base_amount: 26, duration_minutes: 180 }]);
+  expect(posted).toEqual([{ card_id: 'u1', base_amount: 35, duration_minutes: 180 }]);
   await expect(page.getByRole('status').filter({ hasText: 'Enchère publiée' })).toBeVisible();
 });
 
@@ -179,8 +179,12 @@ test('mise invalide : Confirmer désactivé', async ({ page }) => {
   await dialog(page).getByLabel('Mise de départ').fill('0');
   await expect(dialog(page).getByRole('button', { name: 'Confirmer' })).toBeDisabled();
   await dialog(page).getByRole('button', { name: 'Augmenter' }).click();
-  await expect(dialog(page).getByLabel('Mise de départ')).toHaveValue('1');
+  await expect(dialog(page).getByLabel('Mise de départ')).toHaveValue('10');
   await expect(dialog(page).getByRole('button', { name: 'Confirmer' })).toBeEnabled();
+  // − de 10, jamais sous 1.
+  await dialog(page).getByLabel('Mise de départ').fill('5');
+  await dialog(page).getByRole('button', { name: 'Diminuer' }).click();
+  await expect(dialog(page).getByLabel('Mise de départ')).toHaveValue('1');
 });
 
 test('limite d’enchères atteinte : avertissement, Confirmer désactivé', async ({ page }) => {

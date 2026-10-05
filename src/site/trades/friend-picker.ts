@@ -111,14 +111,3 @@ export function acceptedFriends(friendships: readonly Friendship[], me: string):
     return [{ id, username, avatar_url, avatar_pos_x, avatar_pos_y }];
   });
 }
-
-/** Date de chaque amitié acceptée de `me` (`created_at`, en ms), par id de l'ami. */
-export function friendshipDates(friendships: readonly Friendship[], me: string): Map<string, number> {
-  const dates = new Map<string, number>();
-  for (const friendship of friendships) {
-    const { id } = friendOf(friendship, me);
-    const time = typeof friendship.created_at === 'string' ? Date.parse(friendship.created_at) : NaN;
-    if (friendship.status === 'accepted' && typeof id === 'string' && Number.isFinite(time)) dates.set(id, time);
-  }
-  return dates;
-}

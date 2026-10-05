@@ -276,7 +276,7 @@ test('compte non PRO : « Marché » avec le badge PRO ouvre l’offre du site, 
   await announce(false);
   let market = card.getByRole('button', { name: 'Marché' });
   await expect(market).toBeEnabled();
-  await expect(market).toHaveAttribute('title', 'Historique des ventes de la carte (PRO)');
+  await expect(market).toHaveAttribute('title', 'Historique du marché de la carte (PRO)');
   await expect(market.locator('svg.lucide-sparkles, span.bg-violet-600')).toHaveCount(1);
 
   // Offre : notre modale, sans requête de ventes ; « Débloquer » la ferme et ouvre l'abonnement du site.
@@ -306,5 +306,45 @@ test('compte non PRO : « Marché » avec le badge PRO ouvre l’offre du site, 
   await expect(market.locator('span.bg-violet-600')).toHaveCount(0);
   await market.click();
   await expect(history(page)).toBeVisible();
+  expect(server.count).toBe(1);
+});
+
+test('compte non PRO, ventes en cache : « Marché » sans badge ouvre l’historique ; « Actualiser » porte le badge et ouvre l’offre par-dessus', async ({ page }) => {
+  const server = newServer();
+  const card = await openCardModal(page, server);
+  const market = card.getByRole('button', { name: 'Marché' });
+  await market.click();
+  await expect(history(page)).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(history(page)).toBeHidden();
+  expect(server.count).toBe(1);
+
+  await page.evaluate(() => {
+    const win = window as unknown as { __upgrades: number };
+    win.__upgrades = 0;
+    window.addEventListener('wikimasters:open-pro-upgrade', () => win.__upgrades++);
+    window.dispatchEvent(new CustomEvent('wikimasters:is-pro-changed', { detail: false }));
+  });
+  await expect(market).toHaveAttribute('title', 'Historique du marché de la carte');
+  await expect(market.locator('span.bg-violet-600')).toHaveCount(0);
+  await market.click();
+  const dialog = history(page);
+  await expect(dialog).toBeVisible();
+  const refresh = dialog.getByRole('button', { name: 'Actualiser' });
+  await expect(refresh).toHaveAttribute('title', 'Recharger depuis le site (PRO)');
+  await expect(refresh.locator('span.bg-violet-600')).toHaveCount(1);
+
+  // L'offre par-dessus l'historique : Échap la ferme seule, « Débloquer » ferme les deux.
+  await refresh.click();
+  const offer = page.getByRole('dialog', { name: 'Vue du marché' });
+  await expect(offer).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(offer).toBeHidden();
+  await expect(dialog).toBeVisible();
+  await refresh.click();
+  await offer.getByRole('button', { name: 'Débloquer avec WikiMasters PRO' }).click();
+  await expect(offer).toBeHidden();
+  await expect(dialog).toBeHidden();
+  expect(await page.evaluate(() => (window as unknown as { __upgrades: number }).__upgrades)).toBe(1);
   expect(server.count).toBe(1);
 });

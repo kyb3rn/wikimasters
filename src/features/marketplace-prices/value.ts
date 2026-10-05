@@ -1,6 +1,7 @@
 import { formatNumber, plural, type MarketEntry } from '@/services/market';
 import type { Sale } from '@/site/api';
 import type { Rarity } from '@/site/rarity';
+import { RING_COLORS } from '@/ui/ring';
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -56,9 +57,9 @@ const RESALE = { min: 10 * MINUTE, max: DAY };
 
 /** Intérêt à partir duquel la carte est colorée : vert à 10, bleu à 50, rose à 200 (en wikibidous). */
 const INTEREST_STOPS: readonly (readonly [score: number, color: string])[] = [
-  [10, '#4ee329'],
-  [50, '#00c3ff'],
-  [200, '#ff00ea'],
+  [10, RING_COLORS.green],
+  [50, RING_COLORS.blue],
+  [200, RING_COLORS.pink],
 ];
 
 /** Ce que les ventes récentes d'une carte disent du marché, indépendamment de l'heure qu'il est. */

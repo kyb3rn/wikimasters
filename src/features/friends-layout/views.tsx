@@ -1,8 +1,9 @@
+import { FriendSortControl, type FriendsSort } from '@/services/friends';
 import { buttonClass } from '@/ui/button';
 import { cx } from '@/ui/cx';
 import { Icon, type IconName } from '@/ui/icons';
 import { siteClass } from '@/ui/site';
-import { ACTION } from './style';
+import { ACTION, SORT } from './style';
 
 export interface InviteButtonProps {
   /** Lien copié : le site affiche « Copié ! » et une coche pendant 2 s. */
@@ -27,14 +28,31 @@ export interface SearchActionsProps {
   readonly onAdd: () => void;
 }
 
-/** À droite du champ de recherche : les deux boutons de l'en-tête du site (cachés), qu'ils déclenchent ; vert, comme chez lui. */
-export function SearchActions({ copied, onInvite, onAdd }: SearchActionsProps) {
+/** À droite du cadre de recherche : les deux boutons de l'en-tête du site (cachés), qu'ils déclenchent ; vert, comme chez lui. */
+function SearchActions({ copied, onInvite, onAdd }: SearchActionsProps) {
   return (
     <>
       <InviteButton copied={copied} onClick={onInvite} class={ACTION} />
       <button type="button" class={cx(buttonClass('standard', { tone: 'accent', fill: 'solid' }), ACTION)} onClick={onAdd}>
         <span>+</span> Ajouter un ami
       </button>
+    </>
+  );
+}
+
+export interface SearchToolsProps {
+  readonly sort: FriendsSort;
+  readonly onSort: (sort: FriendsSort) => void;
+  /** Absents si les boutons du site n'ont pas été trouvés. */
+  readonly actions: SearchActionsProps | undefined;
+}
+
+/** Cadre de recherche : le tri juste à droite du champ, les boutons au bout. */
+export function SearchTools({ sort, onSort, actions }: SearchToolsProps) {
+  return (
+    <>
+      <FriendSortControl class={SORT} value={sort} onChange={onSort} />
+      {actions && <SearchActions {...actions} />}
     </>
   );
 }

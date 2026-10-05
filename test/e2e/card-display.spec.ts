@@ -265,7 +265,7 @@ test('paramètres : curseur cranté de la taille et espacement, appliqués aussi
   await expect(gap).toHaveValue('64');
 
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('wm-settings-v1') ?? 'null') as unknown);
-  expect(stored).toEqual({ features: {}, values: { 'collection-card-display': { scale: 75, gap: 64 } } });
+  expect(stored).toEqual({ features: {}, values: { 'collection-card-display': { scale: 75, gap: 64 } }, changedAt: expect.any(Object) });
 
   // Retenu au rechargement.
   await page.reload();

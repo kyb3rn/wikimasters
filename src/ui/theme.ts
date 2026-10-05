@@ -31,6 +31,8 @@ export const tokens = {
  */
 export const palette = {
   red: { 400: 'oklch(70.4% 0.191 22.216)', 500: 'oklch(63.7% 0.237 25.331)', 600: 'oklch(57.7% 0.245 27.325)' },
+  orange: { 400: 'oklch(75% 0.183 55.934)' },
+  yellow: { 400: 'oklch(85.2% 0.199 91.936)' },
   emerald: { 400: 'oklch(76.5% 0.177 163.223)', 500: 'oklch(69.6% 0.17 162.48)' },
   sky: { 400: 'oklch(74.6% 0.16 232.661)', 500: 'oklch(68.5% 0.169 237.323)' },
   blue: { 400: 'oklch(70.7% 0.165 254.624)', 500: 'oklch(62.3% 0.214 259.815)', 600: 'oklch(54.6% 0.245 262.881)' },
@@ -67,7 +69,7 @@ export const layers = {
   widget: 2147479000,
   /** Contenu du site sorti de la page et posé par-dessus (encart de vérification de /pulls) : sous nos fenêtres. */
   pageOverlay: 2147480000,
-  /** Fenêtre d'une fonctionnalité d'où s'ouvrent nos modales (mise aux enchères : l'historique des ventes passe dessus). */
+  /** Fenêtre d'une fonctionnalité d'où s'ouvrent nos modales (mise aux enchères : l'historique du marché passe dessus). */
   window: 2147481000,
   /** Nos modales (`Modal`, confirmations). */
   modal: 2147482000,

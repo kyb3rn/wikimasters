@@ -51,4 +51,4 @@ export function markHeaderItem(element: Element, rank: number): void {
 }
 
 /** Rangs de nos boutons devant le solde. */
-export const HEADER_RANKS = { gear: 0, notifications: 1 } as const;
+export const HEADER_RANKS = { memory: 0, gear: 1, notifications: 2 } as const;

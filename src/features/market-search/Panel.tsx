@@ -1,4 +1,3 @@
-import type { ComponentChildren } from 'preact';
 import { useRef, useState } from 'preact/hooks';
 import { SITE_LIKE_CLASS } from '@/core/dom';
 import { OWN_CARD_GRID } from '@/services/card-display';
@@ -6,7 +5,7 @@ import { RarityFilter, SEARCH_PLACEHOLDER, SearchButton, snugSearchButtonCss, Wi
 import { siteErrorText, supabaseUserId } from '@/site/api';
 import { RARITIES, type Rarity } from '@/site/rarity';
 import { buttonClass } from '@/ui/button';
-import { CaseFilter, Listbox, LoadError, NumberField, Switch } from '@/ui/controls';
+import { CaseFilter, FieldGroup, Listbox, LoadError, NumberField, RangeField, Switch } from '@/ui/controls';
 import { Icon } from '@/ui/icons';
 import { siteClass } from '@/ui/site';
 import { tokens } from '@/ui/theme';
@@ -44,10 +43,6 @@ export const panelCss = (): string => `
 .wm-msearch-line > .wm-msearch-sort { flex: 0 1 14rem; min-width: 10rem; }
 ${snugSearchButtonCss('.wm-msearch-line')}
 .wm-msearch-more { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 1rem 1.5rem; }
-.wm-msearch-group { display: flex; flex-direction: column; gap: 0.375rem; }
-.wm-msearch-range { display: flex; align-items: center; gap: 0.375rem; }
-.wm-msearch-range > input { width: 6.5rem; height: ${tokens.fieldHeight}; }
-.wm-msearch-unit { font-size: 0.75rem; opacity: 0.5; }
 .wm-msearch-switch { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; height: ${tokens.fieldHeight}; }
 .wm-msearch-status { font-size: 0.8125rem; opacity: 0.6; }
 .wm-msearch-more-button { align-self: center; }
@@ -73,21 +68,7 @@ const SHINY_OPTIONS: readonly { value: ShinyCase; label: string }[] = [
 const toggled = <T extends string>(options: readonly { value: T }[], checked: readonly T[], value: T): T[] =>
   options.map((option) => option.value).filter((v) => (v === value ? !checked.includes(v) : checked.includes(v)));
 
-const parseBound = (text: string): number | undefined => {
-  const value = Number(text.replace(/\s/g, '').replace(',', '.'));
-  return text.trim() === '' || !Number.isFinite(value) || value < 0 ? undefined : Math.round(value);
-};
-
 type Bound = 'priceMin' | 'priceMax' | 'remainingMin' | 'remainingMax' | 'atkMin' | 'atkMax' | 'defMin' | 'defMax';
-
-function Group(props: { readonly label: string; readonly children: ComponentChildren }) {
-  return (
-    <div class="wm-msearch-group">
-      <span class={siteClass.fieldLabel}>{props.label}</span>
-      {props.children}
-    </div>
-  );
-}
 
 export interface PanelProps {
   readonly store: PanelStore;
@@ -155,25 +136,9 @@ export function Panel({ store, onOpen }: PanelProps) {
     patch({ rarities: RARITIES.filter((r) => (r === rarity ? !filters.rarities.includes(r) : filters.rarities.includes(r))) });
 
   const range = (label: string, min: Bound, max: Bound, unit?: string) => (
-    <Group label={label}>
-      <span class="wm-msearch-range">
-        {([min, max] as const).map((key, index) => (
-          <input
-            key={key}
-            type="number"
-            inputMode="numeric"
-            min={0}
-            class={siteClass.textField}
-            placeholder={index === 0 ? 'min' : 'max'}
-            aria-label={`${label} ${index === 0 ? 'minimum' : 'maximum'}`}
-            value={filters[key] ?? ''}
-            onInput={(event) => patch({ [key]: parseBound(event.currentTarget.value) })}
-            onKeyDown={onEnter}
-          />
-        ))}
-        {unit && <span class="wm-msearch-unit">{unit}</span>}
-      </span>
-    </Group>
+    <FieldGroup label={label}>
+      <RangeField label={label} min={filters[min]} max={filters[max]} unit={unit} onChange={(low, high) => patch({ [min]: low, [max]: high })} onEnter={launch} />
+    </FieldGroup>
   );
 
   const me = supabaseUserId();
@@ -208,7 +173,7 @@ export function Panel({ store, onOpen }: PanelProps) {
         {range('Prix', 'priceMin', 'priceMax', 'wb')}
         {range('ATK', 'atkMin', 'atkMax')}
         {range('DEF', 'defMin', 'defMax')}
-        <Group label="Mises">
+        <FieldGroup label="Mises">
           <CaseFilter
             label="Mises"
             options={BID_OPTIONS}
@@ -216,8 +181,8 @@ export function Panel({ store, onOpen }: PanelProps) {
             onToggle={(value) => patch({ bids: toggled(BID_OPTIONS, filters.bids, value) })}
             onReset={() => patch({ bids: [] })}
           />
-        </Group>
-        <Group label="Shiny">
+        </FieldGroup>
+        <FieldGroup label="Shiny">
           <CaseFilter
             label="Shiny"
             options={SHINY_OPTIONS}
@@ -225,8 +190,8 @@ export function Panel({ store, onOpen }: PanelProps) {
             onToggle={(value) => patch({ shiny: toggled(SHINY_OPTIONS, filters.shiny, value) })}
             onReset={() => patch({ shiny: [] })}
           />
-        </Group>
-        <Group label="Par requête">
+        </FieldGroup>
+        <FieldGroup label="Par requête">
           <span class="wm-msearch-limit">
             <NumberField
               label="Enchères par requête"
@@ -237,7 +202,7 @@ export function Panel({ store, onOpen }: PanelProps) {
               onChange={(limit) => patch({ limit })}
             />
           </span>
-        </Group>
+        </FieldGroup>
         <label class="wm-msearch-switch">
           <Switch label="Sans mes ventes" checked={filters.excludeMine} onChange={(excludeMine) => patch({ excludeMine })} />
           Sans mes ventes

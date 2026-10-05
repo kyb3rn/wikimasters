@@ -18,6 +18,12 @@ export const CARD_GAP = { min: 0, max: 64, step: 2 } as const;
  */
 export const OWN_CARD_GRID = 'wm-own-card-grid';
 
+/**
+ * Calque à nous posé dans une grille du site, qui en reproduit les cases (`gap` hérité de la rangée) : ses enfants
+ * sont réglés comme elles, lui non (agrandi, il agrandirait aussi l'écart hérité).
+ */
+export const CARD_GRID_MIRROR = 'wm-card-grid-mirror';
+
 /** Classe des grilles qu'un réglage règle : `wm-<id de sa fonctionnalité>`. */
 export const cardGridClass = (id: string): string => `wm-${id}`;
 
@@ -30,7 +36,9 @@ export const cardGridClass = (id: string): string => `wm-${id}`;
 export function cardDisplayCss(id: string, scale: number, gap: number, siteGap: number): string {
   const grid = `.${cardGridClass(id)}`;
   const rules: string[] = [];
-  if (scale !== 100) rules.push(`${grid} > :not([aria-busy]) { zoom: ${scale / 100}; }`);
+  if (scale !== 100) {
+    rules.push(`${grid} > :not([aria-busy], .${CARD_GRID_MIRROR}), ${grid} > .${CARD_GRID_MIRROR} > * { zoom: ${scale / 100}; }`);
+  }
   if (gap !== siteGap) rules.push(`${grid} { gap: ${gap}px !important; }`);
   return rules.join('\n');
 }

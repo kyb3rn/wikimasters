@@ -19,6 +19,7 @@ test('le script démarre et expose ses commandes', async ({ page }) => {
     dev: true,
     features: [
       ['settings', 'mounted'],
+      ['memory', 'mounted'],
       ['header-bar', 'mounted'],
       ['disabled-cursor', 'mounted'],
       ['page-spinner', 'mounted'],
@@ -67,6 +68,7 @@ test('le script démarre et expose ses commandes', async ({ page }) => {
       ['dms-layout', 'idle'],
       ['dms-groups', 'mounted'],
       ['dms-trade', 'idle'],
+      ['dms-new-message', 'idle'],
       ['guild-chat', 'idle'],
       ['guild-chat-tab', 'idle'],
       ['collection-card-display', 'idle'],
@@ -107,6 +109,7 @@ test('le script démarre et expose ses commandes', async ({ page }) => {
       ['global-collection-pagination', 'idle'],
       ['global-collection-filters', 'idle'],
       ['global-collection-friends', 'idle'],
+      ['global-collection-prices', 'idle'],
       ['global-collection-card-display', 'idle'],
       ['guild-card-display', 'idle'],
       ['notifications', 'mounted'],
@@ -120,7 +123,7 @@ test('le script démarre et expose ses commandes', async ({ page }) => {
   });
   expect(logs).toContainEqual({
     type: 'info',
-    text: `[WM] v${VERSION} (dev) · actives ici : settings, header-bar, disabled-cursor, page-spinner, site-modals, site-fields, site-buttons, site-tabs, card-faces, card-modal-layout, quick-discard, pulls-grid, pulls-sound, pulls-discard-next, pulls-auction, card-modal-stats, card-modal-stay, card-modal-discard, pulls-keyboard, pulls-remaining, pulls-center, pulls-human-check, pulls-open-label, pulls-bar, pulls-pro, auction-modal-layout, auction-stay, dms-groups, trades-card-display, trade-filters, trade-wikibidous, trade-cards-error, trade-summary, trade-selection, market, auction-market, player-links, notifications, debug, auction-wished-price`,
+    text: `[WM] v${VERSION} (dev) · actives ici : settings, memory, header-bar, disabled-cursor, page-spinner, site-modals, site-fields, site-buttons, site-tabs, card-faces, card-modal-layout, quick-discard, pulls-grid, pulls-sound, pulls-discard-next, pulls-auction, card-modal-stats, card-modal-stay, card-modal-discard, pulls-keyboard, pulls-remaining, pulls-center, pulls-human-check, pulls-open-label, pulls-bar, pulls-pro, auction-modal-layout, auction-stay, dms-groups, trades-card-display, trade-filters, trade-wikibidous, trade-cards-error, trade-summary, trade-selection, market, auction-market, player-links, notifications, debug, auction-wished-price`,
   });
   expect(logs.filter((l) => l.type === 'error')).toEqual([]);
 });

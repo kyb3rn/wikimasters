@@ -1,3 +1,4 @@
+export { FILTERS_TAB, savedFiltersData, savedFiltersDetails, savedListData } from './data';
 export { submitAfterTyping, trackListDelay, type ListDelayOptions, type SubmitAfterTypingOptions } from './delay';
 export { defineListSearchFeature, type ListSearchConfig, type ListSearchHoldOptions } from './feature';
 export { filterLineCss, type FilterLineParts, type FilterLineSizes } from './filter-line';

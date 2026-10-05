@@ -1,17 +1,20 @@
 import { h } from 'preact';
+import { storedValueData } from '@/core/data';
 import { classMarks, renameText, watchDom } from '@/core/dom';
 import { net } from '@/core/net';
 import type { Feature } from '@/core/runtime';
-import { confirmUnfriend } from '@/services/friends';
-import { isFriendsList, removeFriendship, siteErrorText, type FriendshipAction } from '@/site/api';
-import { dropFriendship, findFriendsPage, readFriendRow, type FriendRow, type RowButton } from '@/site/friends';
+import { confirmUnfriend, sortFriends, type FriendsSort } from '@/services/friends';
+import { FILTERS_TAB } from '@/services/list-search';
+import { friendshipDatesByName, isFriendsList, removeFriendship, siteErrorText, type FriendshipAction } from '@/site/api';
+import { dropFriendship, findFriendsPage, readFriendRow, readFriendsData, type FriendRow, type RowButton } from '@/site/friends';
 import { hasIcon } from '@/site/dom';
 import { FRIENDS_ROUTE } from '@/site/routes';
 import { createSlot, createSlots } from '@/ui/mount';
 import { toast } from '@/ui/toast';
 import { serveFriendsRefresh } from './refresh';
-import { CSS, EMPTY, EMPTY_INVITE, INCOMING, LIST, REQUESTS, SEARCH } from './style';
-import { AcceptAllButton, AnswerActions, CancelButton, FriendActions, InviteButton, SearchActions, type SiteAction } from './views';
+import { FRIENDS_SORT_KEY, savedSort, sortDetails } from './sort';
+import { CSS, EMPTY, EMPTY_INVITE, INCOMING, LIST, ORDER_VAR, REQUESTS, SEARCH } from './style';
+import { AcceptAllButton, AnswerActions, CancelButton, FriendActions, InviteButton, SearchTools, type SiteAction } from './views';
 
 const TITLE = 'Amis';
 const SITE_ADD = 'Rechercher un joueur';
@@ -35,11 +38,22 @@ export const friendsLayout: Feature = {
   id: 'friends-layout',
   name: 'Page Amis',
   description:
-    'Amis et demandes en attente sur trois colonnes au plus ; Inviter et Ajouter un ami à droite de la recherche (sans amis : Inviter à côté du bouton Ajouter un ami) ; Message (bleu), Échanger (vert) et retirer un ami (rouge, avec confirmation) en boutons standard ; Accepter (vert), Refuser et Annuler une demande (rouge) ; la liste suit chaque action sans être relue.',
+    "Amis et demandes en attente sur trois colonnes au plus ; amis triés par nom ou par date d'amitié, dans un sens ou dans l'autre (tri retenu), à droite de la recherche ; Inviter et Ajouter un ami au bout (sans amis : Inviter à côté du bouton Ajouter un ami) ; Message (bleu), Échanger (vert) et retirer un ami (rouge, avec confirmation) en boutons standard ; Accepter (vert), Refuser et Annuler une demande (rouge) ; la liste suit chaque action sans être relue.",
   category: 'Amis',
   routes: [FRIENDS_ROUTE],
   required: true,
   hidden: true,
+  data: [
+    storedValueData({
+      id: 'friends-sort',
+      name: 'Amis',
+      tab: FILTERS_TAB,
+      description: "Le tri de la liste des amis, remis à l'arrivée sur la page.",
+      key: FRIENDS_SORT_KEY,
+      store: savedSort,
+      describe: (sort) => ({ details: sortDetails(sort) }),
+    }),
+  ],
   async mount(ctx) {
     const { signal } = ctx;
     const search = createSlot(signal);
@@ -50,6 +64,7 @@ export const friendsLayout: Feature = {
     const marks = classMarks(signal);
     /** Demandes en attente dont l'action est en cours (site : aucun état « en cours »). */
     const pending = new Map<HTMLElement, Pending>();
+    let sort = savedSort.get();
 
     serveFriendsRefresh({
       signal,
@@ -84,6 +99,7 @@ export const friendsLayout: Feature = {
       const page = findFriendsPage();
       if (page?.header?.add) renameText(page.header.add, ADD, SITE_ADD);
       if (page?.list?.empty) renameText(page.list.empty.search, ADD, SITE_EMPTY_ADD);
+      for (const row of page?.list?.rows ?? []) row.root.style.removeProperty(ORDER_VAR);
     });
 
     const action = (site: RowButton | undefined): SiteAction | undefined =>
@@ -114,6 +130,21 @@ export const friendsLayout: Feature = {
       );
     }
 
+    function chooseSort(next: FriendsSort): void {
+      sort = next;
+      savedSort.set(next);
+      sync();
+    }
+
+    /** Rang de chaque ami dans le tri (`order` de sa ligne) ; dates des amitiés lues dans l'état de la page. */
+    function orderRows(section: HTMLElement, rows: readonly FriendRow[]): void {
+      const dates = sort.sort === 'date' ? friendshipDatesByName(readFriendsData(section)?.friendships ?? []) : undefined;
+      for (const [index, { root }] of sortFriends(rows, sort, (row) => dates?.get(row.username)).entries()) {
+        const rank = String(index + 1);
+        if (root.style.getPropertyValue(ORDER_VAR) !== rank) root.style.setProperty(ORDER_VAR, rank);
+      }
+    }
+
     /** Clique le bouton du site (caché) d'une demande, roue jusqu'à la relecture de la liste. */
     function answer(row: HTMLElement, action: RequestAction, button: HTMLButtonElement): void {
       if (pending.has(row)) return;
@@ -131,17 +162,17 @@ export const friendsLayout: Feature = {
       if (list?.empty) renameText(list.empty.search, SITE_EMPTY_ADD, ADD);
 
       const { invite, add } = header ?? {};
-      const searchFrame = list?.search && header && invite && add ? list.search : undefined;
+      const searchFrame = list?.search;
+      const copied = invite ? hasIcon(invite, 'check') : false;
+      const actions = searchFrame && invite && add ? { copied, onInvite: () => invite.click(), onAdd: () => add.click() } : undefined;
       // Sans amis, pas de recherche : « Inviter » rejoint « Ajouter un ami » dans le cadre de la liste vide.
       const empty = invite ? list?.empty : undefined;
       marks.only(SEARCH, searchFrame ? [searchFrame] : []);
       marks.only(EMPTY, empty ? [empty.frame] : []);
       // L'en-tête passe sous le cadre du solde : ses boutons ne restent que si les nôtres n'ont pas pu être posés.
-      if (header) ctx.hide(header.actions, searchFrame !== undefined || empty !== undefined);
-      const copied = invite ? hasIcon(invite, 'check') : false;
-      if (searchFrame && invite && add) {
-        const vnode = h(SearchActions, { copied, onInvite: () => invite.click(), onAdd: () => add.click() });
-        search.render(vnode, { parent: searchFrame, before: null, inline: true });
+      if (header) ctx.hide(header.actions, actions !== undefined || empty !== undefined);
+      if (searchFrame) {
+        search.render(h(SearchTools, { sort, onSort: chooseSort, actions }), { parent: searchFrame, before: null, inline: true });
       } else {
         search.clear();
       }
@@ -153,6 +184,7 @@ export const friendsLayout: Feature = {
       }
 
       marks.only(LIST, list ? [list.section] : []);
+      if (list) orderRows(list.section, list.rows);
       marks.only(REQUESTS, page?.requests ?? []);
       const seen = new Set<HTMLElement>();
       for (const row of list?.rows ?? []) {

@@ -3,7 +3,18 @@ import { RarityFilter, SearchButton } from '@/services/list-search';
 import { RARITIES, type Rarity } from '@/site/rarity';
 import { buttonClass } from '@/ui/button';
 import { tagChipStyle } from '@/site/collection';
-import { ChoiceField, Listbox, LoadError, NumberField, Pagination, StepSlider, Switch, type PaginationControl } from '@/ui/controls';
+import {
+  ChoiceField,
+  Listbox,
+  LoadError,
+  NumberField,
+  Pagination,
+  SortControl,
+  StepSlider,
+  Switch,
+  type PaginationControl,
+  type SortOrder,
+} from '@/ui/controls';
 import { Icon } from '@/ui/icons';
 import { siteClass } from '@/ui/site';
 import { DEMO_BUSY_MS, Group, Specimen } from './layout';
@@ -77,6 +88,26 @@ function DemoListbox({ initial }: { readonly initial: string }) {
   return <Listbox ariaLabel="Filtrer par étiquette" value={value} options={tagOptions()} onChange={setValue} class="wm-showcase-listbox" />;
 }
 
+function DemoSort() {
+  const [value, setValue] = useState('name');
+  const [order, setOrder] = useState<SortOrder>('asc');
+  return (
+    <SortControl
+      ariaLabel="Trier"
+      class="wm-showcase-listbox"
+      value={value}
+      options={[
+        { value: 'name', label: 'Nom' },
+        { value: 'date', label: 'Date' },
+      ]}
+      order={order}
+      orderLabel={order === 'asc' ? 'Croissant' : 'Décroissant'}
+      onChange={setValue}
+      onOrderChange={setOrder}
+    />
+  );
+}
+
 /** Chargement en échec : « Réessayer » tourne un moment. */
 function DemoLoadError() {
   const [busy, setBusy] = useState(false);
@@ -146,6 +177,7 @@ export function Fields() {
       <Group title="Listes déroulantes">
         <DemoListbox initial="" />
         <DemoListbox initial="t1" />
+        <DemoSort />
       </Group>
 
       <Group title="Chargement en échec">

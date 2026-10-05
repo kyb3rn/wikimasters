@@ -10,3 +10,4 @@ export {
   type ChatOther,
 } from './messages';
 export { dmsRowAt, findDmsPage, type DmsPage, type DmsRow } from './page';
+export { addDmsConversation, newDmsConversation, type DmsConversation } from './state';

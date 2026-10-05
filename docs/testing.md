@@ -16,6 +16,14 @@ Deux séries : **unitaires** (Vitest, dans Node : la logique) et **navigateur** 
 
 `playwright.config.js` : Chromium headless de Playwright (`npx playwright install --only-shell chromium`, une fois par machine), `locale: 'fr-FR'`, 4 processus (la machine saturait au-delà : le navigateur dessine sans carte graphique). Pas `channel: 'msedge'` : le headless d'Edge crée des fenêtres Windows cachées qui font fuir explorer.exe jusqu'à sa relance. `npm run test:e2e` construit d'abord la version de dev.
 
+**Par page, pendant les corrections** (`test/tools/test-page.ts`). Le passage complet prend environ 3 min 30 (dont 3 min de tests navigateur) ; une page, 20 à 40 s :
+
+- `npm run test:page` : les groupes et leurs specs. Un groupe par page du site (`pulls`, `collection`, `global-collection`, `marketplace`, `profile`, `friends`, `trades`, `dms`, `guild`), plus `card-modal` (modale de carte, mise en vente, historique des ventes) et `socle` (tout le reste : démarrage, paramètres, Mémoire, cloche, contrôles du site…). Une spec va au groupe de son préfixe : une nouvelle spec bien nommée s'y range seule ; une exception s'ajoute à `GROUPS`.
+- `npm run test:page -- collection guild-chat` : types, tests unitaires (tous, quelques secondes), version de dev, puis les tests navigateur des groupes ou specs nommés (nom sans `.spec.ts`). Ce qui suit un second `--` va à Playwright : `npm run test:page -- dms -- -g "roue" --workers=2`.
+- `npm run test:failed` : relance seulement les tests navigateur qui ont échoué au dernier passage, quel qu'il soit (`--last-failed`, liste dans `test-results/.last-run.json` ; série à part, ci-dessous : même `WM_DEV_BUNDLE`, et `-- --output=test-results/<nom>`).
+
+`npm run check` reste obligatoire avant un commit ou une version : chaque test navigateur charge le script entier, toutes fonctionnalités montées, et une modification d'une page peut casser une spec d'une autre (boutons du site, fenêtre de paramètres, Mémoire qui vérifie toutes les clés…).
+
 Lancer une partie seulement, ou plusieurs séries en parallèle sans écraser le fichier des autres :
 
 ```

@@ -1,3 +1,4 @@
+import { tally, type ImportCounts, type MergeOutcome } from '@/core/data';
 import { isRecord } from '@/core/guards';
 import { createListeners } from '@/core/listeners';
 import { createLogger } from '@/core/log';
@@ -53,9 +54,8 @@ export function parseWishedPrices(raw: unknown): WishedPrices | undefined {
   return prices;
 }
 
-const STORE_KEY = 'wm-wished-prices-v1';
-/** À signaler pour le futur import / export des réglages, qui devra peut-être l'inclure. */
-const store = /* @__PURE__ */ jsonStore<WishedPrices>(STORE_KEY, {}, parseWishedPrices);
+export const WISHED_PRICES_KEY = 'wm-wished-prices-v1';
+const store = /* @__PURE__ */ jsonStore<WishedPrices>(WISHED_PRICES_KEY, {}, parseWishedPrices);
 
 const log = /* @__PURE__ */ createLogger('prix souhaité');
 const changes = /* @__PURE__ */ createListeners(log, 'écouteur des prix souhaités');
@@ -75,14 +75,52 @@ export function wishedPrice(card: WishedPriceCard): WishedPrice | undefined {
 /** Enregistre le prix souhaité de la carte dans cette rareté, ou le retire (`undefined`). */
 export function setWishedPrice(card: WishedPriceCard, price: number | undefined): void {
   const key = wishedPriceKey(card);
-  const next = store.update((current) => {
-    const prices: Record<string, WishedPrice> = { ...current };
-    if (price === undefined) delete prices[key];
-    else prices[key] = { price, at: Date.now(), title: card.title };
-    return prices;
-  });
+  const prices: Record<string, WishedPrice> = { ...store.get() };
+  if (price === undefined) delete prices[key];
+  else prices[key] = { price, at: Date.now(), title: card.title };
+  write(prices);
+}
+
+/** Tous les prix souhaités, par clé (`wishedPriceKey`). */
+export function allWishedPrices(): WishedPrices {
+  return all();
+}
+
+function write(next: WishedPrices): void {
+  store.set(next);
   cached = next;
   changes.emit();
+}
+
+/** Retire ces prix souhaités (clés de `wishedPriceKey`). */
+export function removeWishedPrices(keys: readonly string[]): void {
+  const gone = new Set(keys);
+  write(Object.fromEntries(Object.entries(all()).filter(([key]) => !gone.has(key))));
+}
+
+/**
+ * Prix souhaités d'un autre navigateur fusionnés avec ceux d'ici : absent ici, ajouté ; présent des deux côtés, le plus
+ * récemment fixé l'emporte (à égalité, celui d'ici).
+ */
+export function mergeWishedPrices(local: WishedPrices, incoming: WishedPrices): { readonly result: WishedPrices; readonly outcomes: readonly MergeOutcome[] } {
+  const result: Record<string, WishedPrice> = { ...local };
+  const outcomes = Object.entries(incoming).map(([key, entry]): MergeOutcome => {
+    const known = local[key];
+    if (known && entry.at <= known.at) return 'unchanged';
+    result[key] = entry;
+    if (!known) return 'added';
+    return known.price === entry.price ? 'unchanged' : 'updated';
+  });
+  return { result, outcomes };
+}
+
+/** Prix souhaités d'un fichier d'export fusionnés avec ceux d'ici (`apply` faux : comptés seulement). */
+export function importWishedPrices(raw: unknown, apply: boolean): ImportCounts | undefined {
+  const incoming = parseWishedPrices(raw);
+  if (!incoming || !isRecord(raw)) return undefined;
+  const { result, outcomes } = mergeWishedPrices(all(), incoming);
+  if (apply && outcomes.some((outcome) => outcome !== 'unchanged')) write(result);
+  return tally(outcomes, Object.keys(raw).length - Object.keys(incoming).length);
 }
 
 /** Prévenu de tout changement des prix souhaités, ici ou dans un autre onglet. */
@@ -90,7 +128,7 @@ export function onWishedPricesChange(listener: () => void, options: { signal: Ab
   if (!watching) {
     watching = true;
     window.addEventListener('storage', (event) => {
-      if (event.key !== STORE_KEY && event.key !== null) return;
+      if (event.key !== WISHED_PRICES_KEY && event.key !== null) return;
       cached = undefined;
       changes.emit();
     });

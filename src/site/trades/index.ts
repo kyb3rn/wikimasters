@@ -21,7 +21,8 @@ export {
   type TradeWikibidousEditor,
   withUntaggedFilter,
 } from './composer';
-export { acceptedFriends, findFriendPicker, friendshipDates, type FriendPicker, type PickerFriend } from './friend-picker';
+export { findTradeDetail, type TradeDetail } from './detail';
+export { acceptedFriends, findFriendPicker, type FriendPicker, type PickerFriend } from './friend-picker';
 export { parseTradeWikibidous, TRADE_WIKIBIDOUS_MAX } from './wikibidous';
 export { findTradesPage, type TradesPage } from './page';
 export { locateTradeComposer, openTradeComposer, type TradeComposerOptions, type TradeComposerTarget } from './open';

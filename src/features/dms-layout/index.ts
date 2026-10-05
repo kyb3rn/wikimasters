@@ -1,10 +1,12 @@
 import { h } from 'preact';
 import { childController, waitUntil } from '@/core/async';
 import { classMarks, EMBEDDED_CLASS, watchDom } from '@/core/dom';
+import { hydrationGate } from '@/core/react';
 import type { Feature } from '@/core/runtime';
 import { dmsRowAt, findChatWindows, findDmsPage, type ChatWindow } from '@/site/dms';
 import { DMS_ROUTE } from '@/site/routes';
 import { createSlot } from '@/ui/mount';
+import { newMessage } from '@/services/new-message';
 import { EmptyPanel } from './EmptyPanel';
 
 const PAGE = 'wm-dms-page';
@@ -80,6 +82,8 @@ export const dmsLayout: Feature = {
     ctx.style(CSS);
     const marks = classMarks(signal);
     const panel = createSlot(signal);
+    const hydration = hydrationGate(signal);
+    const compose = newMessage({ signal, log: ctx.log });
     /** Conversations posées sur le cadre : leur position (variables CSS) est retirée quand elles ne le sont plus. */
     const docked = new Set<HTMLElement>();
     // Le cadre bouge sans mutation du site (fenêtre, menu latéral) : la conversation le suit.
@@ -110,8 +114,10 @@ export const dmsLayout: Feature = {
       marks.only(HEAD, wide && page ? [page.header] : []);
       marks.only(LIST, wide && page?.list ? [page.list] : []);
       let slot: HTMLElement | undefined;
-      if (wide && page) {
-        slot = panel.render(h(EmptyPanel, { busy: switching !== undefined }), { parent: page.root, className: PANEL }).element;
+      // La page arrive rendue par le serveur : notre cadre posé avant que React l'ait reprise la lui ferait jeter et
+      // redessiner (erreur 418).
+      if (wide && page && hydration.ready(page.root, sync)) {
+        slot = panel.render(h(EmptyPanel, { busy: switching !== undefined, onCompose: compose.open }), { parent: page.root, className: PANEL }).element;
       } else {
         panel.clear();
       }

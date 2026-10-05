@@ -1,3 +1,4 @@
+import type { DataSet } from '@/core/data';
 import type { Logger } from '@/core/log';
 import type { Settings } from '@/core/settings';
 
@@ -55,6 +56,11 @@ export interface Feature {
   readonly defaultOff?: boolean;
   /** Réglages affichés dans la fenêtre de paramètres, sous le nom de la fonctionnalité. */
   readonly settings?: Settings;
+  /**
+   * Données qu'elle garde (cache, historique, filtres…) : la fenêtre Mémoire les liste, les supprime et exporte
+   * celles qui passent d'un navigateur à l'autre, que la fonctionnalité soit active ou non.
+   */
+  readonly data?: readonly DataSet[];
   /**
    * Démarre la fonctionnalité. Au chargement d'une page, appelé dès `document-start` :
    * le DOM n'existe pas encore, l'attendre si besoin (`ctx.ready()`). Tout ce qui est posé doit être

@@ -31,7 +31,7 @@ export const collectionPrices: Feature = {
   id: 'collection-prices',
   name: 'Prix moyen',
   description:
-    "Moyenne des 7 dernières ventes de chaque carte dans sa rareté, et leur nombre. Un clic charge le prix ou l'actualise, puis ouvre l'historique des ventes.",
+    "Moyenne des 7 dernières ventes de chaque carte dans sa rareté, et leur nombre. Un clic charge le prix ou l'actualise, puis ouvre l'historique du marché.",
   toggleLabel: 'Afficher le prix moyen des cartes',
   category: 'Collection',
   routes: [COLLECTION_ROUTE],

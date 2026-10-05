@@ -48,6 +48,9 @@ export interface SaleFill {
 /** Mises en vente montrées sous la durée ; les autres dans la modale « Tout voir ». */
 const RECENT = 3;
 
+/** Pas des boutons − et + de la mise de départ. */
+const STEP = 10;
+
 export interface SalePanelProps extends SaleActions {
   /** Copie de la face du site, insérée telle quelle. */
   readonly card: HTMLElement | undefined;
@@ -162,7 +165,7 @@ export function SalePanel(props: SalePanelProps) {
                   aria-label="Diminuer"
                   tabIndex={-1}
                   disabled={busy}
-                  onClick={() => step(-1)}
+                  onClick={() => step(-STEP)}
                 >
                   <Icon name="minus" size={16} />
                 </button>
@@ -192,7 +195,7 @@ export function SalePanel(props: SalePanelProps) {
                   aria-label="Augmenter"
                   tabIndex={-1}
                   disabled={busy}
-                  onClick={() => step(1)}
+                  onClick={() => step(STEP)}
                 >
                   <Icon name="plus" size={16} />
                 </button>

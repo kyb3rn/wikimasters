@@ -3,6 +3,7 @@ export { siteRequest } from './request';
 export {
   isMyProfileRpc,
   readSessionCookie,
+  SUPABASE_KEY,
   supabaseFetch,
   supabaseRealtimeAccess,
   supabaseRequest,
@@ -28,6 +29,9 @@ export {
   answerFriendRequest,
   fetchFriendships,
   friendOf,
+  friendPlayers,
+  friendshipDates,
+  friendshipDatesByName,
   isFriendsCounts,
   isFriendship,
   isFriendsList,
@@ -69,3 +73,4 @@ export {
   sendGuildMessage,
   type GuildMessage,
 } from './guild-chat';
+export { isChatMessageSend, parseSentChatMessage, type SentChatMessage } from './chat';

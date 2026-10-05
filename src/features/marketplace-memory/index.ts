@@ -1,10 +1,11 @@
 import type { Feature } from '@/core/runtime';
-import { applyRarities, applySearch, savedFiltersStore, trackListMemory, type ApplyResult } from '@/services/list-search';
+import { applyRarities, applySearch, savedFiltersData, savedFiltersStore, trackListMemory, type ApplyResult } from '@/services/list-search';
 import { chooseSelectValue } from '@/site/listbox';
 import { findMarketplaceFilters, isMarketplaceMineRefresh, marketplaceList, withMarketplaceFilters, type MarketplaceQuery } from '@/site/marketplace';
 import { MARKETPLACE_ROUTE } from '@/site/routes';
 
-const savedFilters = savedFiltersStore<MarketplaceQuery>('wm-marketplace-filters-v1', { sort: 'text', search: 'string', rarities: 'string' });
+const FILTERS_KEY = 'wm-marketplace-filters-v1';
+const savedFilters = savedFiltersStore<MarketplaceQuery>(FILTERS_KEY, { sort: 'text', search: 'string', rarities: 'string' });
 
 /** Remet les contrôles du site aux filtres retenus (tri, raretés, puis la recherche). */
 function applyFilters(target: MarketplaceQuery, signal: AbortSignal): ApplyResult {
@@ -33,6 +34,7 @@ export const marketplaceMemory: Feature = {
   routes: [MARKETPLACE_ROUTE],
   required: true,
   hidden: true,
+  data: [savedFiltersData({ id: 'marketplace-filters', name: 'Marché', key: FILTERS_KEY, store: savedFilters })],
   mount({ signal, log }) {
     trackListMemory({
       source: marketplaceList,

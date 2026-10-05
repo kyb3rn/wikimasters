@@ -69,7 +69,7 @@ test("la cloche passe entre l'engrenage et le solde, celle du site est cachée",
   const order = await box.evaluate((node) =>
     [...node.children].map((child) => child.querySelector('button')?.getAttribute('aria-label') ?? child.getAttribute('aria-label')),
   );
-  expect(order).toEqual(['Paramètres WikiMasters', 'Notifications', 'Ouvrir la boutique WikiBidous']);
+  expect(order).toEqual(['Mémoire WikiMasters', 'Paramètres WikiMasters', 'Notifications', 'Ouvrir la boutique WikiBidous']);
   // Next.js rend lui-même <html> : React en réécrit la classe, la cloche du site doit rester cachée.
   await page.evaluate(() => {
     document.documentElement.className = 'h-full';

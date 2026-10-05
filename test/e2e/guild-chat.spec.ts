@@ -16,6 +16,7 @@ main { flex: 1; min-width: 0; min-height: 0; overflow-y: auto; }
 .card-frame { background: #161b22; border: 1px solid #30363d; border-radius: 16px; }
 .sm\\:max-w-md { max-width: 28rem; width: 100%; } .sm\\:h-\\[600px\\] { height: 600px; }
 .overflow-y-auto { overflow-y: auto; } .flex-1 { flex: 1; } .min-w-0 { min-width: 0; } .w-full { width: 100%; }
+.w-8 { width: 2rem; } .h-8 { height: 2rem; }
 </style><div id="sidebar"></div>`;
 
 const HTML = sitePage(
@@ -23,7 +24,9 @@ const HTML = sitePage(
     <div class="animate-fade-in-up"><h1>Messages</h1><p>Toutes vos conversations</p></div>
     <div class="space-y-1 animate-fade-in-up" id="list"></div>
   </div>`,
-  `const NAMES = ${JSON.stringify(NAMES)};
+  `// Page reprise par React (hydratée) : un fiber sur ses nœuds.
+  document.querySelectorAll('#page, #page > div').forEach((node) => kit.fiber(node));
+  const NAMES = ${JSON.stringify(NAMES)};
   const list = document.getElementById('list');
   for (const name of NAMES) {
     list.insertAdjacentHTML('beforeend',
@@ -33,6 +36,15 @@ const HTML = sitePage(
           '<p class="font-medium text-sm truncate">' + name + '</p><span>18:26</span></div>' +
           '<p class="text-xs truncate mt-0.5">Salut</p></div>' +
       '</button>');
+  }
+  // dmsState « loading » : la roue du site à la place de la liste jusqu'à finishLoading() ; « empty » : aucune conversation.
+  if (window.dmsState === 'loading') {
+    const spinner = kit.el('div', 'flex justify-center py-16');
+    spinner.append(kit.el('div', 'w-8 h-8 border-2 rounded-full animate-spin'));
+    list.replaceWith(spinner);
+    window.finishLoading = () => spinner.replaceWith(list);
+  } else if (window.dmsState === 'empty') {
+    list.remove();
   }
   window.closeChat = () => document.getElementById('chat')?.remove();
   window.openChat = (name) => {
@@ -202,6 +214,31 @@ test('passer d’une conversation du site au chat de guilde, et inversement', as
   await expect(guildChat(page)).toHaveCount(0);
   await expect(page.locator('#chat')).toContainText('Poloz30');
   await expect(guildRow(page)).not.toHaveAttribute('aria-current', 'true');
+});
+
+test('liste en chargement (roue du site) : pas de ligne de guilde ; la liste arrivée, en tête, sans clignoter', async ({ page }) => {
+  await page.addInitScript(() => Reflect.set(window, 'dmsState', 'loading'));
+  const server = await openDms(page);
+  await expect(page.locator('#page .animate-spin')).toBeVisible();
+  await expect.poll(() => server.memberships).toBe(1);
+  await letTimePass(page, 300);
+  await expect(guildRow(page)).toHaveCount(0);
+
+  await page.evaluate(() => (window as unknown as { finishLoading: () => void }).finishLoading());
+  await expect(page.locator('#list button').first()).toContainText('Zguegito');
+  await expectDomIdle(page);
+});
+
+test('aucune conversation : la ligne de guilde sous le titre, stable, pas prise pour une conversation du site', async ({ page }) => {
+  await page.addInitScript(() => Reflect.set(window, 'dmsState', 'empty'));
+  await openDms(page);
+  await expect(guildRow(page)).toBeVisible();
+  expect(await page.locator('#page > div').nth(1).evaluate((element) => element.classList.contains('wm-root'))).toBe(true);
+  await expect(page.locator('.wm-dms-list')).toHaveCount(0);
+  await expectDomIdle(page);
+
+  await guildRow(page).click();
+  await expect(guildChat(page)).toBeVisible();
 });
 
 test('sans guilde : rien ; l’appartenance est retenue (pas de nouvelle lecture avant 4 h)', async ({ page }) => {

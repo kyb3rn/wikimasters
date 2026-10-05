@@ -64,6 +64,7 @@ import {
   type FriendRequests,
 } from './friend-requests';
 import { createCenterStore, type FriendAnswer } from './store';
+import { notificationsData } from './memory';
 import { parseTabRead, readElsewhere, type TabRead } from './tabs';
 import {
   ACTION_ROW_CLASS,
@@ -113,6 +114,7 @@ export const notifications: Feature = {
   routes: 'all',
   required: true,
   settings: notificationsSettings,
+  data: notificationsData,
   async mount(ctx) {
     const { signal, log } = ctx;
     const store = createCenterStore();

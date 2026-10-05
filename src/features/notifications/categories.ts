@@ -60,8 +60,9 @@ export function parseFilter(raw: unknown): NotificationCategory[] | undefined {
   return Array.isArray(raw) ? raw.filter((value): value is NotificationCategory => CATEGORY_VALUES.has(value)) : undefined;
 }
 
+export const FILTER_KEY = 'wm-notifications-filter-v1';
 /** Cases cochées, gardées d'une ouverture et d'une page à l'autre. */
-const filterMemory = jsonStore<readonly NotificationCategory[]>('wm-notifications-filter-v1', [], parseFilter);
+export const filterMemory = jsonStore<readonly NotificationCategory[]>(FILTER_KEY, [], parseFilter);
 
 export function savedFilter(): ReadonlySet<NotificationCategory> {
   return new Set(filterMemory.get());

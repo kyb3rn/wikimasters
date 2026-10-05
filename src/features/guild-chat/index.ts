@@ -1,6 +1,7 @@
 import { h } from 'preact';
 import { childController, waitUntil } from '@/core/async';
 import { SITE_LIKE_CLASS, watchDom } from '@/core/dom';
+import { hydrationGate } from '@/core/react';
 import type { Feature } from '@/core/runtime';
 import { supabaseUserId } from '@/site/api';
 import { findChatWindows, findDmsPage } from '@/site/dms';
@@ -43,6 +44,7 @@ export const guildChat: Feature = {
     ctx.style(GUILD_CHAT_CSS);
     const row = createSlot(signal);
     const chat = createSlot(signal);
+    const hydration = hydrationGate(signal);
     /** Fermeture de la conversation du site en cours, avant d'ouvrir celle de la guilde. */
     let opening: AbortController | undefined;
 
@@ -77,14 +79,17 @@ export const guildChat: Feature = {
 
     function placeRow(): void {
       const page = findDmsPage();
-      if (!page) {
+      // Pendant le chargement de la liste, la ligne irait sous le titre, puis dans la liste à son arrivée.
+      if (!page || page.loading) {
         row.clear();
         return;
       }
       // En tête de la liste (avant sa première ligne, ou juste avant la suivante si la nôtre est déjà là) ; sans
-      // conversation, sous le titre.
+      // conversation, sous le titre, dans la page rendue par le serveur : seulement une fois reprise par React.
       const { list } = page;
-      if (list) {
+      if (!hydration.ready(list ?? page.root, sync)) {
+        row.clear();
+      } else if (list) {
         const first = list.firstElementChild;
         const before = first && first === row.ui?.element ? first.nextSibling : list.firstChild;
         row.render(rowView(), { parent: list, before, inline: true });

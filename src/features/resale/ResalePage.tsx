@@ -3,7 +3,6 @@ import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } fro
 import { isPlainClick, SITE_LIKE_CLASS } from '@/core/dom';
 import type { Logger } from '@/core/log';
 import { onSettingsChange } from '@/core/settings';
-import { jsonStore } from '@/core/storage';
 import { OWN_CARD_GRID } from '@/services/card-display';
 import { CardFace } from '@/services/card-face';
 import { RarityFilter, SEARCH_PLACEHOLDER, SearchButton } from '@/services/list-search';
@@ -18,6 +17,7 @@ import { auctionPath } from '@/site/routes';
 import { buttonClass } from '@/ui/button';
 import { cx } from '@/ui/cx';
 import { Icon } from '@/ui/icons';
+import { CardRing, RING_COLORS } from '@/ui/ring';
 import { Listbox, LoadError, Pagination } from '@/ui/controls';
 import { siteClass } from '@/ui/site';
 import { tokens } from '@/ui/theme';
@@ -25,11 +25,10 @@ import { STAMPS, stampFace } from '@/ui/stamp';
 import { toast } from '@/ui/toast';
 import { useCopyActions, type CopyStatus } from './actions';
 import {
-  DEFAULT_FILTERS,
   pageCount,
   pageOf,
-  parseFilters,
   sameFilters,
+  savedFilters,
   selectCopies,
   DEFAULT_ORDER,
   ORDER_LABELS,
@@ -56,8 +55,6 @@ export const RESALE_CLASS = {
   sale: 'wm-resale-sale',
 } as const;
 
-/** Filtres de la dernière recherche lancée (comme la Collection : tri, raretés, recherche ; pas la page). */
-const savedFilters = /* @__PURE__ */ jsonStore('wm-resale-filters-v1', DEFAULT_FILTERS, parseFilters);
 
 /** La carte d'un exemplaire pour le cache des ventes : ventes de sa rareté (celles d'une L shiny sont celles des L). */
 const cardRef = (copy: ResaleCard): CardRef => ({ id: copy.cardId, title: copy.title, rarity: copy.rarity });
@@ -362,7 +359,8 @@ function Prices({ card, button, onEdit }: { readonly card: ResaleCard; readonly 
 
 /**
  * Une de mes ventes en cours : sa face, lien vers l'enchère (navigation du site ; Ctrl, Maj, clic du milieu laissés au
- * navigateur), sa mise et son temps restant comme les vignettes du marché, puis ses prix.
+ * navigateur), sa mise et son temps restant comme les vignettes du marché, puis ses prix. Une mise reçue : cadre vert
+ * autour de la face et « Mise actuelle » en vert (demande de l'utilisateur).
  */
 function SaleCell({ sale, children }: { readonly sale: MarketListing; readonly children: ComponentChildren }) {
   ensureMarketTileStyle();
@@ -379,10 +377,13 @@ function SaleCell({ sale, children }: { readonly sale: MarketListing; readonly c
         }}
       >
         <CardFace card={sale} />
+        {sale.hasBid && <CardRing color={RING_COLORS.green} />}
       </a>
       <div class={siteClass.tileInfo}>
         <div class={siteClass.tilePrice}>
-          <span class={siteClass.tileLabel}>{sale.hasBid ? 'Mise actuelle' : 'Mise de départ'}</span>
+          <span class={siteClass.tileLabel} style={sale.hasBid ? { color: RING_COLORS.green } : undefined}>
+            {sale.hasBid ? 'Mise actuelle' : 'Mise de départ'}
+          </span>
           <span class={siteClass.tileAmount}>
             <Icon name="coin" class={siteClass.tileCoin} />
             {formatNumber(sale.amount)}

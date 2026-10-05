@@ -37,15 +37,19 @@ describe('réglages', () => {
     expect(settings.get('sound')).toBe(true);
   });
 
-  it('enregistre sous une seule clé, par fonctionnalité', () => {
+  it('enregistre sous une seule clé, par fonctionnalité, avec la date de chaque changement', () => {
+    vi.useFakeTimers({ now: 1000 });
     const settings = defineSettings('demo', schema);
     settings.set('delayMs', 1200);
+    vi.setSystemTime(2000);
     settings.set('sound', false);
     setFeatureChoice('demo', false);
+    vi.useRealTimers();
 
     expect(JSON.parse(storage.data.get(SETTINGS_KEY) ?? '')).toEqual({
       features: { demo: false },
       values: { demo: { delayMs: 1200, sound: false } },
+      changedAt: { features: { demo: 2000 }, values: { demo: { delayMs: 1000, sound: 2000 } } },
     });
     expect(settings.get('delayMs')).toBe(1200);
     expect(featureChoice('demo')).toBe(false);
@@ -85,7 +89,7 @@ describe('réglages', () => {
 
   it('tolère un stockage absent ou corrompu', () => {
     storage.setItem(SETTINGS_KEY, '{pas du json');
-    expect(readSettings()).toEqual({ features: {}, values: {} });
+    expect(readSettings()).toEqual({ features: {}, values: {}, changedAt: { features: {}, values: {} } });
   });
 
   it('prévient les abonnés de chaque changement, jusqu’à interruption', () => {

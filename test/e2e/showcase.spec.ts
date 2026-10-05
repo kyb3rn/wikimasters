@@ -188,7 +188,7 @@ test('les modales s’ouvrent et se ferment : modale, confirmation, historique, 
   await expect(confirm).toBeHidden();
   await expect(page.locator('.wm-toast[data-variant="success"]')).toContainText('Carte défaussée');
 
-  await page.getByRole('button', { name: 'Historique des ventes' }).click();
+  await page.getByRole('button', { name: 'Historique du marché' }).click();
   const market = page.getByRole('dialog', { name: 'Tour Eiffel' });
   await expect(market).toContainText('140 ventes');
   await page.keyboard.press('Escape');

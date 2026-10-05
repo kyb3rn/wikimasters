@@ -17,6 +17,7 @@ import { saleCard } from './card';
 import { lastInRarity, type CardSales, type SaleRecord } from './history';
 import { SaleHistoryModal } from './SaleHistoryModal';
 import { SalePanel, type SaleActions, type SaleFill, type SaleHistory } from './SalePanel';
+import { listingsData } from './memory';
 import { settings } from './settings';
 import { onCardSalesChange, readCardSales } from './store';
 import { CSS } from './style';
@@ -51,6 +52,7 @@ export const auctionModalLayout: Feature = {
   routes: 'all',
   required: true,
   settings,
+  data: [listingsData],
   async mount(ctx) {
     const { signal } = ctx;
     // Avant le DOM : une mise en vente partie pendant le chargement est notée quand même.

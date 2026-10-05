@@ -1,5 +1,6 @@
 import { isRecord } from '@/core/guards';
 import { findPropsAbove } from '@/core/react';
+import { parsePlayer, type Player } from '@/site/api';
 import { SITE_OVERLAY } from '@/site/modals';
 
 /**
@@ -71,9 +72,6 @@ export function findChatWindows(doc: Document = document): ChatWindow[] {
 }
 
 /** Interlocuteur d'une conversation du site, dans ses props (`peer`) : son identifiant, que l'en-tête n'affiche pas. */
-export function readChatPeer(chat: Pick<ChatWindow, 'frame'>): { readonly id: string; readonly username: string } | undefined {
-  const peer = findPropsAbove(chat.frame, (props) => isRecord(props.peer) && 'currentUserId' in props)?.props.peer;
-  return isRecord(peer) && typeof peer.id === 'string' && typeof peer.username === 'string'
-    ? { id: peer.id, username: peer.username }
-    : undefined;
+export function readChatPeer(chat: Pick<ChatWindow, 'frame'>): Player | undefined {
+  return parsePlayer(findPropsAbove(chat.frame, (props) => isRecord(props.peer) && 'currentUserId' in props)?.props.peer);
 }

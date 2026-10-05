@@ -1,5 +1,5 @@
 import type { Feature } from '@/core/runtime';
-import { showWishedPriceInSale } from '@/services/wished-price';
+import { showWishedPriceInSale, wishedPricesData } from '@/services/wished-price';
 
 /**
  * Prix souhaité dans la fenêtre de mise en vente (version de dev, page Revente) : l'interrupteur de l'onglet Enchères.
@@ -12,6 +12,7 @@ export const auctionWishedPrice: Feature = {
   toggleLabel: 'Afficher le prix souhaité',
   category: 'Enchères',
   routes: 'all',
+  data: [wishedPricesData],
   mount(ctx) {
     showWishedPriceInSale(ctx.signal);
   },

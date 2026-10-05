@@ -5,6 +5,31 @@ import { expectDomIdle, rect } from './support/site';
 const friendRows = (page: Page) => page.locator('#friends-section > [data-friend]');
 const row = (page: Page, name: string) => page.locator(`[data-friend="${name}"]`);
 const confirmDialog = (page: Page) => page.getByRole('alertdialog', { name: 'Retirer cet ami ?' });
+const sortList = (page: Page) => page.getByRole('button', { name: 'Trier les amis' });
+const sortOrder = (page: Page) => page.getByRole('button', { name: /^Sens du tri/ });
+
+/** Boîtes des éléments, mesurées dans la même image : la page peut encore bouger d'un pixel (boutons du site rhabillés au-dessus). */
+async function measure(page: Page, selectors: readonly string[]): Promise<{ x: number; y: number; width: number; height: number }[]> {
+  return page.evaluate(
+    (all) =>
+      all.map((selector) => {
+        const element = document.querySelector(selector);
+        if (!element) throw new Error(`${selector} introuvable`);
+        const { x, y, width, height } = element.getBoundingClientRect();
+        return { x, y, width, height };
+      }),
+    selectors,
+  );
+}
+
+/** Pseudos des amis dans l'ordre affiché : de haut en bas, puis de gauche à droite. */
+const shownOrder = (page: Page) =>
+  friendRows(page).evaluateAll((rows) =>
+    rows
+      .map((el) => ({ name: (el as HTMLElement).dataset.friend ?? '', box: el.getBoundingClientRect() }))
+      .sort((a, b) => Math.round(a.box.top - b.box.top) || a.box.left - b.box.left)
+      .map((row) => row.name),
+  );
 
 /** Lignes sur la première rangée de la grille, et largeur d'une ligne. */
 async function columns(rows: Locator): Promise<{ count: number; width: number }> {
@@ -166,15 +191,100 @@ test('au repos, le script ne resynchronise plus la page', async ({ page }) => {
   await expectDomIdle(page);
 });
 
-test('mobile : les boutons passent sous la recherche, à droite', async ({ page }) => {
+test('mobile : le tri sous la recherche, sur toute la largeur, les boutons dessous, à droite', async ({ page }) => {
   await page.setViewportSize({ width: 420, height: 800 });
   await openFriendsPage(page);
-  const field = await rect(page.locator('#friend-list-search'));
-  const add = await rect(page.getByRole('button', { name: '+ Ajouter un ami' }));
-  const frame = await rect(page.locator('#friends-section > .relative'));
+  await expect(page.getByRole('button', { name: '+ Ajouter un ami' })).toBeVisible();
+  const [field, sort, add, frame] = await measure(page, [
+    '#friend-list-search',
+    '.wm-friends-sort',
+    '.wm-friends-action + .wm-friends-action',
+    '#friends-section > .relative',
+  ]);
+  if (!field || !sort || !add || !frame) throw new Error('mesures incomplètes');
   expect(field.width).toBeCloseTo(frame.width, 0);
-  expect(add.y).toBeGreaterThan(field.y + field.height);
+  expect(sort.y).toBeGreaterThan(field.y + field.height);
+  expect(sort.width).toBeCloseTo(frame.width, 0);
+  expect(add.y).toBeGreaterThan(sort.y + sort.height);
   expect(add.x + add.width).toBeCloseTo(frame.x + frame.width, 0);
+});
+
+test('cadre de recherche étroit : le champ sur sa ligne, le tri à gauche et les boutons à droite dessous', async ({ page }) => {
+  await page.setViewportSize({ width: 640, height: 800 });
+  await openFriendsPage(page);
+  await expect(page.getByRole('button', { name: '+ Ajouter un ami' })).toBeVisible();
+  const [field, sort, invite, add, frame] = await measure(page, [
+    '#friend-list-search',
+    '.wm-friends-sort',
+    '.wm-friends-action',
+    '.wm-friends-action + .wm-friends-action',
+    '#friends-section > .relative',
+  ]);
+  if (!field || !sort || !invite || !add || !frame) throw new Error('mesures incomplètes');
+  expect(field.width).toBeCloseTo(frame.width, 0);
+  expect(sort.x).toBeCloseTo(frame.x, 0);
+  expect(sort.y).toBeGreaterThan(field.y + field.height);
+  expect(invite.y).toBeCloseTo(sort.y, 0);
+  expect(sort.x + sort.width).toBeLessThan(invite.x);
+  expect(add.x + add.width).toBeCloseTo(frame.x + frame.width, 0);
+});
+
+test('tri des amis : juste à droite du champ, son sens collé à lui ; par nom de A à Z au départ, puis de Z à A', async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await openFriendsPage(page);
+  await expect(sortList(page)).toHaveText('Nom');
+  await expect(sortOrder(page)).toHaveAttribute('aria-label', 'Sens du tri : De A à Z');
+  await expect.poll(() => shownOrder(page)).toEqual(['aelonka', 'AlakazM', 'Norband', 'Poloz30']);
+
+  const [field, list, order] = await measure(page, ['#friend-list-search', 'button[aria-label="Trier les amis"]', 'button[aria-label^="Sens du tri"]']);
+  if (!field || !list || !order) throw new Error('mesures incomplètes');
+  expect(list.x).toBeCloseTo(field.x + field.width + 8, 0);
+  expect(list.y).toBeCloseTo(field.y, 0);
+  expect(list.height).toBeCloseTo(field.height, 0);
+  // Collés : un seul trait entre la liste et le bouton du sens.
+  expect(order.x).toBeCloseTo(list.x + list.width - 1, 0);
+  expect(order.y).toBeCloseTo(list.y, 0);
+  expect(order.height).toBeCloseTo(list.height, 0);
+
+  await sortOrder(page).click();
+  await expect(sortOrder(page)).toHaveAttribute('aria-label', 'Sens du tri : De Z à A');
+  await expect.poll(() => shownOrder(page)).toEqual(['Poloz30', 'Norband', 'AlakazM', 'aelonka']);
+});
+
+test('tri par date d’amitié : les plus récents d’abord, inversé d’un clic ; retenu à la visite suivante', async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await openFriendsPage(page);
+  await sortList(page).click();
+  await page.getByRole('option', { name: "Date d'amitié" }).click();
+  await expect(sortList(page)).toHaveText("Date d'amitié");
+  await expect(sortOrder(page)).toHaveAttribute('aria-label', 'Sens du tri : Des plus récents aux plus anciens');
+  await expect.poll(() => shownOrder(page)).toEqual(['Poloz30', 'AlakazM', 'Norband', 'aelonka']);
+
+  await sortOrder(page).click();
+  await expect.poll(() => shownOrder(page)).toEqual(['aelonka', 'Norband', 'AlakazM', 'Poloz30']);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('wm-friends-sort-v1') ?? 'null') as unknown)).toEqual({
+    sort: 'date',
+    order: 'asc',
+  });
+  await expectDomIdle(page);
+
+  await page.reload();
+  await expect(sortList(page)).toHaveText("Date d'amitié");
+  await expect(sortOrder(page)).toHaveAttribute('aria-label', 'Sens du tri : Des plus anciens aux plus récents');
+  await expect.poll(() => shownOrder(page)).toEqual(['aelonka', 'Norband', 'AlakazM', 'Poloz30']);
+
+  // Un autre tri repart dans son sens habituel.
+  await sortList(page).click();
+  await page.getByRole('option', { name: 'Nom' }).click();
+  await expect(sortOrder(page)).toHaveAttribute('aria-label', 'Sens du tri : De A à Z');
+});
+
+test('un nouvel ami prend sa place dans le tri', async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await openFriendsPage(page);
+  await expect.poll(() => shownOrder(page)).toEqual(['aelonka', 'AlakazM', 'Norband', 'Poloz30']);
+  await page.locator('[data-incoming="Mastonin"]').getByRole('button', { name: 'Accepter' }).click();
+  await expect.poll(() => shownOrder(page)).toEqual(['aelonka', 'AlakazM', 'Mastonin', 'Norband', 'Poloz30']);
 });
 
 test('Message (bleu) et Échanger (vert) : boutons standard en contour, qui déclenchent ceux du site (cachés)', async ({ page }) => {

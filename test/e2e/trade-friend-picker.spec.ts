@@ -26,7 +26,7 @@ test('notre fenêtre à la place de celle du site : deux colonnes, 900 px de hau
   await expect(dialog(page)).toHaveCount(0);
 });
 
-test('recherche, filtre des échanges en cours et tri par date d’amitié', async ({ page }) => {
+test('recherche, filtre des échanges en cours et tri par date d’amitié, dans les deux sens', async ({ page }) => {
   await openFriendPickerPage(page);
   await page.click('#new-trade');
   await expect(names(page)).toHaveCount(4);
@@ -42,8 +42,10 @@ test('recherche, filtre des échanges en cours et tri par date d’amitié', asy
   await expect(names(page)).toHaveText(['Aline', 'Chloé', 'Zoé']);
 
   await dialog(page).getByRole('button', { name: 'Trier les amis' }).click();
-  await page.getByRole('option', { name: 'Amis récents' }).click();
+  await page.getByRole('option', { name: "Date d'amitié" }).click();
   await expect(names(page)).toHaveText(['Aline', 'Zoé', 'Chloé']);
+  await dialog(page).getByRole('button', { name: /^Sens du tri/ }).click();
+  await expect(names(page)).toHaveText(['Chloé', 'Zoé', 'Aline']);
 
   // Échap ferme d'abord la liste ouverte, puis la fenêtre (celle du site aussi).
   await dialog(page).getByRole('button', { name: 'Trier les amis' }).click();

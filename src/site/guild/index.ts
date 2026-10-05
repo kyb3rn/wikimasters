@@ -8,4 +8,4 @@ export {
   type GuildWish,
   type GuildWishRequester,
 } from './wishlist';
-export { forgetMyGuild, GUILD_CHECK_MS, myGuild, readGuildsResponse, trackGuildMembership, type MyGuild } from './membership';
+export { forgetMyGuild, GUILD_CHECK_MS, GUILD_KEY, myGuild, readGuildsResponse, trackGuildMembership, type MyGuild } from './membership';

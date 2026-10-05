@@ -12,14 +12,14 @@ import { lockControl, unlockAll } from '@/ui/lock';
 const OWNER = 'auction-market';
 
 /**
- * Page d'une enchère : son bouton « Vue du marché » ouvre notre historique des ventes (ou, sans PRO, l'offre
+ * Page d'une enchère : son bouton « Vue du marché » ouvre notre historique du marché (ou, sans PRO, l'offre
  * PRO), pas la vue du site. La carte vient de la réponse de l'enchère, lue au passage ; pas encore vue : le
  * site garde la main.
  */
 export const auctionMarket: Feature = {
   id: 'auction-market',
-  name: 'Historique des ventes',
-  description: "Page d'une enchère : « Vue du marché » ouvre l'historique des ventes de la carte.",
+  name: 'Historique du marché',
+  description: "Page d'une enchère : « Vue du marché » ouvre l'historique du marché de la carte.",
   category: 'Marché',
   // La page charge l'enchère en arrivant : sa réponse peut précéder le changement d'adresse.
   routes: 'all',

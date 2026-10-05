@@ -43,8 +43,8 @@ export function returnedCards(removed: RemovedWishes, listings: readonly Wishlis
  * Cartes retirées de ma liste de souhaits par le script ou par le site sous nos yeux (modale de carte), partagées
  * entre les onglets du navigateur : la notification de mise en vente ne dit pas si la carte y est encore.
  */
-const KEY = 'wm-wishlist-removed-v1';
-const store = /* @__PURE__ */ jsonStore<RemovedWishes>(KEY, {}, parseRemovedWishes);
+export const REMOVED_WISHES_KEY = 'wm-wishlist-removed-v1';
+const store = /* @__PURE__ */ jsonStore<RemovedWishes>(REMOVED_WISHES_KEY, {}, parseRemovedWishes);
 
 export function removedWishes(): RemovedWishes {
   return store.get();
@@ -60,6 +60,11 @@ export function forgetReturned(listings: readonly WishlistListing[]): void {
   if (returned.length > 0) store.update((removed) => withoutRemoved(removed, returned));
 }
 
+/** Oublie le retrait de ces cartes (fenêtre Mémoire). */
+export function forgetRemovedWishes(cardIds: readonly string[]): void {
+  store.update((removed) => withoutRemoved(removed, cardIds));
+}
+
 export function onRemovedWishesElsewhere(listener: () => void, options: { signal: AbortSignal }): void {
-  onStorageChange(KEY, listener, options);
+  onStorageChange(REMOVED_WISHES_KEY, listener, options);
 }

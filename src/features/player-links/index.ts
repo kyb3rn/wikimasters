@@ -6,7 +6,7 @@ import { findChatList, findChatWindows, readChatDays } from '@/site/dms';
 import { findGuildWishRequesters, findOwnGuildWishImage } from '@/site/guild';
 import { findAuctionFace, findAuctionPlayers, findMarketplaceSellers, TILE } from '@/site/marketplace';
 import { myUsername, onMeChange } from '@/site/me';
-import { findTradeComposer } from '@/site/trades';
+import { findTradeComposer, findTradeDetail } from '@/site/trades';
 import { ProfileLink } from '@/services/profile-link';
 import { buttonClass } from '@/ui/button';
 import { createSlots, type Placement } from '@/ui/mount';
@@ -52,14 +52,14 @@ const siteClasses = (element: Element) => [...element.classList].filter((name) =
  * l'historique des mises (pseudo du site caché, le nôtre posé juste après) ; conversation privée de /dms : pseudo
  * et photo de l'interlocuteur (en-tête, et à côté de chacun de ses messages), photo et pseudo de l'auteur de chaque
  * message de la conversation de guilde ; fenêtre d'échange (ouverte depuis les échanges, les amis, le catalogue) : pseudo de
- * l'ami dans son titre. Aller sur un profil depuis la fenêtre d'échange la ferme (la page change), sans sa question
- * « Modifications non enregistrées ».
+ * l'ami dans son titre, et sous le titre de la modale « Détail de l'échange ». Aller sur un profil depuis la fenêtre
+ * d'échange la ferme (la page change), sans sa question « Modifications non enregistrées ».
  */
 export const playerLinks: Feature = {
   id: 'player-links',
   name: 'Liens vers les profils',
   description:
-    "Marché : vendeurs, meneur, gagnant et joueurs de l'historique des mises mènent à leur profil. Messages : pseudo et photos de l'interlocuteur, auteurs des messages de guilde. Échanges : pseudo de l'ami. Guilde : auteurs des demandes de la liste de souhaits.",
+    "Marché : vendeurs, meneur, gagnant et joueurs de l'historique des mises mènent à leur profil. Messages : pseudo et photos de l'interlocuteur, auteurs des messages de guilde. Échanges : pseudo de l'ami, dans la fenêtre d'échange et le détail d'un échange. Guilde : auteurs des demandes de la liste de souhaits.",
   category: 'Marché',
   // La fenêtre d'échange s'ouvre sur plusieurs pages.
   routes: 'all',
@@ -146,8 +146,8 @@ export const playerLinks: Feature = {
           place(avatar, { inside: avatar, keep: true }, h(ProfileLink, { username: author, label: '', className: 'wm-chat-avatar-link' }));
         }
       }
-      const trade = findTradeComposer();
-      if (trade) {
+      for (const trade of [findTradeComposer(), findTradeDetail()]) {
+        if (!trade) continue;
         const { friendName, friend } = trade;
         seen.add(friendName);
         place(friendName, { after: friendName }, h(ProfileLink, { username: friend, className: siteClasses(friendName) }));

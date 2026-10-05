@@ -26,6 +26,8 @@ const HTML = sitePage(
   `${SITE_MODULES}
 ${SITE_ROUTER}
 window.prefetchChunks = ['amis', 'echange'];
+// Page reprise par React (hydratée) : un fiber sur ses nœuds.
+document.querySelectorAll('#page, #page > div').forEach((node) => kit.fiber(node));
 const PEERS = ${JSON.stringify(PEERS)};
 const session = { type: { $$typeof: Symbol.for('react.context') }, memoizedProps: { value: 'u0', children: null }, return: null };
 window.closeChat = () => document.getElementById('chat')?.remove();

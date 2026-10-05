@@ -27,7 +27,7 @@ export type LocalType = (typeof LOCAL_TYPES)[number];
 
 const isLocalType = (value: unknown): value is LocalType => (LOCAL_TYPES as readonly unknown[]).includes(value);
 
-const KEY = 'wm-notifications-v1';
+export const LOCAL_NOTIFICATIONS_KEY = 'wm-notifications-v1';
 /** Comme la liste du site : les 50 dernières. */
 const MAX = 50;
 
@@ -51,7 +51,7 @@ function parseOne(raw: unknown): LocalNotification | undefined {
   };
 }
 
-const store = jsonStore<readonly LocalNotification[]>(KEY, [], (raw) =>
+const store = jsonStore<readonly LocalNotification[]>(LOCAL_NOTIFICATIONS_KEY, [], (raw) =>
   Array.isArray(raw) ? raw.flatMap((item) => parseOne(item) ?? []) : undefined,
 );
 
@@ -68,7 +68,7 @@ export function onLocalNotificationsChange(listener: () => void, options: { sign
   if (!watchingTabs) {
     watchingTabs = true;
     window.addEventListener('storage', (event) => {
-      if (event.key === KEY) changes.emit();
+      if (event.key === LOCAL_NOTIFICATIONS_KEY) changes.emit();
     });
   }
   changes.on(listener, options);
@@ -93,5 +93,14 @@ export function markLocalRead(ids?: readonly string[]): void {
   const current = store.get();
   if (!current.some((item) => !item.read && (!wanted || wanted.has(item.id)))) return;
   store.set(current.map((item) => (item.read || (wanted && !wanted.has(item.id)) ? item : { ...item, read: true })));
+  changes.emit();
+}
+
+/** Retire ces notifications de la liste (fenêtre Mémoire). */
+export function removeLocalNotifications(ids: readonly string[]): void {
+  const gone = new Set(ids);
+  const current = store.get();
+  if (!current.some((item) => gone.has(item.id))) return;
+  store.set(current.filter((item) => !gone.has(item.id)));
   changes.emit();
 }

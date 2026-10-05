@@ -331,6 +331,8 @@ export const siteClass = {
   faceShiny:
     'w-[clamp(8.4rem,43vw,10rem)] h-[clamp(11.8rem,60vw,14rem)] glow-shiny shiny-card isolate relative rounded-2xl ' +
     'overflow-hidden cursor-pointer hover:z-10',
+  /** Taille seule de la face `sm` : case à nous qui en prend la place. */
+  faceSize: 'w-[clamp(8.4rem,43vw,10rem)] h-[clamp(11.8rem,60vw,14rem)]',
   faceBackground: 'object-cover scale-[1.8]',
   faceBackgroundShiny: 'object-cover',
   faceShade: 'absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-transparent pointer-events-none z-10',

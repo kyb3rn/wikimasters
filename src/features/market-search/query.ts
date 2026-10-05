@@ -260,3 +260,25 @@ export function sameFilters(a: AuctionFilters, b: AuctionFilters): boolean {
     return Array.isArray(x) && Array.isArray(y) ? x.join(',') === y.join(',') : x === y;
   });
 }
+
+const SORT_LABELS: Readonly<Record<AuctionSort, string>> = { ending_soon: 'Fin proche', ending_late: 'Fin lointaine', recent: 'Plus récentes' };
+
+const rangeText = (label: string, min: number | undefined, max: number | undefined, unit = '') =>
+  min === undefined && max === undefined ? [] : [`${label} : ${min ?? '…'} à ${max ?? '…'}${unit}`];
+
+/** Filtres retenus en clair (fenêtre Mémoire) : ceux qui filtrent quelque chose, puis le tri. */
+export function filtersDetails(filters: AuctionFilters): string[] {
+  return [
+    ...(filters.search.trim() !== '' ? [`Recherche : « ${filters.search.trim()} »`] : []),
+    ...(filters.rarities.length > 0 ? [`Raretés : ${filters.rarities.join(', ')}`] : []),
+    ...(filters.shiny.length === 1 ? [filters.shiny[0] === 'shiny' ? 'Shiny' : 'Pas shiny'] : []),
+    ...(filters.bids.length === 1 ? [filters.bids[0] === 'with' ? 'Avec mises' : 'Sans mise'] : []),
+    ...rangeText('Prix', filters.priceMin, filters.priceMax, ' wb'),
+    ...rangeText('Temps restant', filters.remainingMin, filters.remainingMax, ' min'),
+    ...rangeText('ATK', filters.atkMin, filters.atkMax),
+    ...rangeText('DEF', filters.defMin, filters.defMax),
+    ...(filters.excludeMine ? ['Sans mes ventes'] : []),
+    ...(filters.wishlistOnly ? ['Liste de souhaits'] : []),
+    `Tri : ${SORT_LABELS[filters.sort]}`,
+  ];
+}

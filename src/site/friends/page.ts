@@ -1,6 +1,8 @@
 import { ROOT_CLASS } from '@/core/dom';
+import { matchRoute } from '@/core/router';
 import { textOf } from '@/core/text';
 import { hasIcon, siteButtons } from '@/site/dom';
+import { PROFILE_ROUTE } from '@/site/routes';
 
 /**
  * Page Amis (`/friends`, captures du 29/09 et du 01/10/2026, code du site du 30/09 et du 01/10/2026) :
@@ -62,6 +64,8 @@ export interface EmptyFriends {
 
 export interface FriendRow {
   readonly root: HTMLElement;
+  /** Pseudo de l'ami, lu dans le lien de son profil. */
+  readonly username: string;
   readonly actions: HTMLElement;
   readonly message: RowButton | undefined;
   readonly trade: RowButton | undefined;
@@ -118,10 +122,12 @@ function readList(section: HTMLElement): FriendsList {
   const search = field?.parentElement?.parentElement === section ? field.parentElement : undefined;
   const rows: FriendRow[] = [];
   for (const root of children(section)) {
-    if (!root.querySelector(':scope > a[href^="/profile/"]')) continue;
+    const link = root.querySelector(':scope > a[href^="/profile/"]');
+    const username = matchRoute(PROFILE_ROUTE, link?.getAttribute('href') ?? '')?.name;
+    if (username === undefined) continue;
     const actions = root.lastElementChild;
     if (!(actions instanceof HTMLElement) || actions.tagName !== 'DIV') continue;
-    rows.push({ root, actions, message: rowButton(actions, 'message-circle'), trade: rowButton(actions, 'handshake') });
+    rows.push({ root, username, actions, message: rowButton(actions, 'message-circle'), trade: rowButton(actions, 'handshake') });
   }
   const frame = section.querySelector<HTMLElement>(':scope > .card-frame');
   const button = frame?.querySelector<HTMLButtonElement>(':scope > button');

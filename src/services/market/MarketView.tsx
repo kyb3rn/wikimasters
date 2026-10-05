@@ -74,7 +74,7 @@ export interface MarketViewProps {
 }
 
 /**
- * Historique des ventes d'une carte : tuiles (ventes, dernière, médiane, moyenne des 7 dernières, min – max,
+ * Historique du marché d'une carte : tuiles (ventes, dernière, médiane, moyenne des 7 dernières, min – max,
  * médiane des 30 derniers jours), raretés (bascules), graphique. Tuiles, points et moyennes portent sur les raretés
  * choisies ; les bascules donnent les chiffres de chaque rareté.
  */

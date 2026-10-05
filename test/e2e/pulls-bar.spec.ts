@@ -57,7 +57,7 @@ test('le bouton du son coupe les sons des paquets, réglage partagé avec les pa
   await expect(soundButton(page)).toHaveAttribute('aria-pressed', 'false');
   await expect(soundButton(page)).toHaveAccessibleName('Activer le son des paquets');
   await expect(bar(page)).toContainText('son coupé');
-  expect(await stored(page)).toEqual({ features: {}, values: { 'pulls-sound': { enabled: false } } });
+  expect(await stored(page)).toEqual({ features: {}, values: { 'pulls-sound': { enabled: false } }, changedAt: expect.any(Object) });
 
   await openSettings(page, 'Paquets');
   const toggle = page.getByRole('switch', { name: 'Jouer les sons des paquets' });
@@ -95,7 +95,7 @@ test('carrousel ou grille : le choix du cadre est celui des paramètres', async 
   await carousel.click();
   await expect(carousel).toHaveAttribute('aria-checked', 'true');
   await expect(bar(page)).toContainText('carrousel');
-  expect(await stored(page)).toEqual({ features: { 'pulls-grid': false }, values: {} });
+  expect(await stored(page)).toEqual({ features: { 'pulls-grid': false }, values: {}, changedAt: expect.any(Object) });
   await openSettings(page, 'Paquets');
   await expect(page.getByRole('switch', { name: "Apparence : Afficher toutes les cartes d'un coup" })).toHaveAttribute(
     'aria-checked',

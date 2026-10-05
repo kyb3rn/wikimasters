@@ -17,7 +17,9 @@ import { isMyProfileRpc, supabaseUserId } from '@/site/api';
  */
 const CHANGE_EVENT = 'wikimasters:is-pro-changed';
 
-const store = jsonStore<boolean | undefined>('wm-pro-v1', undefined, (raw) => (typeof raw === 'boolean' ? raw : undefined));
+/** Dernier statut PRO vu (localStorage). */
+export const PRO_KEY = 'wm-pro-v1';
+const store = jsonStore<boolean | undefined>(PRO_KEY, undefined, (raw) => (typeof raw === 'boolean' ? raw : undefined));
 const changes = createListeners(createLogger('pro'));
 let tracking = false;
 

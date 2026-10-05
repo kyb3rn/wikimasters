@@ -561,6 +561,9 @@ test('« Au marché » : mes ventes en cours entre les filtres et la collection,
   await expect(bigBen).toContainText('Mise actuelle');
   await expect(bigBen).toContainText('250');
   await expect(saleCells(page).nth(1)).toContainText('Mise de départ');
+  // Une mise reçue : cadre vert autour de la face.
+  await expect(bigBen.locator('a > .wm-card-ring')).toHaveCount(1);
+  await expect(saleCells(page).nth(1).locator('.wm-card-ring')).toHaveCount(0);
   await expect(bigBen.locator('a')).toHaveAttribute('href', '/marketplace/v2');
   await expect(bigBen.locator('.wm-resale-price')).toHaveText('800(1)');
   // Elles comptent dans le total : 5 cartes.

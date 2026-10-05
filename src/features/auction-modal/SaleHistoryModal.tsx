@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { Rarity } from '@/site/rarity';
-import { confirmStep, type ConfirmStep } from '@/services/site-confirm';
+import { useConfirmStep } from '@/services/site-confirm';
 import { buttonClass } from '@/ui/button';
 import { Icon } from '@/ui/icons';
 import { Modal } from '@/ui/modal';
@@ -14,17 +14,6 @@ export interface SaleHistoryModalProps {
   readonly shiny: boolean;
   readonly onReuse: (record: SaleRecord) => void;
   readonly onClose: () => void;
-}
-
-/** Confirmation en deux clics, redessinée quand « Confirmer ? » s'active puis expire. */
-function useConfirmStep<T>(): ConfirmStep<T> {
-  const [, redraw] = useState(0);
-  const [state] = useState(() => {
-    const controller = new AbortController();
-    return { controller, step: confirmStep<T>({ onChange: () => redraw((n) => n + 1), signal: controller.signal }) };
-  });
-  useEffect(() => () => state.controller.abort(), [state]);
-  return state.step;
 }
 
 /** Toutes les mises en vente de la carte ; un clic en reprend une, la corbeille la retire (en deux clics). */

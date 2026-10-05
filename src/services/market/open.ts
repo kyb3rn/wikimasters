@@ -26,17 +26,19 @@ function show(render: (close: () => void) => ComponentChild): void {
 }
 
 /**
- * Ouvre l'historique des ventes d'une carte, par-dessus tout (modale de carte du site comprise). Ventes du
+ * Ouvre l'historique du marché d'une carte, par-dessus tout (modale de carte du site comprise). Ventes du
  * cache si elles sont assez récentes, sinon demandées au site ; le site en échec, celles du cache même
- * anciennes (avec l'erreur en toast), et sans cache, l'erreur seule. Compte sans PRO : l'offre PRO du site à
- * la place, comme lui. Résolue une fois la modale ouverte (ou l'échec montré) : l'appelant garde sa roue jusque-là.
+ * anciennes (avec l'erreur en toast), et sans cache, l'erreur seule. Compte sans PRO : le cache même ancien,
+ * sinon l'offre PRO du site, comme lui. Résolue une fois la modale ouverte (ou l'échec montré) : l'appelant garde
+ * sa roue jusque-là.
  */
 export async function openMarketModal(card: CardRef): Promise<void> {
+  let entry = await cachedMarket(card.id);
   if (marketNeedsPro()) {
-    showProOffer(card);
+    if (entry) showMarketModal(card, entry);
+    else showProOffer(card);
     return;
   }
-  let entry = await cachedMarket(card.id);
   if (!entry || isStale(entry)) {
     try {
       entry = await fetchMarket(card);

@@ -15,9 +15,11 @@ main > div.flex-1.p-4.md:p-6.space-y-6
       div.flex-1.min-w-0 > div > p.font-medium (pseudo) + span (heure) ; p (dernier message)
 ```
 
+- **Rendue par le serveur** (capture du 04/10, prise avant l'hydratation) : la page arrive avec son titre et un rond de chargement (`div.flex.justify-center.py-16 > div.animate-spin`) à la place de la liste, puis React la reprend et charge `GET /api/chat`. Rien à poser dans `main > div` ni dans le bloc du titre avant que React les ait repris (`hydrationGate`) : sinon erreur 418, page jetée et redessinée (au F5, des doubles semi-transparents du cadre de droite et des roues restaient à l'écran jusqu'au prochain rafraîchissement de la fenêtre). Les lignes, elles, sont rendues par le navigateur.
 - Une ligne ouvre la conversation en modale.
-- Liste tenue à jour par le canal `dms-list:<uid>` tant que la page est affichée ([README](README.md#temps-réel)).
-- Lecture : `src/site/dms/page.ts` (`findDmsPage`, `dmsRowAt`).
+- Liste tenue à jour par le canal `dms-list:<uid>` tant que la page est affichée ([README](README.md#temps-réel)) : INSERT de `chat_messages` filtrés sur `recipient_id=eq.<uid>`, donc **les messages reçus seulement** (capture du 29/09). Sinon la page ne relit sa liste qu'à la fermeture de sa conversation : une conversation ouverte par le script avec un ami absent de la liste n'y entre pas d'elle-même après le premier message.
+- Conversations gardées dans l'état de la page telles que `GET /api/chat` les donne (`peer_id`, `peer_username`, `peer_avatar_url`, cadrage, `last_message`, `last_message_at`, `unread_count`) ; état reconnu à son contenu (liste vide : introuvable). Son code n'a pas été relu (la page exige une session).
+- Lecture : `src/site/dms/page.ts` (`findDmsPage` : lignes du site seulement, la ligne du chat de guilde a le même balisage ; `loading` : la roue ; `dmsRowAt`) ; état : `src/site/dms/state.ts` (`addDmsConversation`).
 
 ## Conversation
 
@@ -48,7 +50,7 @@ _Relevé : code du site du 03/10 (pages qui la rendent ; son propre code n'a pas
 - Composant `{ peer, currentUserId, onClose }`, export par défaut de son module (`284911`), rendu en portail dans `body`. `peer` : `{ id, username, avatar_url, avatar_pos_x, avatar_pos_y }` (la page Amis le construit ainsi ; /dms depuis la ligne de `GET /api/chat`). `onClose` : la page le retire (et /dms relit sa liste).
 - Importé directement par /dms (`l=e.i(284911)`, rendu `(0,t.jsx)(l.default,{peer:$,currentUserId:T,onClose:U})`), la page Amis et la guilde ; le profil ne l'a pas.
 - /dms n'a pas la fenêtre d'échange (code chargé, captures du 30/09 : /dms, page Amis et /trades ont des morceaux en commun, mais celui de la fenêtre d'échange n'est que dans les deux derniers).
-- Ouverte par le script (profil d'un ami) : module reconnu à son usage dans une page qui la rend, page Amis préchargée par le routeur du site si besoin ([README](README.md#stack)), rendu dans une racine React à nous sous les contextes de la page. `currentUserId` : le joueur de la session (`supabaseUserId`).
+- Ouverte par le script (profil d'un ami ; « Nouveau message » de /dms, où la page a déjà son code) : module reconnu à son usage dans une page qui la rend, page Amis préchargée par le routeur du site si besoin ([README](README.md#stack)), rendu dans une racine React à nous sous les contextes de la page. `currentUserId` : le joueur de la session (`supabaseUserId`).
 - Lecture : `src/site/dms/open.ts` (`openChatWindow`, `locateChatWindow`) ; interlocuteur d'une conversation affichée : `readChatPeer` (`src/site/dms/chat.ts`, props `peer`).
 
 ## Messages
@@ -75,4 +77,4 @@ div.flex-1.overflow-y-auto (liste)
 
 ## Dans le script
 
-`dms-layout` (conversation posée à droite de la liste), `dms-trade` (« Échanger » dans l'en-tête de la conversation), `dms-groups` (messages groupés), `guild-chat` (conversation de guilde épinglée, `GUILD_CHAT_CLASS`), `player-links` (pseudo et photos en liens). Détail : section « Messages » de [features.md](../features.md).
+`dms-layout` (conversation posée à droite de la liste), `dms-new-message` (« Nouveau message » : écrire à un ami, même sans conversation), `dms-trade` (« Échanger » dans l'en-tête de la conversation), `dms-groups` (messages groupés), `guild-chat` (conversation de guilde épinglée, `GUILD_CHAT_CLASS`), `player-links` (pseudo et photos en liens). Détail : section « Messages » de [features.md](../features.md).

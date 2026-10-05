@@ -12,7 +12,11 @@ export interface IdbStore {
   /** Plusieurs d'un coup, dans l'ordre de `ids` (`undefined` : absent), en une transaction. */
   getMany(ids: readonly string[]): Promise<unknown[]>;
   put<T extends { readonly id: string }>(value: T): Promise<void>;
+  /** Plusieurs d'un coup, en une transaction. */
+  putMany<T extends { readonly id: string }>(values: readonly T[]): Promise<void>;
   delete(id: string): Promise<void>;
+  /** Plusieurs d'un coup, en une transaction. */
+  deleteMany(ids: readonly string[]): Promise<void>;
   values(): Promise<unknown[]>;
   clear(): Promise<void>;
 }
@@ -104,6 +108,23 @@ export function idbStore(options: IdbStoreOptions): IdbStore {
 
   const nothing = () => undefined;
 
+  /** Une transaction d'écriture pour toute la série ; base indisponible : la copie en mémoire seule. */
+  async function writeMany(action: (objects: IDBObjectStore) => void): Promise<void> {
+    const db = await open();
+    if (!db) return;
+    await new Promise<void>((resolve) => {
+      try {
+        const transaction = db.transaction(store, 'readwrite');
+        action(transaction.objectStore(store));
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => resolve();
+        transaction.onabort = () => resolve();
+      } catch {
+        resolve();
+      }
+    });
+  }
+
   return {
     get: (id) => run<unknown>('readonly', (objects) => objects.get(id), () => memory.get(id)),
     async getMany(ids) {
@@ -133,9 +154,23 @@ export function idbStore(options: IdbStoreOptions): IdbStore {
       memory.set(value.id, value);
       await run('readwrite', (objects) => objects.put(value), nothing);
     },
+    async putMany(values) {
+      if (values.length === 0) return;
+      for (const value of values) memory.set(value.id, value);
+      await writeMany((objects) => {
+        for (const value of values) objects.put(value);
+      });
+    },
     async delete(id) {
       memory.delete(id);
       await run('readwrite', (objects) => objects.delete(id), nothing);
+    },
+    async deleteMany(ids) {
+      if (ids.length === 0) return;
+      for (const id of ids) memory.delete(id);
+      await writeMany((objects) => {
+        for (const id of ids) objects.delete(id);
+      });
     },
     values: () => run<unknown[]>('readonly', (objects) => objects.getAll(), () => [...memory.values()]),
     async clear() {

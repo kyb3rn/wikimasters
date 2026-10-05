@@ -61,7 +61,9 @@ export function rateAt(record: RateRecord, now: number): SalesRate {
   return record.minute === minute ? { count: record.count, blocked: record.blocked, resetsAt } : { count: 0, blocked: false, resetsAt };
 }
 
-const store = jsonStore('wm-sales-rate-v1', EMPTY, parseRecord);
+/** Compteur commun aux onglets (localStorage). */
+export const SALES_RATE_KEY = 'wm-sales-rate-v1';
+const store = jsonStore(SALES_RATE_KEY, EMPTY, parseRecord);
 const changes = createListeners(createLogger('marché'));
 let tracking = false;
 

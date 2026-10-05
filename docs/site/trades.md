@@ -27,7 +27,7 @@ _Relevé : code du site, 30/09._
 - À l'ouverture, `GET /api/friends` : l'autre joueur de chaque amitié acceptée. Réponse en erreur ou échec réseau : liste vide, comme sans ami (« Aucun ami pour le moment. »).
 - Photo floutée selon le réglage des images sensibles (`blurredAvatarUrls` du site).
 - Clic sur une ligne : `onSelect(ami)`, la page ferme la fenêtre et ouvre « Échanger avec … ». Pas d'Échap.
-- Lecture : `src/site/trades/friend-picker.ts` (`findFriendPicker`, `acceptedFriends`, `friendshipDates`).
+- Lecture : `src/site/trades/friend-picker.ts` (`findFriendPicker`, `acceptedFriends`) ; dates des amitiés : `friendshipDates` (`src/site/api/friends.ts`).
 
 ## Fenêtre d'échange
 
@@ -86,6 +86,15 @@ _Relevé : code du site, 02/10 et 03/10._
 - Ouverte par le script (profil d'un ami, conversation de /dms) : React et react-dom/client de la page trouvés parmi ses modules, composant par son module s'il est déjà inscrit, sinon par le chargeur de l'enveloppe, sinon page Amis préchargée par le routeur du site ([README](README.md#stack)) ; rendu dans une racine React à nous, sous les contextes de l'arbre de la page (valeurs au moment de l'ouverture). Les fonctionnalités de la fenêtre (`routes: 'all'`) s'y appliquent comme ailleurs.
 - Lecture : `src/site/trades/open.ts` (`openTradeComposer`, `locateTradeComposer`).
 
+## « Détail de l'échange »
+
+_Relevé : capture du 29/09 (à refaire avant d'y toucher)._
+
+- Ouverte depuis /trades et la page Amis. Modale « en-tête en barre » `max-w-4xl max-h-[90vh]` ([README](README.md#modales)) : `h2` « Détail de l'échange », « avec <ami> » (accent), croix.
+- Deux colonnes `div.flex-1.space-y-3` séparées par lucide `arrow-left-right` : « <ami> offre » / « En échange de » (ou l'inverse), chacune avec la pastille ambre « n wb » s'il y en a, puis les faces `sm` des cartes.
+- Lecture : `src/site/trades/detail.ts` (`findTradeDetail`).
+- Données : l'échange tel que `GET /api/trades` le rend ([api.md](../api.md#formes-des-données)). **Aucune étiquette** : les éléments n'en ont pas (exemplaire `user_card_id`, carte, valeurs figées, `offered_by`), les faces n'en montrent donc pas, alors que la fenêtre d'échange les affiche des deux côtés (les miennes par `/api/my-collection`, celles de l'ami par `/api/profile/<ami>/collection`).
+
 ## Dans le script
 
-`trade-filters`, `trade-wikibidous`, `trade-cards-error`, `trade-summary`, `trade-selection`, `trade-friend-picker`, `trades-tab-line`, `trades-card-display`, `player-links` (pseudo de l'ami dans le titre). Détail : section « Échanges » de [features.md](../features.md).
+`trade-filters`, `trade-wikibidous`, `trade-cards-error`, `trade-summary`, `trade-selection`, `trade-friend-picker`, `trades-tab-line`, `trades-card-display`, `player-links` (pseudo de l'ami dans le titre de la fenêtre d'échange et sous celui du détail d'un échange). Détail : section « Échanges » de [features.md](../features.md).

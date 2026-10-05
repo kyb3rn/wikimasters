@@ -12,10 +12,3 @@ export function GainBadge({ gain, color }: { readonly gain: number; readonly col
     </span>
   );
 }
-
-export const DEAL_RING = 'wm-deal-ring';
-
-/** Cadre de la couleur de la bonne affaire autour de la vignette (carte et appendice) ; en tirets : estimation peu sûre. */
-export function DealRing({ color, dashed }: { readonly color: string; readonly dashed: boolean }) {
-  return <span class={DEAL_RING} style={{ borderColor: color, borderStyle: dashed ? 'dashed' : 'solid' }} aria-hidden="true" />;
-}

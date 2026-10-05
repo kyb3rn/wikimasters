@@ -8,19 +8,16 @@ import { onServerSecond, serverNow } from '@/site/clock';
 import { findAuctionTiles, readTileAuction } from '@/site/marketplace';
 import { MARKETPLACE_ROUTE } from '@/site/routes';
 import { createSlots } from '@/ui/mount';
-import { DEAL_RING, DealRing, GainBadge } from './Deal';
+import { CardRing } from '@/ui/ring';
+import { GainBadge } from './Deal';
 import { settings } from './settings';
 import { entryValue, interestOf, valueDetail } from './value';
 
 const PRICE = 'wm-tile-price';
 
-/*
- * Bouton du prix en bas de l'appendice, sous la mise et la durée. Cadre de la bonne affaire posé comme un contour
- * décalé de 1 px autour de la vignette entière (carte et appendice, arrondis de 16 px tous les deux).
- */
+/* Bouton du prix en bas de l'appendice, sous la mise et la durée. */
 const CSS = `
 .wm-root.${PRICE} { order: 1; align-self: stretch; margin-top: 8px; }
-.${DEAL_RING} { position: absolute; inset: -3px; z-index: 2; border: 2px solid; border-radius: 19px; pointer-events: none; }
 `;
 
 /**
@@ -33,7 +30,7 @@ export const marketplacePrices: Feature = {
   id: 'marketplace-prices',
   name: 'Prix moyen',
   description:
-    "Revente estimée d'après les meilleures ventes récentes de la carte dans sa rareté, et leur nombre. Un clic charge le prix ou l'actualise, puis ouvre l'historique des ventes.",
+    "Revente estimée d'après les meilleures ventes récentes de la carte dans sa rareté, et leur nombre. Un clic charge le prix ou l'actualise, puis ouvre l'historique du marché.",
   toggleLabel: 'Afficher le prix moyen des annonces',
   category: 'Marché',
   routes: [MARKETPLACE_ROUTE],
@@ -73,7 +70,8 @@ export const marketplacePrices: Feature = {
         if (!value || !interest || !color) continue;
         marked.add(tile);
         if (settings.get('highlight')) {
-          rings.render(tile, h(DealRing, { color, dashed: value.unsure }), { parent: tile, inline: true });
+          // Cadre autour de la vignette entière (carte et appendice, arrondis de 16 px tous les deux).
+          rings.render(tile, h(CardRing, { color, dashed: value.unsure }), { parent: tile, inline: true });
         } else rings.clear(tile);
         if (settings.get('gain') && face) {
           badges.render(tile, h(GainBadge, { gain: interest.gain, color }), { parent: face, inline: true });

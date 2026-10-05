@@ -74,6 +74,48 @@ export function friendOf(friendship: Friendship, me: string): { readonly id: unk
     : { id: friendship.requester_id, player: friendship.requester };
 }
 
+/** Amis de `me` : l'autre joueur de chaque amitié acceptée. */
+export function friendPlayers(friendships: readonly Friendship[], me: string): Player[] {
+  return friendships.flatMap((friendship) => {
+    const player = friendship.status === 'accepted' ? parsePlayer(friendOf(friendship, me).player) : undefined;
+    return player ? [player] : [];
+  });
+}
+
+/** Date d'une amitié (`created_at`, en ms), si elle est lisible. */
+function friendshipTime(friendship: Friendship): number | undefined {
+  const time = typeof friendship.created_at === 'string' ? Date.parse(friendship.created_at) : NaN;
+  return Number.isFinite(time) ? time : undefined;
+}
+
+/** Date de chaque amitié acceptée de `me` (`created_at`, en ms), par id de l'ami. */
+export function friendshipDates(friendships: readonly Friendship[], me: string): Map<string, number> {
+  const dates = new Map<string, number>();
+  for (const friendship of friendships) {
+    const { id } = friendOf(friendship, me);
+    const time = friendshipTime(friendship);
+    if (friendship.status === 'accepted' && typeof id === 'string' && time !== undefined) dates.set(id, time);
+  }
+  return dates;
+}
+
+/**
+ * Date de chaque amitié acceptée (`created_at`, en ms), par pseudo des deux joueurs joints : pas besoin de savoir
+ * qui est le joueur connecté (son pseudo y est aussi, avec une date sans intérêt).
+ */
+export function friendshipDatesByName(friendships: readonly Friendship[]): Map<string, number> {
+  const dates = new Map<string, number>();
+  for (const friendship of friendships) {
+    const time = friendshipTime(friendship);
+    if (friendship.status !== 'accepted' || time === undefined) continue;
+    for (const raw of [friendship.requester, friendship.addressee]) {
+      const player = parsePlayer(raw);
+      if (player) dates.set(player.username, time);
+    }
+  }
+  return dates;
+}
+
 /** Amitiés du joueur, amis et demandes (`GET /api/friends`, comme le site) ; réponse en erreur ou illisible : `SiteApiError`. */
 export function fetchFriendships(): Promise<Friendship[]> {
   return siteRequest('/api/friends', {}, parseFriendsList);

@@ -20,7 +20,9 @@ const parseMe = (raw: unknown): Me | undefined => {
   return player?.username ? { id: player.id, username: player.username } : undefined;
 };
 
-const store = jsonStore<Me | undefined>('wm-me-v1', undefined, parseMe);
+/** Joueur connecté retenu (localStorage). */
+export const ME_KEY = 'wm-me-v1';
+const store = jsonStore<Me | undefined>(ME_KEY, undefined, parseMe);
 const changes = createListeners(createLogger('joueur'));
 let tracking = false;
 

@@ -13,13 +13,15 @@ const heading = { fontFamily: 'var(--font-heading)' };
 export interface ProOfferProps {
   readonly card: CardRef;
   readonly onClose: () => void;
+  /** Fermeture avant l'abonnement du site (« Débloquer »), si elle doit aller plus loin que l'offre. */
+  readonly onUnlock?: (() => void) | undefined;
 }
 
 /**
  * Sans PRO : l'offre que le site montre à la place de sa vue du marché (textes et encadré repris de son code du
  * 30/09/2026), dans notre modale. « Débloquer » la ferme et ouvre l'abonnement du site, comme le sien.
  */
-export function ProOffer({ card, onClose }: ProOfferProps) {
+export function ProOffer({ card, onClose, onUnlock = onClose }: ProOfferProps) {
   return (
     <Modal
       title="Vue du marché"
@@ -70,7 +72,7 @@ export function ProOffer({ card, onClose }: ProOfferProps) {
               type="button"
               class={buttonClass('wide', { tone: 'pro', fill: 'solid' })}
               onClick={() => {
-                onClose();
+                onUnlock();
                 openProUpgrade();
               }}
             >

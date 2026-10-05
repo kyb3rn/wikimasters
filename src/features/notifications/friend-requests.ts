@@ -115,10 +115,10 @@ export function withSiteAction(requests: FriendRequests, action: FriendshipActio
   }
 }
 
-const KEY = 'wm-friend-requests-v1';
+export const FRIEND_REQUESTS_KEY = 'wm-friend-requests-v1';
 
 /** Partagées entre les onglets : une demande arrive dans chacun, la réponse donnée dans l'un vaut pour tous. */
-const store = /* @__PURE__ */ jsonStore<FriendRequests>(KEY, {}, parseFriendRequests);
+const store = /* @__PURE__ */ jsonStore<FriendRequests>(FRIEND_REQUESTS_KEY, {}, parseFriendRequests);
 
 export function friendRequests(): FriendRequests {
   return store.get();
@@ -131,5 +131,5 @@ export function updateFriendRequests(change: (requests: FriendRequests) => Frien
 }
 
 export function onFriendRequestsElsewhere(listener: () => void, options: { signal: AbortSignal }): void {
-  onStorageChange(KEY, listener, options);
+  onStorageChange(FRIEND_REQUESTS_KEY, listener, options);
 }

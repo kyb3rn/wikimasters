@@ -5,7 +5,8 @@ import { hydrationGate } from '@/core/react';
 import { matchRoute } from '@/core/router';
 import type { Logger } from '@/core/log';
 import type { Feature, FeatureContext } from '@/core/runtime';
-import { filterLineCss } from '@/services/list-search';
+import { storedValueData } from '@/core/data';
+import { FILTERS_TAB, filterLineCss } from '@/services/list-search';
 import { OWN_TIME } from '@/site/marketplace';
 import { findSideNav, SIDE_NAV_DOT, sideNavHead, sideNavLink } from '@/site/nav';
 import { COLLECTION_ROUTE, RESALE_ROUTE } from '@/site/routes';
@@ -13,6 +14,7 @@ import { createSlot, type UiSlot } from '@/ui/mount';
 import { alpha, tokens } from '@/ui/theme';
 import { ResaleLink } from './ResaleLink';
 import { RESALE_CLASS, ResalePage } from './ResalePage';
+import { filtersDetails, RESALE_FILTERS_KEY, savedFilters } from './list';
 import { resaleSettings } from './settings';
 
 const PAGE = 'wm-resale-page';
@@ -38,7 +40,7 @@ ${filterLineCss({ area, line, field, sort }, { sortBasis: '10rem', sortMin: '8.5
 .${price} { flex: 1 1 0%; min-width: 0; }
 .wm-resale-wished { display: flex; }
 .${section} { display: flex; flex-direction: column; gap: 12px; }
-.${sale} > a { display: block; }
+.${sale} > a { display: block; position: relative; }
 .${sale} > .${prices} { margin-top: 6px; }
 .${sale} > a + div { margin-top: 8px; }
 /* Temps restant précis au survol de la carte, comme sur les vignettes du marché. */
@@ -106,6 +108,17 @@ export const resale: Feature = {
   routes: 'all',
   defaultOff: true,
   settings: resaleSettings,
+  data: [
+    /* @__PURE__ */ storedValueData({
+      id: 'resale-filters',
+      name: 'Revente',
+      tab: FILTERS_TAB,
+      description: "Les filtres de la dernière recherche, remis à l'arrivée sur la page.",
+      key: RESALE_FILTERS_KEY,
+      store: savedFilters,
+      describe: (filters) => ({ details: filtersDetails(filters) }),
+    }),
+  ],
   async mount(ctx) {
     const { signal } = ctx;
     const styleFor = (route: string) => ctx.style(isResale(route) ? pageCss() : '', 'page');

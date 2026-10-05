@@ -2,6 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { siteErrorText } from '@/site/api';
 import { RARITY_NAMES, rarityBadgeStyle } from '@/site/rarity';
 import { buttonClass } from '@/ui/button';
+import { cx } from '@/ui/cx';
 import { Icon } from '@/ui/icons';
 import { Modal } from '@/ui/modal';
 import { siteClass } from '@/ui/site';
@@ -9,8 +10,9 @@ import { toast } from '@/ui/toast';
 import type { MarketEntry } from './cache';
 import { ageText } from './format';
 import type { CardRef } from '@/site/cards';
-import { fetchMarket, onMarketChange } from './market';
+import { fetchMarket, marketNeedsPro, onMarketChange } from './market';
 import { MarketView } from './MarketView';
+import { ProBadge, ProOffer } from './ProOffer';
 import { marketSettings } from './settings';
 import { SiteMarketModal } from './SiteMarketModal';
 
@@ -32,8 +34,8 @@ function Subtitle({ entry }: { entry: MarketEntry }) {
 }
 
 /**
- * Historique des ventes d'une carte, en modale ; « Actualiser » redemande les ventes au site, le bouton d'à côté
- * ouvre par-dessus la vue du marché du site, recopiée, sur les mêmes ventes.
+ * Historique du marché d'une carte, en modale ; « Actualiser » redemande les ventes au site (sans PRO : badge PRO,
+ * l'offre par-dessus), le bouton d'à côté ouvre par-dessus la vue du marché du site, recopiée, sur les mêmes ventes.
  */
 export function MarketModal({ card, entry: initial, onClose }: MarketModalProps) {
   const [entry, setEntry] = useState(initial);
@@ -41,6 +43,8 @@ export function MarketModal({ card, entry: initial, onClose }: MarketModalProps)
   const [refreshing, setRefreshing] = useState(false);
   const [showAverages, setShowAverages] = useState(() => marketSettings.get('movingAverages'));
   const [siteView, setSiteView] = useState(false);
+  const [offer, setOffer] = useState(false);
+  const needsPro = marketNeedsPro();
 
   // Ventes rechargées ailleurs (le site, un autre bouton) : affichées aussitôt.
   useEffect(() => {
@@ -50,6 +54,10 @@ export function MarketModal({ card, entry: initial, onClose }: MarketModalProps)
   }, [card.id]);
 
   const refresh = () => {
+    if (marketNeedsPro()) {
+      setOffer(true);
+      return;
+    }
     setRefreshing(true);
     fetchMarket(card)
       .then(setEntry)
@@ -84,14 +92,15 @@ export function MarketModal({ card, entry: initial, onClose }: MarketModalProps)
             </button>
             <button
               type="button"
-              class={buttonClass('standard')}
+              class={cx(buttonClass('standard'), needsPro && siteClass.proBadgeHost)}
               disabled={refreshing}
               aria-busy={refreshing}
-              title="Recharger depuis le site"
+              title={needsPro ? 'Recharger depuis le site (PRO)' : 'Recharger depuis le site'}
               onClick={refresh}
             >
               <Icon name="reload" busy={refreshing} size={16} />
               Actualiser
+              {needsPro && <ProBadge />}
             </button>
           </>
         }
@@ -109,6 +118,7 @@ export function MarketModal({ card, entry: initial, onClose }: MarketModalProps)
         />
       </Modal>
       {siteView && <SiteMarketModal card={card} entry={entry} onClose={() => setSiteView(false)} />}
+      {offer && <ProOffer card={card} onClose={() => setOffer(false)} onUnlock={onClose} />}
     </>
   );
 }

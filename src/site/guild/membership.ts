@@ -31,7 +31,9 @@ const parseStored = (raw: unknown): Stored | undefined => {
   return guild === undefined ? undefined : { userId: raw.userId, guild, checkedAt: raw.checkedAt };
 };
 
-const store = jsonStore<Stored | undefined>('wm-guild-v1', undefined, parseStored);
+/** Guilde retenue (localStorage). */
+export const GUILD_KEY = 'wm-guild-v1';
+const store = jsonStore<Stored | undefined>(GUILD_KEY, undefined, parseStored);
 let tracking = false;
 let pending: Promise<MyGuild | null | undefined> | undefined;
 

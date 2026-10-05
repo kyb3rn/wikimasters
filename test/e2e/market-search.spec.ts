@@ -348,7 +348,7 @@ test('prix moyen aussi sous nos vignettes : chargé au clic, gain et cadre comme
   await button.click();
   // Mise de départ 101 pour une moyenne de 500 en SR : gain estimé sur la carte.
   await expect(button).toHaveText(/^\d+\(7\)$/);
-  await expect(first.locator('.wm-deal-ring')).toHaveCount(1);
+  await expect(first.locator('.wm-card-ring')).toHaveCount(1);
   await expect(first.getByText(/^\+\d+$/)).toBeVisible();
   expect(requests).toEqual(['/api/marketplace/cards/c1/sales']);
   // Le clic n'a pas ouvert l'annonce.

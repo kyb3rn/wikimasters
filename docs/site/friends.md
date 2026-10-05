@@ -28,7 +28,7 @@ main › div.flex-1.p-4.md:p-6.space-y-6
 - « Rechercher un joueur » : voir [Fenêtre « Rechercher un joueur »](#fenêtre--rechercher-un-joueur-).
 - Sans amis : ni recherche ni lignes, le cadre « Vous n'avez pas encore d'amis. » et son bouton « Rechercher des joueurs » ; les boutons de l'en-tête restent les seuls « Inviter » (capture du 01/10 : ils passent sous le cadre du solde).
 - Demandes reçues : lignes `bg-[var(--color-accent)]/5`, trait `/20`. « Tout accepter » dès deux demandes.
-- Amis : le champ filtre sur place ; textes des boutons `hidden sm:inline`. Les fenêtres Message et Échanger d'une ligne sont rendues juste après elle, en `fixed`. **Aucun moyen d'y retirer un ami** (seulement depuis son profil).
+- Amis : dans l'ordre de la réponse de `GET /api/friends`, ni par nom ni par date (captures du 29 et du 30/09) ; aucun tri. Le champ filtre sur place ; textes des boutons `hidden sm:inline`. Les fenêtres Message et Échanger d'une ligne sont rendues juste après elle, en `fixed`. **Aucun moyen d'y retirer un ami** (seulement depuis son profil).
 - Demandes envoyées : « Annuler » en petit texte gris.
 - Lecture : `src/site/friends/page.ts` (`findFriendsPage` ; boutons reconnus à leur icône).
 

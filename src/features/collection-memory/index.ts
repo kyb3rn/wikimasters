@@ -1,5 +1,5 @@
 import type { Feature } from '@/core/runtime';
-import { applyRarities, applySearch, savedFiltersStore, trackListMemory, type ApplyResult } from '@/services/list-search';
+import { applyRarities, applySearch, savedFiltersData, savedFiltersStore, trackListMemory, type ApplyResult } from '@/services/list-search';
 import {
   collectionList,
   findCollectionFilters,
@@ -12,7 +12,8 @@ import { findListbox } from '@/site/listbox';
 import { findRarityPills } from '@/site/rarity-pills';
 import { COLLECTION_ROUTE } from '@/site/routes';
 
-const savedFilters = savedFiltersStore<CollectionQuery>('wm-collection-filters-v1', { sort: 'text', tag: 'string', search: 'string', rarities: 'string' });
+const FILTERS_KEY = 'wm-collection-filters-v1';
+const savedFilters = savedFiltersStore<CollectionQuery>(FILTERS_KEY, { sort: 'text', tag: 'string', search: 'string', rarities: 'string' });
 
 /** Remet les contrôles du site aux filtres retenus : listes (par leur `onChange`), pastilles, champ de recherche. */
 function applyFilters(target: CollectionQuery, signal: AbortSignal): ApplyResult {
@@ -52,6 +53,7 @@ export const collectionMemory: Feature = {
   routes: [COLLECTION_ROUTE],
   required: true,
   hidden: true,
+  data: [savedFiltersData({ id: 'collection-filters', name: 'Collection', key: FILTERS_KEY, store: savedFilters })],
   mount({ signal, log }) {
     trackListMemory({
       source: collectionList,

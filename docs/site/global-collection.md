@@ -41,7 +41,7 @@ _Relevé : code du site, 01/10._
 
 - Chaque face de la grille (la face est la case, clé React = id de la carte) a, dans l'emplacement du bas ([README](README.md#face-de-carte)), `div.flex.w-fit.max-w-full.flex-col.gap-0.5` › « Possédée » (`ownedCardIds`, `bg-emerald-600/90`, `title="Dans ta collection"`), puis les amis qui l'ont (`friendOwners`) : `span.inline-flex…rounded-full.bg-sky-300/65.text-[9px].text-black/80`, lucide `users` (`size-2.5 shrink-0 opacity-90`), « pseudo +n » (le premier ami, puis le nombre des autres), `title` = tous leurs pseudos séparés par « , ».
 - Clic sur la face : modale de carte en vue catalogue (`catalogView`, `friendUsername` du premier ami pour « Proposer un échange »), **sans « Possédée »** (le site ne lui passe pas `ownedCardIds`).
-- Lecture : `src/site/global-collection/owners.ts` (`findFriendOwnersPills`, `readFriendOwners` : au clic, `readCatalogOwnedCards`).
+- Lecture : `src/site/global-collection/owners.ts` (`findFriendOwnersPills`, `readFriendOwners` : au clic, `readCatalogOwnedCards`) ; grille et ses faces : `src/site/global-collection/grid.ts` (`findGlobalCollectionGrid`).
 
 ## Pagination
 
@@ -62,4 +62,4 @@ _Relevé : captures du 29/09, code du 30/09._
 
 ## Dans le script
 
-`global-collection-filters`, `global-collection-search`, `global-collection-search-delay`, `global-collection-pagination`, `global-collection-memory`, `global-collection-card-display` ; `card-modal` (vue catalogue). Détail : section « Toutes les cartes » de [features.md](../features.md).
+`global-collection-filters`, `global-collection-search`, `global-collection-search-delay`, `global-collection-pagination`, `global-collection-memory`, `global-collection-friends`, `global-collection-prices`, `global-collection-card-display` ; `card-modal` (vue catalogue). Détail : section « Toutes les cartes » de [features.md](../features.md).

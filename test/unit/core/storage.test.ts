@@ -20,6 +20,19 @@ describe('jsonStore', () => {
     expect(store.get()).toBe(4);
   });
 
+  it('remove efface la valeur ; bytes donne sa taille, 0 sans valeur', () => {
+    const storage = fakeStorage();
+    vi.stubGlobal('localStorage', storage);
+    const store = jsonStore('wm-test-v1', 0, parseCount);
+    expect(store.bytes()).toBe(0);
+    store.set(1234);
+    expect(store.bytes()).toBe(4);
+    store.remove();
+    expect(storage.data.has('wm-test-v1')).toBe(false);
+    expect(store.get()).toBe(0);
+    expect(store.bytes()).toBe(0);
+  });
+
   it('retombe sur la valeur de repli si la valeur relue est invalide', () => {
     vi.stubGlobal('localStorage', fakeStorage({ a: '"texte"', b: '{pas du json' }));
     expect(jsonStore('a', 7, parseCount).get()).toBe(7);

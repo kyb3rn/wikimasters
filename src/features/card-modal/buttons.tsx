@@ -6,12 +6,12 @@ import { siteClass } from '@/ui/site';
 export interface MarketButtonProps {
   /** Ventes en cours de chargement. */
   readonly busy: boolean;
-  /** Compte sans PRO : badge PRO du site, le clic ouvre son offre. */
+  /** Compte sans PRO et rien en cache : badge PRO du site, le clic ouvre son offre. */
   readonly needsPro: boolean;
   readonly onClick: () => void;
 }
 
-/** « Marché », au centre des actions (gris en contour) : ouvre l'historique des ventes de la carte, par-dessus la modale. */
+/** « Marché », au centre des actions (gris en contour) : ouvre l'historique du marché de la carte, par-dessus la modale. */
 export function MarketButton({ busy, needsPro, onClick }: MarketButtonProps) {
   return (
     <button
@@ -19,7 +19,7 @@ export function MarketButton({ busy, needsPro, onClick }: MarketButtonProps) {
       class={`${buttonClass('window')}${needsPro ? ` ${siteClass.proBadgeHost}` : ''} wm-market-button`}
       disabled={busy}
       aria-busy={busy}
-      title={needsPro ? 'Historique des ventes de la carte (PRO)' : 'Historique des ventes de la carte'}
+      title={needsPro ? 'Historique du marché de la carte (PRO)' : 'Historique du marché de la carte'}
       onClick={onClick}
     >
       <Icon name="market" busy={busy} size={16} />

@@ -24,6 +24,9 @@ const HTML = sitePage(
     <div class="space-y-1 animate-fade-in-up rows" id="list"></div>
   </div>`,
   `window.log = [];
+  // Page reprise par React (hydratée) : un fiber sur ses nœuds ; avec holdHydration, telle que le serveur l'envoie.
+  window.hydrate = () => document.querySelectorAll('#page, #page > div').forEach((node) => kit.fiber(node));
+  if (!window.holdHydration) window.hydrate();
   const NAMES = ${JSON.stringify(NAMES)};
   window.renderList = () => {
     document.getElementById('list').innerHTML = NAMES.map((name) =>
@@ -143,6 +146,18 @@ test('/dms en deux colonnes : la conversation du site à droite, une ligne passe
   await expect(chat.getByRole('button', { name: 'Fermer' })).toBeVisible();
   await chat.getByRole('button', { name: 'Fermer' }).click();
   await expect(chat).toHaveCount(0);
+});
+
+test('page rendue par le serveur : le cadre de droite seulement une fois la page reprise par React (sinon erreur 418, page redessinée)', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 800 });
+  await page.addInitScript(() => Reflect.set(window, 'holdHydration', true));
+  await openSite(page, '/dms', { html: HTML });
+  await expect(page.locator('#page')).toHaveClass(/wm-dms-page/);
+  await letTimePass(page, 200);
+  await expect(page.locator('#page .wm-root')).toHaveCount(0);
+
+  await page.evaluate(() => (window as unknown as { hydrate: () => void }).hydrate());
+  await expect(page.locator('.wm-dms-panel')).toContainText('Choisissez une conversation.');
 });
 
 test('/dms sur un grand écran : les deux colonnes centrées, 1500 px au plus', async ({ page }) => {

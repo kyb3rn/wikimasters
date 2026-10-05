@@ -16,21 +16,31 @@ export interface FakeFriendship {
   readonly addressee_id: string;
   readonly requester?: { readonly id: string; readonly username: string };
   readonly addressee?: { readonly id: string; readonly username: string };
+  readonly created_at?: string;
 }
 
-const friend = (id: string, userId: string, username: string): FakeFriendship => ({
+const friend = (id: string, userId: string, username: string, created: string): FakeFriendship => ({
   id,
   status: 'accepted',
   requester_id: 'me',
   addressee_id: userId,
   addressee: { id: userId, username },
+  created_at: created,
 });
 
+// Ordre du site : celui de la réponse, ni par nom ni par date (comme sur le site).
 const FRIENDSHIPS: readonly FakeFriendship[] = [
-  friend('f1', 'u1', 'aelonka'),
-  { id: 'f2', status: 'accepted', requester_id: 'u2', addressee_id: 'me', requester: { id: 'u2', username: 'Poloz30' } },
-  friend('f3', 'u3', 'Norband'),
-  friend('f4', 'u4', 'AlakazM'),
+  friend('f1', 'u1', 'aelonka', '2026-09-19T14:18:35.515185+00:00'),
+  {
+    id: 'f2',
+    status: 'accepted',
+    requester_id: 'u2',
+    addressee_id: 'me',
+    requester: { id: 'u2', username: 'Poloz30' },
+    created_at: '2026-09-28T22:09:27.061944+00:00',
+  },
+  friend('f3', 'u3', 'Norband', '2026-09-21T01:01:54.551015+00:00'),
+  friend('f4', 'u4', 'AlakazM', '2026-09-28T22:00:44.547737+00:00'),
   { id: 's1', status: 'pending', requester_id: 'me', addressee_id: 'u9', addressee: { id: 'u9', username: 'Goatman!' } },
   { id: 's2', status: 'pending', requester_id: 'me', addressee_id: 'u10', addressee: { id: 'u10', username: 'Igor39360' } },
   { id: 's3', status: 'pending', requester_id: 'me', addressee_id: 'u11', addressee: { id: 'u11', username: 'h3art4lxx' } },

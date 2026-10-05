@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   durationLabel,
   lastInRarity,
+  mergeCardSales,
   parseCardSales,
   storedCardSales,
   withoutRecord,
@@ -78,5 +79,29 @@ describe('historique des mises en vente', () => {
 
   it('écrit la durée comme le site', () => {
     expect([10, 30, 60, 180, 720, 1440, 2880].map(durationLabel)).toEqual(['10 min', '30 min', '1 h', '3 h', '12 h', '24 h', '2 j']);
+  });
+});
+
+describe('fusion de l’historique d’une carte', () => {
+  const sales = (title: string, ...records: SaleRecord[]) => ({ cardId: 'c1', title, records });
+
+  it('absente ici : ajoutée telle quelle', () => {
+    const incoming = sales('Tour Eiffel', record(1));
+    expect(mergeCardSales(undefined, incoming)).toEqual({ sales: incoming, outcome: 'added' });
+  });
+
+  it('toutes les mises en vente des deux côtés, une fois (même date ou même enchère), de la plus récente à la plus ancienne', () => {
+    const { sales: merged, outcome } = mergeCardSales(
+      sales('Tour Eiffel', record(3), record(1)),
+      sales('Tour Eiffel', record(2), record(1), record(5, { auctionId: 'a3' })),
+    );
+    expect(outcome).toBe('updated');
+    expect(merged.records.map((entry) => entry.at)).toEqual([3, 2, 1]);
+  });
+
+  it('rien de neuf : inchangée ; un titre manquant ici est repris', () => {
+    const local = sales('Tour Eiffel', record(1));
+    expect(mergeCardSales(local, sales('Autre', record(1)))).toEqual({ sales: local, outcome: 'unchanged' });
+    expect(mergeCardSales(sales('', record(1)), sales('Tour Eiffel', record(1)))).toMatchObject({ sales: { title: 'Tour Eiffel' }, outcome: 'updated' });
   });
 });

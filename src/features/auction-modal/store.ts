@@ -2,6 +2,7 @@ import { idbStore } from '@/core/idb';
 import { createListeners } from '@/core/listeners';
 import { createLogger } from '@/core/log';
 import { MARKET_DATABASE } from '@/services/market';
+import { jsonSize } from '@/core/data';
 import { parseCardSales, storedCardSales, withoutRecord, withRecord, type CardSales, type SaleRecord } from './history';
 
 /** Magasin de l'ancien script (wm-vente) : un utilisateur qui l'avait retrouve ses mises en vente. */
@@ -34,4 +35,42 @@ export function removeSaleRecord(cardId: string, at: number): Promise<void> {
 /** Mises en vente d'une carte changées dans cet onglet (nouvelle, retirée de l'historique). */
 export function onCardSalesChange(listener: (sales: CardSales) => void, options: { signal: AbortSignal }): void {
   changes.on(listener, options);
+}
+
+/** Tout l'historique, avec la taille de chaque carte ; illisibles : `invalid`. */
+export async function readAllCardSales(): Promise<{ readonly all: readonly { readonly sales: CardSales; readonly bytes: number }[]; readonly invalid: number }> {
+  const values = await store.values();
+  const all = values.flatMap((value) => {
+    const sales = parseCardSales(value);
+    return sales ? [{ sales, bytes: jsonSize(value) }] : [];
+  });
+  return { all, invalid: values.length - all.length };
+}
+
+/** Plusieurs cartes d'un coup (absentes : pas dans le résultat). */
+export async function readManyCardSales(cardIds: readonly string[]): Promise<Map<string, CardSales>> {
+  const values = await store.getMany(cardIds);
+  const found = new Map<string, CardSales>();
+  for (const value of values) {
+    const sales = parseCardSales(value);
+    if (sales) found.set(sales.cardId, sales);
+  }
+  return found;
+}
+
+/** Remplace l'historique de ces cartes (import) ; une carte sans mise en vente est retirée. */
+export async function writeManyCardSales(list: readonly CardSales[]): Promise<void> {
+  await store.putMany(list.filter((sales) => sales.records.length > 0).map(storedCardSales));
+  await store.deleteMany(list.filter((sales) => sales.records.length === 0).map((sales) => sales.cardId));
+  for (const sales of list) changes.emit(sales);
+}
+
+/** Retire tout l'historique de ces cartes. */
+export async function removeCardSales(cardIds: readonly string[]): Promise<void> {
+  await store.deleteMany(cardIds);
+  for (const cardId of cardIds) changes.emit(empty(cardId, ''));
+}
+
+export async function clearCardSales(): Promise<void> {
+  await store.clear();
 }

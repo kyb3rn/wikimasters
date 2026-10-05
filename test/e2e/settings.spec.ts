@@ -40,7 +40,7 @@ test('un engrenage juste à gauche du solde ouvre la fenêtre de paramètres', a
 
   const dialog = await openSettings(page);
   await expect(dialog).toBeVisible();
-  await expect(dialog.locator('.wm-settings-tab')).toHaveText([
+  await expect(dialog.locator('.wm-side-tab')).toHaveText([
     'Défaussage rapide',
     // Version de dev : la Revente.
     'Revente',
@@ -61,12 +61,12 @@ test('un engrenage juste à gauche du solde ouvre la fenêtre de paramètres', a
   await expect(dialog.getByRole('button', { name: 'Défaussage rapide' })).toHaveAttribute('aria-current', 'page');
   await expect(dialog.getByRole('button', { name: 'Par défaut' })).toHaveCount(0);
   // Chaque onglet a son icône (Paquets : le puzzle de la navigation du site).
-  await expect(dialog.locator('.wm-settings-tab > svg')).toHaveCount(15);
+  await expect(dialog.locator('.wm-side-tab > svg')).toHaveCount(15);
   await expect(dialog.getByRole('button', { name: 'Paquets' }).locator('svg path')).toHaveAttribute('d', /^M15\.39 4\.39/);
   // 960 × 620, colonne des catégories de 240 px.
   const panel = await rect(dialog);
   expect([Math.round(panel.width), Math.round(panel.height)]).toEqual([960, 620]);
-  expect(await dialog.locator('.wm-settings-nav').evaluate((nav) => nav.getBoundingClientRect().width)).toBe(240);
+  expect(await dialog.locator('.wm-side-nav').evaluate((nav) => nav.getBoundingClientRect().width)).toBe(240);
 
   await dialog.getByRole('button', { name: 'Paquets' }).click();
   await expect(dialog.locator('.wm-settings-heading')).toHaveText([
@@ -88,7 +88,7 @@ test('l’onglet « À propos » présente le script et sa version', async ({ pa
   await openPulls(page);
   const dialog = await openSettings(page);
 
-  const tabs = dialog.locator('.wm-settings-tab');
+  const tabs = dialog.locator('.wm-side-tab');
   await expect(tabs.last()).toHaveText('À propos');
   await tabs.last().click();
   await expect(dialog).toContainText('WikiMasters ajoute au site des outils');
@@ -99,7 +99,7 @@ test('l’onglet « À propos » présente le script et sa version', async ({ pa
 test('la fenêtre se rouvre sur le dernier onglet, même après un rechargement', async ({ page }) => {
   await openPulls(page);
   const dialog = page.getByRole('dialog', { name: 'Paramètres' });
-  const current = dialog.locator('.wm-settings-tab[aria-current="page"]');
+  const current = dialog.locator('.wm-side-tab[aria-current="page"]');
 
   await openSettings(page, 'Collection');
   await page.keyboard.press('Escape');
@@ -129,7 +129,7 @@ test('désactiver une fonctionnalité la retire tout de suite et reste mémoris�
   await toggle.click();
   await expect(toggle).toHaveAttribute('aria-checked', 'false');
   await expect(page.locator('.wm-discard-next')).toHaveCount(0);
-  expect(await stored(page)).toEqual({ features: { 'pulls-discard-next': false }, values: {} });
+  expect(await stored(page)).toEqual({ features: { 'pulls-discard-next': false }, values: {}, changedAt: expect.any(Object) });
 
   await page.reload();
   await openSettings(page, 'Paquets');
@@ -145,7 +145,7 @@ test('un réglage numérique est borné et mémorisé', async ({ page }) => {
   await field.fill('99999');
   await field.press('Enter');
   await expect(field).toHaveValue('3000');
-  expect(await stored(page)).toEqual({ features: {}, values: { 'pulls-discard-next': { delayMs: 3000 } } });
+  expect(await stored(page)).toEqual({ features: {}, values: { 'pulls-discard-next': { delayMs: 3000 } }, changedAt: expect.any(Object) });
 
   await page.reload();
   await openSettings(page, 'Paquets');
@@ -164,7 +164,7 @@ test('le champ numérique se règle avec − et +, du pas du réglage, dans ses 
   await minus.click();
   await minus.click();
   await expect(field).toHaveValue('500');
-  expect(await stored(page)).toEqual({ features: {}, values: { 'pulls-discard-next': { delayMs: 500 } } });
+  expect(await stored(page)).toEqual({ features: {}, values: { 'pulls-discard-next': { delayMs: 500 } }, changedAt: expect.any(Object) });
 
   await field.fill('0');
   await field.press('Enter');

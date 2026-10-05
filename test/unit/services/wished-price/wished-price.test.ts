@@ -5,7 +5,8 @@ const storage = fakeStorage();
 vi.stubGlobal('localStorage', storage);
 vi.stubGlobal('window', { addEventListener: vi.fn() });
 
-const { parseWishedPrices, setWishedPrice, wishedPrice, wishedPriceKey, onWishedPricesChange } = await import('@/services/wished-price');
+const { importWishedPrices, mergeWishedPrices, parseWishedPrices, removeWishedPrices, setWishedPrice, wishedPrice, wishedPriceKey, onWishedPricesChange } =
+  await import('@/services/wished-price');
 
 const eiffel = { cardId: 'c1', title: 'Tour Eiffel', rarity: 'L' as const, shiny: false };
 
@@ -43,5 +44,29 @@ describe('prix souhaité', () => {
     });
     expect(parseWishedPrices([])).toBeUndefined();
     expect(parseWishedPrices('x')).toBeUndefined();
+  });
+});
+
+describe('fusion des prix souhaités', () => {
+  const price = (value: number, at: number) => ({ price: value, at, title: 'Tour Eiffel' });
+
+  it('le plus récemment fixé l’emporte ; absent ici, ajouté', () => {
+    const { result, outcomes } = mergeWishedPrices(
+      { 'c1:L': price(1500, 10), 'c1:UR': price(300, 50) },
+      { 'c1:L': price(1800, 20), 'c1:UR': price(250, 40), 'c2:R': price(20, 5) },
+    );
+    expect(result).toEqual({ 'c1:L': price(1800, 20), 'c1:UR': price(300, 50), 'c2:R': price(20, 5) });
+    expect(outcomes).toEqual(['updated', 'unchanged', 'added']);
+  });
+
+  it('import : comptes, entrées illisibles écartées, puis écrit ; retrait par clé', () => {
+    setWishedPrice(eiffel, undefined);
+    const file = { 'c1:L': price(1200, 1), 'c1:UR': { price: -3 } };
+    expect(importWishedPrices(file, false)).toEqual({ added: 1, updated: 0, unchanged: 0, invalid: 1 });
+    expect(wishedPrice(eiffel)).toBeUndefined();
+    importWishedPrices(file, true);
+    expect(wishedPrice(eiffel)?.price).toBe(1200);
+    removeWishedPrices(['c1:L']);
+    expect(wishedPrice(eiffel)).toBeUndefined();
   });
 });

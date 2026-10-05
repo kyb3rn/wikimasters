@@ -1,4 +1,5 @@
 import { isRecord } from '@/core/guards';
+import { jsonStore } from '@/core/storage';
 import type { OwnedCopy } from '@/site/api';
 import { parseRarity, RARITIES, type Rarity } from '@/site/rarity';
 import { normalizeSearchText } from '@/site/search-text';
@@ -59,6 +60,20 @@ export function parseFilters(raw: unknown): ResaleFilters | undefined {
   // Retenus avant le sens du tri : celui du tri.
   const order = raw.order === 'asc' || raw.order === 'desc' ? raw.order : DEFAULT_ORDER[sort];
   return { search: raw.search, rarities: RARITIES.filter((rarity) => checked.has(rarity)), sort, order };
+}
+
+export const RESALE_FILTERS_KEY = 'wm-resale-filters-v1';
+/** Filtres de la dernière recherche lancée (comme la Collection : tri, raretés, recherche ; pas la page). */
+export const savedFilters = /* @__PURE__ */ jsonStore(RESALE_FILTERS_KEY, DEFAULT_FILTERS, parseFilters);
+
+/** Filtres retenus en clair (fenêtre Mémoire). */
+export function filtersDetails(filters: ResaleFilters): string[] {
+  const sort = SORT_OPTIONS.find((option) => option.value === filters.sort)?.label ?? filters.sort;
+  return [
+    `Tri : ${sort}, ${ORDER_LABELS[filters.sort][filters.order].toLowerCase()}`,
+    ...(filters.rarities.length > 0 ? [`Raretés : ${filters.rarities.join(', ')}`] : []),
+    ...(filters.search.trim() !== '' ? [`Recherche : « ${filters.search.trim()} »`] : []),
+  ];
 }
 
 function matches(copy: ResaleCard, needle: string, rarities: ReadonlySet<Rarity>): boolean {

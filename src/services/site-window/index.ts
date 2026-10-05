@@ -15,6 +15,8 @@ export interface SiteWindowButton {
   readonly busy: boolean;
   /** Ouvre la fenêtre ; rien si elle l'est déjà, ou en train de l'être. */
   readonly open: () => void;
+  /** Comme `open`, tenue quand c'est fini : vrai si la fenêtre s'est ouverte (échec en toast). */
+  readonly opening: () => Promise<boolean>;
 }
 
 export interface SiteWindowButtonOptions {
@@ -50,8 +52,8 @@ function siteWindowButton({ signal, log, onChange }: SiteWindowButtonOptions, sp
     toast.error(isChunkLoadError(error) ? NETWORK_ERROR : spec.failure, { title: spec.title });
   }
 
-  async function open(): Promise<void> {
-    if (busy || opened || signal.aborted) return;
+  async function open(): Promise<boolean> {
+    if (busy || opened || signal.aborted) return false;
     busy = true;
     onChange();
     try {
@@ -73,6 +75,7 @@ function siteWindowButton({ signal, log, onChange }: SiteWindowButtonOptions, sp
       busy = false;
       if (!signal.aborted) onChange();
     }
+    return opened !== undefined;
   }
 
   return {
@@ -80,6 +83,7 @@ function siteWindowButton({ signal, log, onChange }: SiteWindowButtonOptions, sp
       return busy;
     },
     open: () => void open(),
+    opening: open,
   };
 }
 

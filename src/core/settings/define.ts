@@ -1,4 +1,4 @@
-import { readSettings, updateSettings } from './store';
+import { readSettings, writeSettingValue } from './store';
 import type { SettingDefinition, Settings, SettingsSchema, SettingValue } from './types';
 
 /**
@@ -23,14 +23,8 @@ export function defineSettings<S extends SettingsSchema>(namespace: string, sche
     return readSettings().values[namespace] ?? {};
   }
 
-  function write(key: string, value: unknown): void {
-    updateSettings((current) => ({
-      ...current,
-      values: { ...current.values, [namespace]: { ...current.values[namespace], [key]: value } },
-    }));
-  }
-
   return {
+    namespace,
     schema,
     get(key) {
       const definition = schema[key];
@@ -40,7 +34,7 @@ export function defineSettings<S extends SettingsSchema>(namespace: string, sche
     set(key, value) {
       const definition = schema[key];
       if (!definition) throw new Error(`réglage inconnu : ${namespace}.${key}`);
-      write(key, validate(definition, value));
+      writeSettingValue(namespace, key, validate(definition, value));
     },
   };
 }

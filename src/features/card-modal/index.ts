@@ -3,7 +3,7 @@ import { renameText, watchDom } from '@/core/dom';
 import { net } from '@/core/net';
 import type { Feature } from '@/core/runtime';
 import { textOf } from '@/core/text';
-import { marketNeedsPro, openMarketModal } from '@/services/market';
+import { marketNeedsPro, openMarketModal, trackPrices } from '@/services/market';
 import { siteReportButton } from '@/services/report-button';
 import { isWishlistChange, readDiscard } from '@/site/api';
 import { findCardModals, findDiscardConfirm, readModalCard, type CardModal } from '@/site/cards';
@@ -42,7 +42,7 @@ export const cardModalLayout: Feature = {
   id: 'card-modal-layout',
   name: 'Modale de carte',
   description:
-    "Présentation de la modale de carte : signalement sur l'image, actions Vendre · Marché (historique des ventes) · Défausser (roue pendant la défausse) ; carte seule (Toutes les cartes) ou d'un ami : Échanger · Liste de souhaits · Marché.",
+    "Présentation de la modale de carte : signalement sur l'image, actions Vendre · Marché (historique du marché) · Défausser (roue pendant la défausse) ; carte seule (Toutes les cartes) ou d'un ami : Échanger · Liste de souhaits · Marché.",
   category: 'Général',
   routes: 'all',
   required: true,
@@ -57,14 +57,22 @@ export const cardModalLayout: Feature = {
     const discarding = pendingCounter();
     /** Ajouts ou retraits de la liste de souhaits en cours. */
     const wishing = pendingCounter();
-    /** Modales dont l'historique des ventes se charge. */
+    /** Modales dont l'historique du marché se charge. */
     const opening = new Set<HTMLElement>();
+    /** Sans PRO, ventes en cache des cartes ouvertes : l'historique s'ouvre quand même, sans badge PRO. */
+    const history = trackPrices({ signal, log: ctx.log, onChange: sync });
+
+    function marketNeedsProFor(modal: CardModal): boolean {
+      if (!marketNeedsPro()) return false;
+      const card = readModalCard(modal);
+      return card !== undefined && history.cached(card) === false;
+    }
 
     function openMarket(modal: CardModal): void {
       const card = readModalCard(modal);
       if (!card) {
         ctx.log.warn('carte de la modale introuvable dans son état React', modal.title);
-        toast.error('Carte non identifiée : historique des ventes indisponible.', { title: 'Marché' });
+        toast.error('Carte non identifiée : historique du marché indisponible.', { title: 'Marché' });
         return;
       }
       opening.add(modal.root);
@@ -121,7 +129,7 @@ export const cardModalLayout: Feature = {
 
     function apply(modal: CardModal): void {
       // La rareté en toutes lettres et les onglets Détails / Marché : la rareté se voit sur la carte,
-      // le marché passe dans les actions (notre historique des ventes, pas la vue du site).
+      // le marché passe dans les actions (notre historique du marché, pas la vue du site).
       if (modal.tabsRow) ctx.hide(modal.tabsRow);
 
       // « Signaler l'image » : sur l'image de la carte, en bas à droite.
@@ -131,7 +139,7 @@ export const cardModalLayout: Feature = {
         reports.render(modal.root, siteReportButton(modal.reportButton), { parent: reportHost });
       }
 
-      const market = { busy: opening.has(modal.root), needsPro: marketNeedsPro(), onClick: () => openMarket(modal) };
+      const market = { busy: opening.has(modal.root), needsPro: marketNeedsProFor(modal), onClick: () => openMarket(modal) };
       if (modal.auctionButton) renameText(modal.auctionButton, 'Mettre aux enchères', 'Vendre');
       const discard = modal.discardButton;
       if (discard && modal.actionsRow) {

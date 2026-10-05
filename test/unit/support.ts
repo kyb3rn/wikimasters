@@ -73,7 +73,7 @@ export function statelessFiber(): Fiber {
 }
 
 /** `localStorage` imité, en mémoire ; `data` : ce qui y est écrit. */
-export function fakeStorage(initial: Record<string, string> = {}): Pick<Storage, 'getItem' | 'setItem'> & {
+export function fakeStorage(initial: Record<string, string> = {}): Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> & {
   readonly data: Map<string, string>;
 } {
   const data = new Map(Object.entries(initial));
@@ -81,6 +81,7 @@ export function fakeStorage(initial: Record<string, string> = {}): Pick<Storage,
     data,
     getItem: (key) => data.get(key) ?? null,
     setItem: (key, value) => void data.set(key, value),
+    removeItem: (key) => void data.delete(key),
   };
 }
 

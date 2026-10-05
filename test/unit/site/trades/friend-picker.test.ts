@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { parseFriendships } from '@/site/api';
-import { acceptedFriends, friendshipDates } from '@/site/trades';
+import { friendPlayers, friendshipDates, parseFriendships } from '@/site/api';
+import { acceptedFriends } from '@/site/trades';
 
 const player = (id: string, username: string) => ({ id, username, avatar_url: null, avatar_pos_x: 20, avatar_pos_y: 80, activity_blocked_until: null });
 const FRIENDS = {
@@ -19,6 +19,13 @@ describe('amis de GET /api/friends', () => {
       { id: 'b', username: 'Bruno', avatar_url: null, avatar_pos_x: 20, avatar_pos_y: 80 },
     ]);
     expect(acceptedFriends(parseFriendships({ error: 'x' }), 'me')).toEqual([]);
+  });
+
+  it('amis en joueurs (cadrage de la photo compris)', () => {
+    expect(friendPlayers(parseFriendships(FRIENDS), 'me')).toEqual([
+      { id: 'a', username: 'Aline', avatarUrl: undefined, avatarPosX: 20, avatarPosY: 80 },
+      { id: 'b', username: 'Bruno', avatarUrl: undefined, avatarPosX: 20, avatarPosY: 80 },
+    ]);
   });
 
   it('date de chaque amitié acceptée, par ami', () => {

@@ -1,7 +1,10 @@
 export { defineSettings } from './define';
 export {
   featureChoice,
+  importSettings,
+  mergeSettings,
   onSettingsChange,
+  parseStoredSettings,
   readSettings,
   setFeatureChoice,
   SETTINGS_KEY,

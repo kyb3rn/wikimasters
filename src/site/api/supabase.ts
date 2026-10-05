@@ -27,7 +27,9 @@ interface Project {
 const parseProject = (raw: unknown): Project | undefined =>
   isRecord(raw) && typeof raw.origin === 'string' && typeof raw.apikey === 'string' ? { origin: raw.origin, apikey: raw.apikey } : undefined;
 
-const savedProject = jsonStore<Project | undefined>('wm-supabase-v1', undefined, parseProject);
+/** Base et clé publique gardées (localStorage). */
+export const SUPABASE_KEY = 'wm-supabase-v1';
+const savedProject = jsonStore<Project | undefined>(SUPABASE_KEY, undefined, parseProject);
 
 let session: Session | undefined;
 

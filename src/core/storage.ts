@@ -7,6 +7,10 @@ export interface JsonStore<T> {
   get(): T;
   set(value: T): void;
   update(change: (current: T) => T): T;
+  /** Efface la valeur : `get` rend de nouveau la valeur de repli. */
+  remove(): void;
+  /** Taille de la valeur enregistrée (caractères de son JSON) ; 0 si rien n'est enregistré. */
+  bytes(): number;
 }
 
 /**
@@ -48,6 +52,22 @@ export function jsonStore<T>(key: string, fallback: T, parse: (raw: unknown) => 
       const next = change(get());
       set(next);
       return next;
+    },
+    remove() {
+      unsaved = undefined;
+      try {
+        localStorage.removeItem(key);
+      } catch {
+        // Stockage inaccessible : rien d'enregistré à effacer.
+      }
+    },
+    bytes() {
+      if (unsaved) return JSON.stringify(unsaved.value).length;
+      try {
+        return localStorage.getItem(key)?.length ?? 0;
+      } catch {
+        return 0;
+      }
     },
   };
 }

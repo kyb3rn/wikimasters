@@ -5,7 +5,7 @@ import { fakeStorage } from '../../support';
 const fetchCardSales = vi.fn<(cardId: string) => Promise<CardSales>>();
 vi.mock('@/site/api', async (original) => ({ ...(await original<object>()), fetchCardSales }));
 
-const { cachedMarket, fetchMarket, isStale, marketSettings, onMarketChange } = await import('@/services/market');
+const { cachedMarket, fetchMarket, isStale, marketSettings, onMarketChange, staleness } = await import('@/services/market');
 
 const CARD = { id: 'c1', title: 'Tour Eiffel', rarity: 'C' as const };
 const SALES: CardSales = {
@@ -62,5 +62,18 @@ describe('ventes d’une carte (cache)', () => {
     marketSettings.set('cacheHours', 2);
     expect(isStale(entry, 3 * HOUR)).toBe(true);
     expect(isStale(entry, 1 * HOUR)).toBe(false);
+  });
+
+  it('ancienneté : 0 à la durée du cache, 1 à une semaine et au-delà', () => {
+    const entry = { cardId: 'c1', title: '', fetchedAt: 0, sales: [] };
+    const HOUR = 3_600_000;
+    marketSettings.set('cacheHours', 48);
+    expect(staleness(entry, 10 * HOUR)).toBe(0);
+    expect(staleness(entry, 48 * HOUR)).toBe(0);
+    expect(staleness(entry, 108 * HOUR)).toBe(0.5);
+    expect(staleness(entry, 168 * HOUR)).toBe(1);
+    expect(staleness(entry, 500 * HOUR)).toBe(1);
+    marketSettings.set('cacheHours', 168);
+    expect(staleness(entry, 200 * HOUR)).toBe(1);
   });
 });

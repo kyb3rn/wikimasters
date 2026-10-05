@@ -1,11 +1,12 @@
 import { h } from 'preact';
 import { childController } from '@/core/async';
+import { storedValueData } from '@/core/data';
 import type { Feature } from '@/core/runtime';
 import { placeHeaderItem } from '@/services/header-items';
 import { HEADER_RANKS } from '@/site/header';
 import { mountUi } from '@/ui/mount';
 import { GearButton } from './GearButton';
-import { SettingsPanel } from './SettingsPanel';
+import { LAST_TAB_KEY, lastTab, SettingsPanel } from './SettingsPanel';
 import { CSS } from './style';
 
 export const settingsPanel: Feature = {
@@ -16,6 +17,17 @@ export const settingsPanel: Feature = {
   routes: 'all',
   required: true,
   hidden: true,
+  data: [
+    storedValueData({
+      id: 'settings-tab',
+      name: 'Dernier onglet des paramètres',
+      tab: 'Réglages',
+      description: 'Rouvert à la prochaine ouverture des paramètres.',
+      key: LAST_TAB_KEY,
+      store: lastTab,
+      describe: (tab) => (tab ? { details: [`« ${tab} »`] } : undefined),
+    }),
+  ],
   async mount(ctx) {
     const { signal, catalog } = ctx;
     if (!(await ctx.ready())) return;

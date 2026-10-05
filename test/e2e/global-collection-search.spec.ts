@@ -368,7 +368,7 @@ test('paramètres : onglet Toutes les cartes, option active par défaut, désact
   await openGlobalCollection(page);
   await expect(titles(page)).toHaveText(['rarity toutes p0']);
   const dialog = await openSettings(page, 'Toutes les cartes');
-  await expect(dialog.locator('.wm-settings-heading')).toHaveText(['Recherche', 'Apparence']);
+  await expect(dialog.locator('.wm-settings-heading')).toHaveText(['Recherche', 'Prix moyen', 'Apparence']);
   const toggle = dialog.getByRole('switch', { name: 'Recherche : Empêcher le rechargement automatique' });
   await expect(toggle).toHaveAttribute('aria-checked', 'true');
   await toggle.click();

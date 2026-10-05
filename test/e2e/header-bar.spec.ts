@@ -24,7 +24,7 @@ async function margins(page: Page, bar: Locator): Promise<{ top: number; right: 
   return { top: Math.round(box.y), right: Math.round(width - box.x - box.width) };
 }
 
-test('ordinateur : solde, cloche et engrenage sur un fond foncé arrondi, même marge en haut et à droite', async ({ page }) => {
+test('ordinateur : solde, cloche, engrenage et Mémoire sur un fond foncé arrondi, même marge en haut et à droite', async ({ page }) => {
   const bar = await openBar(page);
   await expect(bar).toHaveCSS('border-top-left-radius', '9999px');
   await expect(bar).toHaveCSS('background-color', 'rgba(0, 0, 0, 0.7)');
@@ -35,11 +35,12 @@ test('ordinateur : solde, cloche et engrenage sur un fond foncé arrondi, même 
   const box = await rect(bar);
   expect(Math.round(box.height)).toBe(42);
   const middle = box.y + box.height / 2;
+  const memory = bar.getByRole('button', { name: 'Mémoire WikiMasters' });
   const gear = bar.getByRole('button', { name: 'Paramètres WikiMasters' });
   const bell = bar.locator('.wm-notifications-bell');
   const balance = page.locator(BALANCE);
-  for (const item of [gear, bell, balance]) expect(await center(item)).toBeCloseTo(middle, 0);
-  expect(Math.round((await rect(gear)).x - box.x)).toBe(6);
+  for (const item of [memory, gear, bell, balance]) expect(await center(item)).toBeCloseTo(middle, 0);
+  expect(Math.round((await rect(memory)).x - box.x)).toBe(6);
   const right = await rect(balance);
   expect(Math.round(box.x + box.width - right.x - right.width)).toBe(6);
 });

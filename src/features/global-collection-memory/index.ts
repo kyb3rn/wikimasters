@@ -2,7 +2,9 @@ import type { Feature } from '@/core/runtime';
 import {
   applyRarities,
   applySearch,
+  savedFiltersData,
   savedFiltersStore,
+  savedListData,
   savedListStore,
   trackListMemory,
   type ApplyResult,
@@ -20,8 +22,10 @@ import { findListbox } from '@/site/listbox';
 import { GLOBAL_COLLECTION_ROUTE } from '@/site/routes';
 
 const SHAPE: SavedShape<GlobalCollectionQuery> = { sort: 'text', search: 'string', rarities: 'string', wishlist: 'boolean' };
-const savedFilters = savedFiltersStore('wm-global-collection-filters-v1', SHAPE);
-const savedList = savedListStore('wm-global-collection-list-v1', SHAPE);
+const FILTERS_KEY = 'wm-global-collection-filters-v1';
+const LIST_KEY = 'wm-global-collection-list-v1';
+const savedFilters = savedFiltersStore(FILTERS_KEY, SHAPE);
+const savedList = savedListStore(LIST_KEY, SHAPE);
 
 /** Remet les contrôles du site aux filtres retenus (tri, raretés, liste de souhaits, puis la recherche). */
 function applyFilters(target: GlobalCollectionQuery, signal: AbortSignal): ApplyResult {
@@ -55,6 +59,10 @@ export const globalCollectionMemory: Feature = {
   routes: [GLOBAL_COLLECTION_ROUTE],
   required: true,
   hidden: true,
+  data: [
+    savedFiltersData({ id: 'global-collection-filters', name: 'Toutes les cartes', key: FILTERS_KEY, store: savedFilters }),
+    savedListData({ id: 'global-collection-list', name: 'Toutes les cartes : liste gardée', key: LIST_KEY, store: savedList }),
+  ],
   mount({ signal, log }) {
     trackListMemory({
       source: globalCollectionList,

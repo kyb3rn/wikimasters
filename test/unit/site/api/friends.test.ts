@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   fetchFriendships,
   friendOf,
+  friendshipDatesByName,
   isFriendsList,
   isFriendshipDelete,
   isPlayerSearch,
@@ -84,6 +85,20 @@ describe('joueurs et amitiés lus dans les réponses', () => {
     expect(first && friendOf(first, 'me')).toEqual({ id: 'a', player: { id: 'a' } });
     expect(second && friendOf(second, 'me')).toEqual({ id: 'b', player: { id: 'b' } });
     expect(parseFriendships({ error: 'x' })).toEqual([]);
+  });
+
+  it('dates des amitiés acceptées par pseudo des deux joueurs ; demandes et dates illisibles écartées', () => {
+    const player = (id: string, username: string) => ({ id, username });
+    const dates = friendshipDatesByName([
+      { id: 'f1', status: 'accepted', requester: player('me', 'Moi'), addressee: player('a', 'Aline'), created_at: '2026-09-19T14:18:35.515185+00:00' },
+      { id: 'f2', status: 'accepted', requester: player('b', 'Bob'), addressee: player('me', 'Moi'), created_at: '2026-09-28T01:58:59+00:00' },
+      { id: 'f3', status: 'pending', requester: player('me', 'Moi'), addressee: player('c', 'Chloé'), created_at: '2026-09-29T00:00:00+00:00' },
+      { id: 'f4', status: 'accepted', requester: player('me', 'Moi'), addressee: player('d', 'Dan'), created_at: 'hier' },
+    ]);
+    expect(dates.get('Aline')).toBe(Date.parse('2026-09-19T14:18:35.515Z'));
+    expect(dates.get('Bob')).toBe(Date.parse('2026-09-28T01:58:59Z'));
+    expect(dates.has('Chloé')).toBe(false);
+    expect(dates.has('Dan')).toBe(false);
   });
 
   it('recherche de joueurs : ceux qui ont un id, gardés tels quels', () => {

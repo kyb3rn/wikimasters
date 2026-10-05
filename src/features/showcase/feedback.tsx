@@ -84,7 +84,7 @@ export function Modals({ signal }: { readonly signal: AbortSignal }) {
         </button>
         <button type="button" class={buttonClass('standard')} onClick={() => showMarketModal(DEMO_CARD, demoEntry(Date.now()))}>
           <Icon name="market" size={16} />
-          Historique des ventes
+          Historique du marché
         </button>
         <button type="button" class={buttonClass('standard')} onClick={() => showProOffer(DEMO_CARD)}>
           <Icon name="sparkles" size={16} />

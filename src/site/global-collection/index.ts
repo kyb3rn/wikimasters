@@ -12,6 +12,7 @@ export {
   withGlobalCollectionFilters,
   type GlobalCollectionQuery,
 } from './list';
+export { findGlobalCollectionGrid, type GlobalCollectionGrid } from './grid';
 export { findGlobalCollectionReload, findGlobalCollectionStates, type GlobalCollectionStates } from './state';
 export {
   findFriendOwnersPills,

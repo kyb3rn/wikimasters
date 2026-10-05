@@ -1,10 +1,11 @@
 import { domSyncRounds } from '@/core/dom';
 import { expose } from '@/core/expose';
+import { downloadJson } from '@/core/file';
 import { net } from '@/core/net';
 import type { Feature } from '@/core/runtime';
 import { supabaseFetch } from '@/site/api';
 import { toast } from '@/ui/toast';
-import { buildCapture, captureFileName, downloadJson } from './capture';
+import { buildCapture, captureFileName } from './capture';
 import {
   createRecorder,
   isRecordable,
@@ -13,6 +14,7 @@ import {
   type RecordedExchange,
   type RecordedSocketEvent,
 } from './recorder';
+import { technicalData } from './memory';
 
 export type { Capture } from './capture';
 export type { RecordedExchange, RecordedSocketEvent } from './recorder';
@@ -67,6 +69,7 @@ export const debug: Feature = {
   description: 'Garde les échanges avec le site pour capturer une page (Alt+Maj+C).',
   category: 'Développement',
   routes: 'all',
+  data: technicalData,
   mount(ctx) {
     const recorder = createRecorder(LIMITS);
     const { signal } = ctx;
@@ -81,7 +84,7 @@ export const debug: Feature = {
       const now = new Date();
       const result = buildCapture(window, { exchanges: recorder.list(), sockets: recorder.sockets() }, now);
       const file = captureFileName(location.pathname, now);
-      downloadJson(document, file, result);
+      downloadJson(file, result);
       const summary = `${result.exchanges.length} échanges, ${result.sockets.length} événements temps réel`;
       ctx.log.info(`capture téléchargée : ${file} (${summary})`);
       toast.success(`${location.pathname} · ${summary}`, { title: 'Capture enregistrée' });

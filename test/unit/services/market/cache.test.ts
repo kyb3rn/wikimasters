@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseStoredEntry, storedEntry } from '@/services/market/cache';
+import { mergeEntry, parseStoredEntry, storedEntry } from '@/services/market/cache';
 
 // Forme écrite par l'ancien script (bibliothèque marché) dans la même base : relue telle quelle.
 const LEGACY = {
@@ -30,5 +30,28 @@ describe('cache des ventes', () => {
     expect(parseStoredEntry({ id: 'c1', title: 'x' })).toBeUndefined();
     expect(parseStoredEntry('c1')).toBeUndefined();
     expect(parseStoredEntry({ ...LEGACY, fetchedAt: 'hier' })).toBeUndefined();
+  });
+});
+
+describe('fusion des ventes d’une carte', () => {
+  const at = (id: string, time: number) => ({ id, price: 10, time, rarity: 'R' });
+  const entry = (fetchedAt: number, sales: ReturnType<typeof at>[], title = 'Rome antique') => ({ cardId: 'c1', title, fetchedAt, sales });
+
+  it('absente ici : ajoutée telle quelle', () => {
+    const incoming = entry(5, [at('s1', 1)]);
+    expect(mergeEntry(undefined, incoming)).toEqual({ entry: incoming, outcome: 'added' });
+  });
+
+  it('garde toutes les ventes des deux côtés, une fois chacune, à la date du chargement le plus récent', () => {
+    const { entry: merged, outcome } = mergeEntry(entry(10, [at('s1', 1), at('s2', 2)]), entry(20, [at('s2', 2), at('s3', 3)], 'Rome'));
+    expect(outcome).toBe('updated');
+    expect(merged.sales.map((sale) => sale.id)).toEqual(['s1', 's2', 's3']);
+    expect(merged.fetchedAt).toBe(20);
+    expect(merged.title).toBe('Rome');
+  });
+
+  it('rien de neuf : inchangée (un chargement plus ancien ne change rien)', () => {
+    const local = entry(20, [at('s1', 1), at('s2', 2)]);
+    expect(mergeEntry(local, entry(10, [at('s1', 1)]))).toEqual({ entry: local, outcome: 'unchanged' });
   });
 });

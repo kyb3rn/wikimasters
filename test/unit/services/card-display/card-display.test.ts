@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CARD_SCALES, cardDisplayCss, cardDisplayFeature, cardGridClass, type CardDisplayConfig } from '@/services/card-display';
+import { CARD_GRID_MIRROR, CARD_SCALES, cardDisplayCss, cardDisplayFeature, cardGridClass, type CardDisplayConfig } from '@/services/card-display';
 import { fakeStorage } from '../../support';
 
 beforeEach(() => vi.stubGlobal('localStorage', fakeStorage()));
@@ -13,10 +13,13 @@ describe('affichage des cartes', () => {
     expect(cardDisplayCss('demo', 100, 26, 26)).toBe('');
   });
 
-  it('la taille agrandit chaque case de la grille, pas un voile de chargement', () => {
-    expect(cardDisplayCss('demo', 150, 26, 26)).toBe('.wm-demo > :not([aria-busy]) { zoom: 1.5; }');
-    expect(cardDisplayCss('demo', 75, 26, 26)).toBe('.wm-demo > :not([aria-busy]) { zoom: 0.75; }');
-    expect(cardDisplayCss('demo', 112.5, 26, 26)).toBe('.wm-demo > :not([aria-busy]) { zoom: 1.125; }');
+  it('la taille agrandit chaque case de la grille, pas un voile de chargement ; d’un calque miroir, ses cases seules', () => {
+    const zoom = (value: number) =>
+      `.wm-demo > :not([aria-busy], .wm-card-grid-mirror), .wm-demo > .wm-card-grid-mirror > * { zoom: ${value}; }`;
+    expect(CARD_GRID_MIRROR).toBe('wm-card-grid-mirror');
+    expect(cardDisplayCss('demo', 150, 26, 26)).toBe(zoom(1.5));
+    expect(cardDisplayCss('demo', 75, 26, 26)).toBe(zoom(0.75));
+    expect(cardDisplayCss('demo', 112.5, 26, 26)).toBe(zoom(1.125));
   });
 
   it('l’espacement remplace celui du site dès qu’il en diffère', () => {

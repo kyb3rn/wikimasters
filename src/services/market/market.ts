@@ -8,13 +8,15 @@ import { readEntries, readEntry, writeEntry, type MarketEntry } from './cache';
 import { marketSettings } from './settings';
 
 const HOUR = 3_600_000;
+const WEEK = 168 * HOUR;
 
 const inflight = new Map<string, Promise<MarketEntry>>();
 const changes = createListeners<[entry: MarketEntry]>(createLogger('marché'));
 let tracking = false;
 
 /**
- * Compte sans PRO : les ventes d'une carte lui sont refusées (erreur de l'API), l'offre PRO s'ouvre à la place.
+ * Compte sans PRO : les ventes d'une carte lui sont refusées (erreur de l'API), l'offre PRO s'ouvre à la place d'un
+ * chargement ; l'historique déjà en cache (chargé ou importé d'un autre compte) reste ouvert, sans actualisation.
  * Statut encore inconnu : permis (le site le donne vite ; au pire, l'erreur en toast).
  */
 export function marketNeedsPro(): boolean {
@@ -24,6 +26,13 @@ export function marketNeedsPro(): boolean {
 /** Plus vieille que la durée du cache (réglage) : à redemander au site. */
 export function isStale(entry: MarketEntry, now = Date.now()): boolean {
   return now - entry.fetchedAt > marketSettings.get('cacheHours') * HOUR;
+}
+
+/** Ancienneté des ventes périmées : 0 à la durée du cache, 1 à une semaine et au-delà. */
+export function staleness(entry: MarketEntry, now = Date.now()): number {
+  const from = marketSettings.get('cacheHours') * HOUR;
+  if (from >= WEEK) return 1;
+  return Math.min(1, Math.max(0, (now - entry.fetchedAt - from) / (WEEK - from)));
 }
 
 /** Ventes en cache, même anciennes, sans réseau. */

@@ -58,16 +58,3 @@ export function captureFileName(path: string, now: Date): string {
   return `wm-capture-${page}-${stamp}.json`;
 }
 
-/** Fait télécharger `data` au navigateur, en JSON. */
-export function downloadJson(doc: Document, fileName: string, data: unknown): void {
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const link = doc.createElement('a');
-  link.href = url;
-  link.download = fileName;
-  link.style.display = 'none';
-  doc.documentElement.append(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 30_000);
-}

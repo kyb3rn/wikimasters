@@ -1,6 +1,6 @@
 import { defineSettings } from '@/core/settings';
 
-/** Réglages communs de l'historique des ventes, partout où il s'ouvre. */
+/** Réglages communs de l'historique du marché, partout où il s'ouvre. */
 export const marketSettings = defineSettings('market', {
   movingAverages: {
     type: 'boolean',

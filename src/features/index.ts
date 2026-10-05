@@ -28,6 +28,7 @@ import { disabledCursor } from './disabled-cursor';
 import { dmsLayout } from './dms-layout';
 import { dmsGroups } from './dms-groups';
 import { dmsTrade } from './dms-trade';
+import { dmsNewMessage } from './dms-new-message';
 import { guildChat } from './guild-chat';
 import { guildChatTab } from './guild-chat-tab';
 import { headerBar } from './header-bar';
@@ -40,6 +41,7 @@ import { globalCollectionFilters } from './global-collection-filters';
 import { globalCollectionFriends } from './global-collection-friends';
 import { globalCollectionMemory } from './global-collection-memory';
 import { globalCollectionPagination } from './global-collection-pagination';
+import { globalCollectionPrices } from './global-collection-prices';
 import { globalCollectionSearch } from './global-collection-search';
 import { globalCollectionSearchDelay } from './global-collection-search-delay';
 import { market } from './market';
@@ -51,6 +53,7 @@ import { marketplaceSearch } from './marketplace-search';
 import { marketplaceSearchDelay } from './marketplace-search-delay';
 import { marketplacePrices } from './marketplace-prices';
 import { marketplaceWipeEnded } from './marketplace-wipe-ended';
+import { memory } from './memory';
 import { marketplaceTiles } from './marketplace-tiles';
 import { notifications } from './notifications';
 import { ownedBadge } from './owned-badge';
@@ -104,6 +107,7 @@ import { tradesTabLine } from './trades-tab-line';
  */
 export const features: readonly Feature[] = [
   settingsPanel,
+  memory,
   headerBar,
   disabledCursor,
   pageSpinner,
@@ -156,6 +160,7 @@ export const features: readonly Feature[] = [
   dmsLayout,
   dmsGroups,
   dmsTrade,
+  dmsNewMessage,
   guildChat,
   guildChatTab,
   collectionCardDisplay,
@@ -168,7 +173,7 @@ export const features: readonly Feature[] = [
   tradeSummary,
   tradeSelection,
   // Comme pour la Collection : la mémoire des filtres, puis la recherche, puis son délai. La recherche avant
-  // l'historique des ventes : sa section en tête de l'onglet Marché.
+  // l'historique du marché : sa section en tête de l'onglet Marché.
   marketplaceMemory,
   marketplaceSearch,
   marketplaceSearchDelay,
@@ -199,6 +204,7 @@ export const features: readonly Feature[] = [
   globalCollectionPagination,
   globalCollectionFilters,
   globalCollectionFriends,
+  globalCollectionPrices,
   globalCollectionCardDisplay,
   guildCardDisplay,
   notifications,

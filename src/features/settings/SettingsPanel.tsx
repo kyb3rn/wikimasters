@@ -3,12 +3,12 @@ import type { FeatureCatalog, FeatureEntry } from '@/core/runtime';
 import { onSettingsChange, type SettingDefinition, type Settings } from '@/core/settings';
 import { jsonStore } from '@/core/storage';
 import { ChoiceField, NumberField, StepSlider, Switch } from '@/ui/controls';
-import { Icon } from '@/ui/icons';
-import { Modal } from '@/ui/modal';
+import { Modal, SideTabs } from '@/ui/modal';
 import { ABOUT, orderTabs, TAB_ICONS } from './tabs';
 
+export const LAST_TAB_KEY = 'wm-settings-tab-v1';
 /** Dernier onglet ouvert, rouvert à la prochaine ouverture (même après un rechargement). */
-const lastTab = jsonStore<string | undefined>('wm-settings-tab-v1', undefined, (raw) =>
+export const lastTab = jsonStore<string | undefined>(LAST_TAB_KEY, undefined, (raw) =>
   typeof raw === 'string' ? raw : undefined,
 );
 
@@ -40,25 +40,12 @@ export function SettingsPanel({ catalog, onClose }: SettingsPanelProps) {
 
   return (
     <Modal title="Paramètres" onClose={onClose} width={960} height={620}>
-      <nav class="wm-settings-nav" aria-label="Catégories">
-        {tabs.map((tab) => {
-          const icon = TAB_ICONS[tab];
-          return (
-            <button
-              key={tab}
-              type="button"
-              class="wm-settings-tab"
-              data-about={tab === ABOUT ? '' : undefined}
-              aria-current={tab === current ? 'page' : undefined}
-              onClick={() => select(tab)}
-            >
-              {icon && <Icon name={icon} size={18} />}
-              {tab}
-            </button>
-          );
-        })}
-      </nav>
-      <section class="wm-settings-content">
+      <SideTabs
+        label="Catégories"
+        tabs={tabs.map((tab) => ({ label: tab, icon: TAB_ICONS[tab], end: tab === ABOUT }))}
+        current={current}
+        onSelect={select}
+      >
         {current === ABOUT ? (
           <div class="wm-settings-section">
             <h3 class="wm-settings-heading">{ABOUT}</h3>
@@ -74,7 +61,7 @@ export function SettingsPanel({ catalog, onClose }: SettingsPanelProps) {
             </div>
           ))
         )}
-      </section>
+      </SideTabs>
     </Modal>
   );
 }

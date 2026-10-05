@@ -1,3 +1,4 @@
+import type { MergeOutcome } from '@/core/data';
 import { isRecord } from '@/core/guards';
 import { parseRarity, type Rarity } from '@/site/rarity';
 
@@ -67,6 +68,20 @@ export function storedCardSales(sales: CardSales) {
 export function withRecord(sales: CardSales, record: SaleRecord): CardSales {
   const others = sales.records.filter((known) => record.auctionId === undefined || known.auctionId !== record.auctionId);
   return { ...sales, records: [record, ...others].sort((a, b) => b.at - a.at) };
+}
+
+/**
+ * Mises en vente d'une carte venues d'un autre navigateur, fusionnées avec celles d'ici : toutes celles des deux côtés,
+ * une seule fois (même date, ou même enchère).
+ */
+export function mergeCardSales(local: CardSales | undefined, incoming: CardSales): { readonly sales: CardSales; readonly outcome: MergeOutcome } {
+  if (!local) return { sales: incoming, outcome: 'added' };
+  const dates = new Set(local.records.map((record) => record.at));
+  const auctions = new Set(local.records.flatMap((record) => record.auctionId ?? []));
+  const added = incoming.records.filter((record) => !dates.has(record.at) && !(record.auctionId !== undefined && auctions.has(record.auctionId)));
+  const title = local.title || incoming.title;
+  if (added.length === 0 && title === local.title) return { sales: local, outcome: 'unchanged' };
+  return { sales: { ...local, title, records: [...local.records, ...added].sort((a, b) => b.at - a.at) }, outcome: 'updated' };
 }
 
 export function withoutRecord(sales: CardSales, at: number): CardSales {
