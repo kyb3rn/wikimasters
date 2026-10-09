@@ -72,5 +72,7 @@ export interface DataSet {
   readonly clear?: () => Promise<void>;
   /** Clic sur un élément (l'historique d'une carte). */
   readonly open?: (key: string) => void;
+  /** Redemande un élément à sa source (les ventes d'une carte au site) ; montre elle-même son échec. */
+  readonly refresh?: (key: string) => Promise<void>;
   readonly transfer?: DataSetTransfer;
 }

@@ -21,7 +21,7 @@ _Relevé : captures du 29/09._
 
 - Dans `div.flex-1.p-4.md:p-6.space-y-6`, après l'en-tête : `div.flex.overflow-x-auto.border-b` › un bouton par onglet : Parcourir, Mes ventes (n/max), Mes enchères (n), Gagnées (n), Historique (n) ; choisi : `border-b-2`. Le contenu de l'onglet choisi suit, en frères.
 - Tous remplis par la même requête (`mine=1`) : aucun appel au changement d'onglet.
-- **Mes ventes** : mes annonces actives. **Mes enchères** : annonces encore actives où j'ai misé, avec un bandeau au-dessus de la vignette : « Vous menez » (vert, `bg-emerald-500/15`, je suis `current_bidder_id`) ou « Surenchéri » (ambre, `bg-amber-500/15`). **Gagnées** : les 50 dernières enchères remportées. **Historique** : les 50 dernières de mes ventes terminées (vendues, invendues, annulées). Du plus récent au plus ancien ; les compteurs de ces deux derniers plafonnent donc à 50.
+- **Mes ventes** : mes annonces actives, finies et déjà réglées comprises : la route les garde `active` plusieurs minutes après leur règlement ([api.md](../api.md#marché), 07/10). **Mes enchères** : annonces encore actives où j'ai misé, avec un bandeau au-dessus de la vignette : « Vous menez » (vert, `bg-emerald-500/15`, je suis `current_bidder_id`) ou « Surenchéri » (ambre, `bg-amber-500/15`). **Gagnées** : les 50 dernières enchères remportées. **Historique** : les 50 dernières de mes ventes terminées (vendues, invendues, annulées). Du plus récent au plus ancien ; les compteurs de ces deux derniers plafonnent donc à 50.
 - Listes vides : « Vous n'avez aucune vente en cours. », « Vous n'êtes en lice sur aucune enchère. », « Vous n'avez encore remporté aucune enchère. ».
 - Lecture : `src/site/marketplace/tabs.ts` (`findMarketplaceTabs`, onglet choisi reconnu au début de son texte).
 
@@ -79,6 +79,8 @@ main … div.flex.flex-col.md:flex-row.gap-6
     h1 titre, bouton carré « Vue du marché » (lucide chart-line)
     p « Mis en vente par <span accent>pseudo</span> »
     div.card-frame : « Mise actuelle » / « Mise de départ », p « Meneur : <span>pseudo</span> », temps restant
+    div.card-frame.p-4.space-y-3 : « Votre solde : n wikibidous », « Mise minimum : n »   (en cours, pas le vendeur)
+      div.flex.gap-2 : champ (Diminuer · input[aria-label="Montant de la mise"] · Augmenter), button « Miser »
     div.card-frame.p-4.text-sm « Remportée par <span>pseudo</span> pour <span>n</span> wikibidous. »   (vendue)
 div.space-y-3 : h2 « Historique des mises (n) », ul.card-frame > li (span pseudo, span date et montant)
 ```
@@ -89,10 +91,11 @@ div.space-y-3 : h2 « Historique des mises (n) », ul.card-frame > li (span pseu
 - Historique : pseudo en premier `span` (« Joueur » si la mise n'a pas de pseudo), puis date et montant ; une nouvelle mise est ajoutée en tête. Sans mise : `p` « Aucune mise placée pour l'instant. ».
 - « Remportée par » : relevé dans le code du site (30/09).
 - Statut (code du site, 01/10) : « Temps restant » tant que l'annonce est `active` et avant sa fin ; ensuite « Statut » : « Finalisation… » (roue ambre, « Réessayer » relance `POST …/settle`) tant qu'elle reste `active`, puis « Vendue », « Non vendue » ou « Annulée ». La page relit l'enchère (`GET /api/marketplace/<id>`) à la fin du compte à rebours et 2,5 s après, puis toutes les 3 s tant qu'elle est `active` et finie : le statut n'arrive que par ces réponses (la diffusion `BID` ne le porte pas).
+- Formulaire de mise (code du site, 01/10, inchangé le 07/10) : mise minimum = mise de départ sans mise, sinon `max(⌈1,1 × mise actuelle⌉, mise actuelle + 1)` (calcul en flottants : 221 après 200, 330 après 300) ; champ `type="number"` contrôlé par l'état de la page (chaîne), `min` = mise minimum ; « Diminuer » arrêté à la mise minimum ; « Miser » désactivé sous la mise minimum et pendant la requête (« … »), le champ aussi. Le site **réécrit sa mise minimum dans le champ**, montant saisi perdu même s'il reste au-dessus : à chaque mise reçue (`BID`), à chaque relecture de l'enchère (`UPDATE`, `SUBSCRIBED`, fin du compte à rebours), après ma mise acceptée ; refus `bid_too_low` : le minimum du refus (sans relire l'enchère : il peut dépasser `min`), sinon une relecture. React change alors la valeur du champ sans son attribut `value` tant qu'il a le focus : rien dans le DOM ne le signale.
 - Libellé du montant : « Mise actuelle » / « Mise de départ », « Vendue pour » (« Achetée pour » si je suis l'acheteur), « Non vendue », « Annulée » (`auctionPriceLabel`, comme les vignettes).
 - Pseudos en simple texte, sans lien.
 - Le client Supabase du site est dans une référence (`useRef`) du composant de la page : son temps réel s'y lit et s'y relance ([Temps réel](README.md#temps-réel)).
-- Lecture : `src/site/marketplace/auction-page.ts` (`AUCTION_MARKET_BUTTON`, `auctionChannel`, `findAuctionFace`, `findAuctionPlayers`, `findAuctionReport`, `readAuctionStatus` : l'annonce dans l'état de la page), `readAuctionRequest`, `parseAuctionCard`.
+- Lecture : `src/site/marketplace/auction-page.ts` (`AUCTION_MARKET_BUTTON`, `AUCTION_BID_INPUT`, `auctionChannel`, `findAuctionFace`, `findAuctionPlayers`, `findAuctionReport`, `readAuctionStatus`, `readAuctionCard` : l'annonce dans l'état de la page), `readAuctionRequest`, `parseAuctionCard`, `fetchAuctionCard`.
 
 ## Enchère introuvable
 
@@ -117,4 +120,4 @@ _Relevé : captures et code du site, 30/09._
 
 ## Dans le script
 
-`marketplace-filters`, `marketplace-search`, `marketplace-search-delay`, `marketplace-memory`, `marketplace-tiles`, `marketplace-prices`, `marketplace-wipe-ended`, `marketplace-card-display`, `player-links`, `auction-market`, `auction-live`, `auction-report`, `auction-result`, `auction-not-found`, `auction-stay`, `market`, `market-search` (dev) ; services `market`, `market-tile`, `listings`. Détail : section « Marché » de [features.md](../features.md).
+`marketplace-filters`, `marketplace-search`, `marketplace-search-delay`, `marketplace-memory`, `marketplace-tiles`, `marketplace-prices`, `marketplace-wipe-ended`, `marketplace-card-display`, `player-links`, `auction-market`, `auction-live`, `auction-typed-bid`, `auction-report`, `auction-result`, `auction-not-found`, `auction-stay`, `market`, `market-search` (dev) ; services `market`, `market-tile`, `listings`. Détail : section « Marché » de [features.md](../features.md).

@@ -231,6 +231,54 @@ test('les moyennes mobiles suivent l’interrupteur, retenu dans les réglages',
   await expect(averages).toBeHidden();
 });
 
+test('Lecture et Règle : interrupteurs qui tiennent le mode sans touche, allumés aussi par Maj et Ctrl', async ({ page }) => {
+  const card = await openCardModal(page, newServer());
+  await card.getByRole('button', { name: 'Marché' }).click();
+  const dialog = history(page);
+  const chart = dialog.locator('.wm-market-chart');
+  const readout = dialog.getByRole('switch', { name: 'Lecture des moyennes au curseur' });
+  const rule = dialog.getByRole('switch', { name: 'Règle de prix' });
+  const ruler = dialog.locator('.wm-market-rule');
+
+  // Touches maintenues : l'interrupteur suit, puis s'éteint au relâchement.
+  await chart.hover();
+  await page.keyboard.down('Shift');
+  await expect(readout).toHaveAttribute('aria-checked', 'true');
+  await expect(chart).toHaveAttribute('data-dim', 'true');
+  await page.keyboard.up('Shift');
+  await expect(readout).toHaveAttribute('aria-checked', 'false');
+  await expect(chart).not.toHaveAttribute('data-dim');
+  await page.keyboard.down('Control');
+  await expect(rule).toHaveAttribute('aria-checked', 'true');
+  await expect(ruler).toHaveCount(1);
+  await page.keyboard.up('Control');
+  await expect(rule).toHaveAttribute('aria-checked', 'false');
+  await expect(ruler).toHaveCount(0);
+
+  // Interrupteurs : le mode reste sans touche, même après un appui et un relâchement.
+  await readout.click();
+  await rule.click();
+  await chart.hover();
+  await expect(chart).toHaveAttribute('data-dim', 'true');
+  await expect(ruler).toHaveCount(1);
+  await page.keyboard.down('Control');
+  await page.keyboard.up('Control');
+  await expect(rule).toHaveAttribute('aria-checked', 'true');
+  await expect(ruler).toHaveCount(1);
+
+  // Autre rareté (graphique remonté) : les modes restent.
+  await dialog.getByRole('button', { name: 'Toutes' }).click();
+  await chart.hover();
+  await expect(chart).toHaveAttribute('data-dim', 'true');
+  await expect(ruler).toHaveCount(1);
+
+  await rule.click();
+  await readout.click();
+  await chart.hover();
+  await expect(ruler).toHaveCount(0);
+  await expect(chart).not.toHaveAttribute('data-dim');
+});
+
 /** Libellés des graduations de dates du graphique. */
 const dateLabels = (page: Page) =>
   history(page).locator('.wm-market-chart text[text-anchor="start"]').first().textContent();

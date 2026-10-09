@@ -12,6 +12,7 @@ const WEEK = 168 * HOUR;
 
 const inflight = new Map<string, Promise<MarketEntry>>();
 const changes = createListeners<[entry: MarketEntry]>(createLogger('marché'));
+const fetching = createListeners(createLogger('marché'));
 let tracking = false;
 
 /**
@@ -59,9 +60,23 @@ export function fetchMarket(card: CardRef): Promise<MarketEntry> {
   if (pending) return pending;
   const request = fetchCardSales(card.id)
     .then((sales) => store(card.id, sales, card.title))
-    .finally(() => inflight.delete(card.id));
+    .finally(() => {
+      inflight.delete(card.id);
+      fetching.emit();
+    });
   inflight.set(card.id, request);
+  fetching.emit();
   return request;
+}
+
+/** Ventes de la carte demandées au site par le script, en ce moment (bouton du prix ou chargement groupé). */
+export function isFetching(cardId: string): boolean {
+  return inflight.has(cardId);
+}
+
+/** Prévenu quand une demande de ventes du script commence ou finit. */
+export function onFetchingChange(listener: () => void, options: { signal: AbortSignal }): void {
+  fetching.on(listener, options);
 }
 
 /** Prévenu de chaque chargement de ventes (le nôtre ou celui du site). */

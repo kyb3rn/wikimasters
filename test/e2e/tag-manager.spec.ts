@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
-import { faces, openCollection } from './support/collection';
-import { openSite, rect, sitePage } from './support/site';
+import { faces, openCollection, tagManagerMarkup, type ManagedTag } from './support/collection';
+import { chooseOption, expectDomIdle, nextFrame, openSite, rect, sitePage } from './support/site';
 
 const LONG = 'Monuments historiques de la région parisienne et d’ailleurs, à revoir un jour';
 
@@ -17,37 +17,21 @@ const TAILWIND = `<style>
 }
 </style>`;
 
-function row(name: string, count: number): string {
-  return (
-    `<div class="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-light)] p-3">` +
-    `<div class="flex items-center gap-2 min-w-0"><span class="size-2.5 shrink-0 rounded-full" style="background:#e3b341"></span>` +
-    `<span class="min-w-0 truncate text-sm font-semibold">${name}</span>` +
-    `<span class="text-xs text-[var(--color-foreground)]/45">${count}<!-- --> carte<!-- -->${count > 1 ? 's' : ''}</span>` +
-    `<div class="ml-auto flex items-center gap-1">` +
-    ['Couleur', 'Renommer', 'Supprimer'].map((label) => `<button type="button" class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs">${label}</button>`).join('') +
-    `</div></div></div>`
-  );
-}
-
-/** Fenêtre « Gérer les étiquettes » (code du site, 29/09/2026), avec `rows` étiquettes. */
-function managerPage(rows: number): string {
-  const list = [row(LONG, 12), row('sport', 1), ...Array.from({ length: rows - 2 }, (_, i) => row(`étiquette ${i}`, i + 2))].join('');
-  return sitePage(
-    `${TAILWIND}<div class="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 p-4">` +
-      `<div class="card-frame-solid relative flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden animate-fade-in-up isolate">` +
-      `<button type="button" class="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full" aria-label="Fermer">×</button>` +
-      `<div class="border-b border-[var(--color-border)] p-4 pr-12"><h2 class="text-lg font-bold">Gérer les étiquettes</h2>` +
-      `<p class="mt-1 text-xs">Créez, renommez, colorez ou supprimez vos étiquettes.</p></div>` +
-      `<div class="min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-[var(--color-border)] p-3"><div class="space-y-2">${list}</div></div>` +
-      `</div></div>`,
-  );
+/** Fenêtre « Gérer les étiquettes » seule, avec `rows` étiquettes. */
+function longManagerPage(rows: number): string {
+  const tags: ManagedTag[] = [
+    { name: LONG, count: 12, color: '#e3b341' },
+    { name: 'sport', count: 1, color: '#60a5fa' },
+    ...Array.from({ length: rows - 2 }, (_, i) => ({ name: `étiquette ${i}`, count: i + 2, color: '#e3b341' })),
+  ];
+  return sitePage(`${TAILWIND}${tagManagerMarkup(tags)}`);
 }
 
 const frame = (page: Page) => page.locator('.card-frame-solid');
 
 async function openManager(page: Page, rows: number, height: number) {
   await page.setViewportSize({ width: 1280, height });
-  await openSite(page, '/collection', { html: managerPage(rows) });
+  await openSite(page, '/collection', { html: longManagerPage(rows) });
   await expect(frame(page)).toHaveClass(/wm-tag-manager/);
 }
 
@@ -80,6 +64,96 @@ test('« n cartes » sur une ligne, collé aux boutons quand le nom est long (le
   // Une seule ligne (hauteur de ligne de text-xs : 16 px), puis l'écart de la rangée (gap-2 : 8 px) avant « Couleur ».
   expect(counted.height).toBe(16);
   expect(Math.round(colour.x - (counted.x + counted.width))).toBe(8);
+});
+
+/** Fenêtre seule, étiquettes de la Collection imitée : égypte (3 cartes, rouge), rare (0, bleue), sport (12, verte). */
+async function openTags(page: Page) {
+  await openSite(page, '/collection', { html: sitePage(`${TAILWIND}${tagManagerMarkup()}`) });
+  await expect(frame(page)).toHaveClass(/wm-tag-manager/);
+  await expect(search(page)).toBeVisible();
+}
+
+const search = (page: Page) => page.getByRole('textbox', { name: 'Rechercher une étiquette' });
+const NO_MATCH = 'Aucune étiquette ne correspond.';
+
+/** Noms des étiquettes affichées, de haut en bas. */
+const shownNames = (page: Page) =>
+  frame(page)
+    .locator('div.rounded-xl')
+    .evaluateAll((rows) =>
+      rows
+        .filter((row) => row.getClientRects().length > 0)
+        .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)
+        .map((row) => row.querySelector('span.truncate')?.textContent ?? ''),
+    );
+
+test('filtres entre la création et la liste ; recherche pendant la frappe, sans accents ni casse', async ({ page }) => {
+  await openTags(page);
+  const [create, field, list] = await Promise.all([
+    rect(page.getByPlaceholder('Nouvelle étiquette…')),
+    rect(search(page)),
+    rect(frame(page).locator('.overflow-y-auto')),
+  ]);
+  expect(field.y).toBeGreaterThan(create.y + create.height);
+  expect(list.y).toBeGreaterThan(field.y + field.height);
+  expect(await shownNames(page)).toEqual(['égypte', 'rare', 'sport']);
+
+  await search(page).pressSequentially('EGY');
+  await expect.poll(() => shownNames(page)).toEqual(['égypte']);
+  await search(page).fill('zzz');
+  await expect.poll(() => shownNames(page)).toEqual([]);
+  await expect(frame(page).getByText(NO_MATCH)).toBeVisible();
+  await search(page).fill('');
+  await expect.poll(() => shownNames(page)).toEqual(['égypte', 'rare', 'sport']);
+  await expect(frame(page).getByText(NO_MATCH)).toHaveCount(0);
+});
+
+test('par nombre de cartes et par famille de couleurs, cumulés', async ({ page }) => {
+  await openTags(page);
+  await chooseOption(page, 'Filtrer par nombre de cartes', 'Sans carte');
+  await expect.poll(() => shownNames(page)).toEqual(['rare']);
+  await chooseOption(page, 'Filtrer par nombre de cartes', 'Avec des cartes');
+  await expect.poll(() => shownNames(page)).toEqual(['égypte', 'sport']);
+
+  await page.getByRole('button', { name: 'Filtrer par couleur' }).click();
+  await expect(page.getByRole('option')).toHaveText(['Toutes les couleurs', 'Rouges (1)', 'Verts (1)', 'Bleus (1)']);
+  await page.getByRole('option', { name: 'Verts (1)' }).click();
+  await expect.poll(() => shownNames(page)).toEqual(['sport']);
+  await chooseOption(page, 'Filtrer par couleur', 'Bleus (1)');
+  await expect.poll(() => shownNames(page)).toEqual([]);
+  await expect(frame(page).getByText(NO_MATCH)).toBeVisible();
+});
+
+test('tri par nombre de cartes, par couleur, dans les deux sens ; par nom : l’ordre du site, sans rang posé', async ({ page }) => {
+  await openTags(page);
+  await chooseOption(page, 'Trier les étiquettes', 'Nombre de cartes');
+  await expect.poll(() => shownNames(page)).toEqual(['sport', 'égypte', 'rare']);
+  await page.getByRole('button', { name: /^Sens du tri/ }).click();
+  await expect.poll(() => shownNames(page)).toEqual(['rare', 'égypte', 'sport']);
+
+  await chooseOption(page, 'Trier les étiquettes', 'Couleur');
+  await expect.poll(() => shownNames(page)).toEqual(['égypte', 'sport', 'rare']);
+
+  await chooseOption(page, 'Trier les étiquettes', 'Nom');
+  await expect.poll(() => shownNames(page)).toEqual(['égypte', 'rare', 'sport']);
+  const ranks = await frame(page).locator('div.rounded-xl').evaluateAll((rows) => rows.map((row) => (row as HTMLElement).style.getPropertyValue('--wm-tag-order')));
+  expect(ranks).toEqual(['', '', '']);
+});
+
+test('au repos avec des filtres actifs', async ({ page }) => {
+  await openTags(page);
+  await search(page).fill('r');
+  await chooseOption(page, 'Trier les étiquettes', 'Nombre de cartes');
+  await expect.poll(() => shownNames(page)).toEqual(['sport', 'rare']);
+  await expectDomIdle(page);
+});
+
+test('pas prise pour une modale de carte : aucun bouton « Marché » dans ses lignes', async ({ page }) => {
+  await openTags(page);
+  await expectDomIdle(page);
+  await nextFrame(page);
+  // Ses « Supprimer » ont l'icône de la défausse (capture du 06/10 : « Marché » posé dans la première ligne).
+  await expect(frame(page).locator('.wm-market-button')).toHaveCount(0);
 });
 
 const GEAR = (page: Page) => page.getByRole('button', { name: 'Gérer les étiquettes', exact: true });
@@ -119,4 +193,19 @@ test('l’engrenage ouvre la fenêtre du site sans changer de filtre ni recharge
   await expect(TAG_LIST(page)).toHaveText('Toutes les étiquettes');
   expect(await manageOpened(page)).toBe(1);
   expect(server.requests).toEqual(['liste -']);
+});
+
+test('chaque ouverture de la fenêtre repart sans filtre', async ({ page }) => {
+  await openOneCard(page);
+  await GEAR(page).click();
+  await search(page).fill('egy');
+  await chooseOption(page, 'Trier les étiquettes', 'Nombre de cartes');
+  await expect.poll(() => shownNames(page)).toEqual(['égypte']);
+
+  await frame(page).getByRole('button', { name: 'Fermer' }).click();
+  await expect(frame(page)).toHaveCount(0);
+  await GEAR(page).click();
+  await expect(search(page)).toHaveValue('');
+  await expect(page.getByRole('button', { name: 'Trier les étiquettes' })).toHaveText('Nom');
+  await expect.poll(() => shownNames(page)).toEqual(['égypte', 'rare', 'sport']);
 });

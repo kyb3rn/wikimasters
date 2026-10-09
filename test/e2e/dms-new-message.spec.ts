@@ -25,17 +25,20 @@ function Conversation(props) {
   const overlay = document.createElement('div');
   overlay.className = 'fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-sm';
   overlay.innerHTML =
-    '<div class="w-full sm:max-w-md h-[85vh] sm:h-[600px] flex flex-col card-frame rounded-t-2xl sm:rounded-2xl overflow-hidden">' +
+    '<div class="w-full sm:max-w-2xl lg:max-w-4xl h-[85vh] sm:h-[min(85vh,800px)] lg:h-[min(90vh,1000px)] flex flex-col card-frame rounded-t-2xl sm:rounded-2xl overflow-hidden">' +
       '<div class="flex items-center gap-3 px-4 py-3 border-b border-[var(--color-border)] flex-shrink-0">' +
-        '<div class="w-9 h-9 rounded-full flex-shrink-0 overflow-hidden"><span></span></div>' +
-        '<div class="flex-1 min-w-0"><p class="font-semibold text-sm truncate"></p></div>' +
+        '<a class="hover:underline flex flex-1 min-w-0 items-center gap-3 rounded-lg text-inherit">' +
+          '<div class="w-9 h-9 rounded-full flex-shrink-0 overflow-hidden"><span></span></div>' +
+          '<span class="min-w-0 font-semibold text-sm truncate"></span>' +
+        '</a>' +
         '<button class="p-1.5 rounded-lg" aria-label="Fermer">x</button>' +
       '</div>' +
       '<div class="flex-1 overflow-y-auto px-4 py-3 space-y-1"></div>' +
       '<div class="flex items-center gap-2"><input aria-label="Votre message"><button aria-label="Envoyer">Envoyer</button></div>' +
     '</div>';
   overlay.querySelector('span').textContent = props.peer.username.slice(0, 2);
-  overlay.querySelector('p').textContent = props.peer.username;
+  overlay.querySelector('span.font-semibold').textContent = props.peer.username;
+  overlay.querySelector('a').setAttribute('href', '/profile/' + encodeURIComponent(props.peer.username));
   overlay.firstElementChild['__reactFiber$test'] = { memoizedProps: {}, return: { memoizedProps: props, return: session } };
   overlay.querySelector('[aria-label="Fermer"]').addEventListener('click', () => props.onClose());
   overlay.querySelector('[aria-label="Envoyer"]').addEventListener('click', async () => {
@@ -173,7 +176,7 @@ const dialog = (page: Page) => page.getByRole('dialog', { name: 'Nouveau message
 const rows = (page: Page) => page.locator('#list > button');
 const row = (page: Page, name: string) => rows(page).filter({ hasText: name });
 const chats = (page: Page) => page.locator('div.fixed.inset-0:has(> .card-frame > div.border-b)');
-const chatName = (page: Page) => chats(page).locator('p.font-semibold');
+const chatName = (page: Page) => chats(page).locator('span.font-semibold');
 
 const seen = (page: Page) =>
   page.evaluate(() => {

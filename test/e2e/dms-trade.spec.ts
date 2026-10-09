@@ -35,10 +35,15 @@ window.openChat = (name, guild) => {
   window.closeChat();
   document.body.insertAdjacentHTML('beforeend',
     '<div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-sm" id="chat">' +
-      '<div class="w-full sm:max-w-md h-[85vh] sm:h-[600px] flex flex-col card-frame rounded-t-2xl sm:rounded-2xl overflow-hidden' + (guild ? ' wm-guild-chat' : '') + '">' +
+      '<div class="w-full ' + (guild ? 'sm:max-w-md h-[85vh] sm:h-[600px]' : 'sm:max-w-2xl lg:max-w-4xl h-[85vh] sm:h-[min(85vh,800px)] lg:h-[min(90vh,1000px)]') + ' flex flex-col card-frame rounded-t-2xl sm:rounded-2xl overflow-hidden' + (guild ? ' wm-guild-chat' : '') + '">' +
         '<div class="flex items-center gap-3 px-4 py-3 border-b border-[var(--color-border)] flex-shrink-0">' +
-          '<div class="w-9 h-9 rounded-full flex-shrink-0 overflow-hidden"><span>' + name.slice(0, 2) + '</span></div>' +
-          '<div class="flex-1 min-w-0"><p class="font-semibold text-sm truncate">' + name + '</p></div>' +
+          (guild
+            ? '<div class="w-9 h-9 rounded-full flex-shrink-0 overflow-hidden"><span>' + name.slice(0, 2) + '</span></div>' +
+              '<div class="flex-1 min-w-0"><p class="font-semibold text-sm truncate">' + name + '</p></div>'
+            : '<a class="hover:underline flex flex-1 min-w-0 items-center gap-3 rounded-lg text-inherit" href="/profile/' + encodeURIComponent(name) + '">' +
+                '<div class="w-9 h-9 rounded-full flex-shrink-0 overflow-hidden"><span>' + name.slice(0, 2) + '</span></div>' +
+                '<span class="min-w-0 font-semibold text-sm truncate">' + name + '</span>' +
+              '</a>') +
           '<button class="p-1.5 rounded-lg" aria-label="Fermer"><svg class="w-4 h-4" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"></path></svg></button>' +
         '</div>' +
         '<div class="flex-1 overflow-y-auto px-4 py-3 space-y-1"><p>Message de ' + name + '</p></div>' +
@@ -79,8 +84,8 @@ async function openDms(page: Page, width = 1400): Promise<void> {
 const row = (page: Page, name: string) => page.locator('#list button', { hasText: name });
 const header = (page: Page) => page.locator('#chat div.border-b');
 const trade = (page: Page) => header(page).getByRole('button', { name: 'Échanger' });
-/** Pseudo de l'en-tête (lien vers son profil, posé par player-links). */
-const pseudo = (page: Page, name: string) => header(page).getByRole('link', { name, exact: true });
+/** Pseudo de l'en-tête (dans le lien du site vers son profil). */
+const pseudo = (page: Page, name: string) => header(page).locator('span.font-semibold', { hasText: name });
 
 /** Valeurs posées par les modules imités. */
 const shown = (page: Page) =>

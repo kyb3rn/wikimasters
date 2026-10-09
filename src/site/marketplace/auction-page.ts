@@ -1,8 +1,8 @@
 import { isRecord } from '@/core/guards';
 import { currentFiberAncestors, stateHooks } from '@/core/react';
 import { textOf } from '@/core/text';
-import { isAuctionStatus, type AuctionStatus } from '@/site/api';
-import { FACE, findFaceImage } from '@/site/cards';
+import { isAuctionStatus, parseListingCard, type AuctionStatus } from '@/site/api';
+import { FACE, findFaceImage, type CardRef } from '@/site/cards';
 import { hasIcon } from '@/site/dom';
 
 /**
@@ -16,6 +16,7 @@ import { hasIcon } from '@/site/dom';
  *       h1 titre, bouton « Vue du marché »
  *       p « Mis en vente par <span>pseudo</span> »
  *       div.card-frame : « Mise actuelle » / « Mise de départ », p « Meneur : <span>pseudo</span> » (s'il y a une mise), temps restant
+ *       div.card-frame : « Votre solde », « Mise minimum : n », champ (Diminuer · input · Augmenter), « Miser » (en cours, pas le vendeur)
  *       …
  *       div.card-frame.p-4.text-sm « Remportée par <span>pseudo</span> pour <span>n</span> wikibidous. » (vendue ; code du site, 30/09/2026)
  *   div.space-y-3 : h2 « Historique des mises (n) », ul.card-frame > li > span pseudo (« Joueur » sans pseudo), span (date, montant)
@@ -28,6 +29,13 @@ export const AUCTION_MARKET_BUTTON = 'main button[aria-label="Vue du marché"]';
 
 /** Canal temps réel de l'enchère (mises reçues, sans `realtime:`), rejoint par sa page. */
 export const auctionChannel = (auctionId: string) => `auction:${auctionId}`;
+
+/**
+ * Champ du montant de la mise (`min` : la mise minimum), entre ses boutons « Diminuer » et « Augmenter », frères dans
+ * le même conteneur. Le site y réécrit sa mise minimum à chaque mise reçue, relecture de l'enchère et mise placée.
+ */
+export const AUCTION_BID_INPUT = 'main input[aria-label="Montant de la mise"]';
+
 export interface AuctionPlayer {
   /** `span` du pseudo, rendu par le site. */
   readonly name: HTMLElement;
@@ -76,16 +84,26 @@ export function findAuctionFace(doc: Document = document): HTMLElement | undefin
 }
 
 /**
- * Statut de l'enchère affichée, lu dans l'état de sa page (l'annonce entière, même `id`) : celui qu'elle affiche, même
- * si le script a démarré après sa requête, et à jour de chaque relecture (code du site, 01/10/2026).
+ * L'enchère affichée, lue dans l'état de sa page (l'annonce entière, même `id`) depuis un de ses nœuds : celle qu'elle
+ * affiche, même si le script a démarré après sa requête, et à jour de chaque relecture (code du site, 01/10/2026).
  */
-export function readAuctionStatus(face: Element, auctionId: string): AuctionStatus | undefined {
-  for (const fiber of currentFiberAncestors(face)) {
+function readAuctionState<T>(from: Element, auctionId: string, read: (auction: Record<string, unknown>) => T | undefined): T | undefined {
+  for (const fiber of currentFiberAncestors(from)) {
     for (const { value } of stateHooks(fiber)) {
-      if (isRecord(value) && value.id === auctionId && isAuctionStatus(value.status)) return value.status;
+      const result = isRecord(value) && value.id === auctionId ? read(value) : undefined;
+      if (result !== undefined) return result;
     }
   }
   return undefined;
+}
+
+export function readAuctionStatus(face: Element, auctionId: string): AuctionStatus | undefined {
+  return readAuctionState(face, auctionId, (auction) => (isAuctionStatus(auction.status) ? auction.status : undefined));
+}
+
+/** Carte de l'enchère affichée (rareté de l'exemplaire en vente). */
+export function readAuctionCard(from: Element, auctionId: string): CardRef | undefined {
+  return readAuctionState(from, auctionId, parseListingCard);
 }
 
 export interface AuctionReport {

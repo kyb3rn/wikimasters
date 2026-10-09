@@ -1,4 +1,9 @@
+import { ROOT_CLASS } from '@/core/dom';
+import { INLINE_CLASS } from '@/ui/theme';
 import { snugSearchButtonCss } from './SearchButton';
+
+/** Ce qu'une fonctionnalité pose au bout de la ligne, calé à droite : conteneur à nous non `inline`, dernier enfant. */
+const RIGHT = `.${ROOT_CLASS}:not(.${INLINE_CLASS}):last-child`;
 
 /** Classes posées par une page sur sa ligne des filtres et ses parties. */
 export interface FilterLineParts {
@@ -27,7 +32,8 @@ const ONE_ROW_FROM = '960px';
  * tri, puis le bouton de la recherche, à 8 px du tri. Trop étroite : le champ sur sa rangée, le reste dessous. Sur une
  * rangée, tout est collé à gauche comme dans la Collection : le champ part de 550 px et un côté droit vide
  * (pseudo-élément) de la même base prend le reste ; quand la ligne se réduit, champ et vide rétrécissent ensemble, le
- * champ jusqu'à 300 px.
+ * champ jusqu'à 300 px. Un contenu posé au bout de la ligne (`RIGHT`) tient lieu de côté droit, calé à droite ; trop
+ * étroite, il suit le bouton de la recherche.
  */
 export function filterLineCss({ area, line, field, sort }: FilterLineParts, { sortBasis, sortMin, gap }: FilterLineSizes): string {
   return `
@@ -36,11 +42,14 @@ export function filterLineCss({ area, line, field, sort }: FilterLineParts, { so
 .${line} > .${field} { flex: 1 1 100%; }
 .${line} > .${sort} { flex: 1 1 ${sortMin}; }
 ${snugSearchButtonCss(`.${line}`)}
+.${line} > ${RIGHT} { display: flex; justify-content: flex-end; align-items: center; flex: 1 0 auto; }
 @container ${area} (min-width: ${ONE_ROW_FROM}) {
   .${line} { flex-wrap: nowrap; }
   .${line} > .${field} { flex: 0 1 550px; min-width: 300px; }
   .${line} > .${sort} { flex: 0 1 ${sortBasis}; min-width: ${sortMin}; }
   .${line}::after { content: ''; flex: 1 1 550px; }
+  .${line}:has(> ${RIGHT})::after { content: none; }
+  .${line} > ${RIGHT} { flex: 1 1 550px; }
 }
 `;
 }

@@ -96,7 +96,7 @@ Détail : [`docs/testing.md`](docs/testing.md).
 ## Connaissance du site
 
 Règles d'or (détail : [`docs/site/README.md`](docs/site/README.md)) :
-- aucune automatisation d'action (gardes anti-robots, sanctions sur le compte) : **une action = un geste de l'utilisateur** ;
+- aucune automatisation d'action (gardes anti-robots, sanctions sur le compte) : **une action = un geste de l'utilisateur** (seule exception, demandée : le chargement groupé des prix, borné par la limite des historiques) ;
 - site peu fiable, surtout en journée : 403/404/500 fréquents, réponses de 0,3 à 18 s, temps réel coupé par moments. Tout code réseau prévoit l'échec, la lenteur et la coupure ;
 - une partie des données n'arrive que par le temps réel (WebSocket), pas par `fetch` ;
 - carte (modèle) ≠ exemplaire (possédé) ; raretés par les données, pas par les classes CSS (les shiny n'ont pas `glow-l`) ;

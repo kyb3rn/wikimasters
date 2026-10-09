@@ -50,10 +50,12 @@ const HTML = sitePage(
     document.getElementById('chat')?.remove();
     document.body.insertAdjacentHTML('beforeend',
       '<div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-sm" id="chat" data-peer="' + name + '">' +
-        '<div class="w-full sm:max-w-md h-[85vh] sm:h-[600px] flex flex-col card-frame animate-fade-in-up rounded-t-2xl sm:rounded-2xl overflow-hidden">' +
+        '<div class="w-full sm:max-w-2xl lg:max-w-4xl h-[85vh] sm:h-[min(85vh,800px)] lg:h-[min(90vh,1000px)] flex flex-col card-frame animate-fade-in-up rounded-t-2xl sm:rounded-2xl overflow-hidden">' +
           '<div class="flex items-center gap-3 px-4 py-3 border-b border-[var(--color-border)] flex-shrink-0">' +
-            '<div class="w-9 h-9 rounded-full flex-shrink-0 overflow-hidden"><span>' + name.slice(0, 2) + '</span></div>' +
-            '<div class="flex-1 min-w-0"><p class="font-semibold text-sm truncate">' + name + '</p></div>' +
+            '<a class="hover:underline flex flex-1 min-w-0 items-center gap-3 rounded-lg text-inherit" href="/profile/' + encodeURIComponent(name) + '">' +
+              '<div class="w-9 h-9 rounded-full flex-shrink-0 overflow-hidden"><span>' + name.slice(0, 2) + '</span></div>' +
+              '<span class="min-w-0 font-semibold text-sm truncate">' + name + '</span>' +
+            '</a>' +
             '<button class="p-1.5 rounded-lg" aria-label="Fermer"><svg class="w-4 h-4" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"></path></svg></button>' +
           '</div>' +
           '<div class="flex-1 overflow-y-auto px-4 py-3 space-y-1"><p>Message de ' + name + '</p></div>' +
@@ -110,7 +112,7 @@ test('/dms en deux colonnes : la conversation du site à droite, une ligne passe
   await expect.poll(() => box(page, '#chat')).toEqual(await box(page, '.wm-dms-panel'));
   expect(await chat.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
   await expect(chat.getByRole('button', { name: 'Fermer' })).toHaveCount(0);
-  await expect(chat.getByRole('link', { name: 'AlakazM', exact: true })).toBeVisible();
+  await expect(chat.locator('span.font-semibold')).toHaveText('AlakazM');
   await expect(row(page, 'AlakazM')).toHaveClass(/wm-dms-active/);
 
   // Échap ne la ferme pas : elle fait partie de la page.

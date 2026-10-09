@@ -54,6 +54,7 @@ export {
   type ProfileFriendship,
 } from './friends';
 export {
+  fetchAuctionCard,
   isAuctionStatus,
   parseAuctionCard,
   parseListingCard,

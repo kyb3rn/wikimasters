@@ -51,10 +51,12 @@ const HTML = sitePage(
     window.closeChat();
     document.body.insertAdjacentHTML('beforeend',
       '<div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70" id="chat">' +
-        '<div class="w-full sm:max-w-md h-[85vh] sm:h-[600px] flex flex-col card-frame overflow-hidden">' +
+        '<div class="w-full sm:max-w-2xl lg:max-w-4xl h-[85vh] sm:h-[min(85vh,800px)] lg:h-[min(90vh,1000px)] flex flex-col card-frame overflow-hidden">' +
           '<div class="flex items-center gap-3 px-4 py-3 border-b flex-shrink-0">' +
-            '<div class="w-9 h-9 rounded-full overflow-hidden"><span>' + name.slice(0, 2) + '</span></div>' +
-            '<div class="flex-1 min-w-0"><p class="font-semibold text-sm truncate">' + name + '</p></div>' +
+            '<a class="hover:underline flex flex-1 min-w-0 items-center gap-3 rounded-lg text-inherit" href="/profile/' + encodeURIComponent(name) + '">' +
+              '<div class="w-9 h-9 rounded-full overflow-hidden"><span>' + name.slice(0, 2) + '</span></div>' +
+              '<span class="min-w-0 font-semibold text-sm truncate">' + name + '</span>' +
+            '</a>' +
             '<button class="p-1.5 rounded-lg" aria-label="Fermer"><svg class="w-4 h-4" viewBox="0 0 24 24"></svg></button>' +
           '</div>' +
           '<div class="flex-1 overflow-y-auto px-4 py-3 space-y-1"><p>Message de ' + name + '</p></div>' +

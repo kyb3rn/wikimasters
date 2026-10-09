@@ -543,7 +543,12 @@ const sectionTitles = (page: Page) => page.locator('.wm-resale-page h2').allText
 
 test('« Au marché » : mes ventes en cours entre les filtres et la collection, triées, avec leur mise et leur temps', async ({ page }) => {
   const { supabase } = copiesServer(() => THREE);
-  const selling = [sellingRow('v1', 'Arc de triomphe', 'R', 40, null, 30), sellingRow('v2', 'Big Ben', 'UR', 100, 250, 90)];
+  const selling = [
+    sellingRow('v1', 'Arc de triomphe', 'R', 40, null, 30),
+    sellingRow('v2', 'Big Ben', 'UR', 100, 250, 90),
+    // Finie depuis 3 min, encore `active` (route en retard sur le règlement, 07/10) : plus en vente.
+    sellingRow('v3', 'Colisée', 'SR', 60, 80, -3),
+  ];
   let mine = 0;
   await openResale(page, {
     supabase,

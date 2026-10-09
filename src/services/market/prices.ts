@@ -6,7 +6,7 @@ import type { CardRef } from '@/site/cards';
 import { toast } from '@/ui/toast';
 import { MARKET_HISTORY_DATA, type MarketEntry } from './cache';
 import { ageText, plural } from './format';
-import { cachedMarket, cachedMarkets, fetchMarket, isStale, marketNeedsPro, onMarketChange, staleness } from './market';
+import { cachedMarket, cachedMarkets, fetchMarket, isFetching, isStale, marketNeedsPro, onFetchingChange, onMarketChange, staleness } from './market';
 import { showMarketModal, showProOffer } from './open';
 import { marketPrice, PRICE_SALES, type MarketPrice } from './price';
 import { PriceButton, type PriceButtonProps, type PriceState } from './PriceButton';
@@ -117,6 +117,8 @@ export function trackPrices({ signal, log, onChange }: TrackPricesOptions): Mark
     },
     { signal },
   );
+  // Ventes demandées ailleurs (chargement groupé, autre bouton de la même carte) : la roue ici aussi.
+  onFetchingChange(changed, { signal });
   // Ventes supprimées ou importées depuis la fenêtre Mémoire (ici ou dans un autre onglet) : tout est relu.
   onDataChange(
     MARKET_HISTORY_DATA,
@@ -141,7 +143,7 @@ export function trackPrices({ signal, log, onChange }: TrackPricesOptions): Mark
         staleness: entry ? staleness(entry) : 0,
         price,
         shown: price ? shown : undefined,
-        busy: loading.has(card.id),
+        busy: loading.has(card.id) || isFetching(card.id),
         needsPro: noPro && !entry,
         opensHistory: entry !== null && (state === 'fresh' || noPro),
         title: detail ? `${detail}\n${title}` : title,

@@ -31,7 +31,6 @@ const CSS = `
   transition: opacity 0.15s, color 0.15s, background-color 0.15s; }
 .wm-button.${WRAP} { white-space: normal; text-align: left; }
 ${TILE}:hover .${SELLER}, ${FACE}:hover .${SELLER}, .${SELLER}:focus-visible { opacity: 1; pointer-events: auto; }
-.wm-chat-name { display: block; width: fit-content; max-width: 100%; }
 .${CHAT_AVATAR} { position: relative; }
 .wm-chat-avatar-link { position: absolute; inset: 0; border-radius: 9999px; }
 `;
@@ -49,9 +48,9 @@ const siteClasses = (element: Element) => [...element.classList].filter((name) =
  * Pseudos en liens vers le profil du joueur : vendeur des vignettes du marché et de la page d'une enchère, auteur
  * des demandes de la liste de souhaits de guilde (« @pseudo » sur l'image de la carte, au survol ; « Vendu par » et
  * la pastille du site cachés) ; sur la page d'une enchère, « Mis en vente par », « Meneur : », « Remportée par » et
- * l'historique des mises (pseudo du site caché, le nôtre posé juste après) ; conversation privée de /dms : pseudo
- * et photo de l'interlocuteur (en-tête, et à côté de chacun de ses messages), photo et pseudo de l'auteur de chaque
- * message de la conversation de guilde ; fenêtre d'échange (ouverte depuis les échanges, les amis, le catalogue) : pseudo de
+ * l'historique des mises (pseudo du site caché, le nôtre posé juste après) ; conversation privée de /dms : photo
+ * de l'interlocuteur à côté de chacun de ses messages (l'en-tête est lié par le site), photo et pseudo de l'auteur de
+ * chaque message de la conversation de guilde ; fenêtre d'échange (ouverte depuis les échanges, les amis, le catalogue) : pseudo de
  * l'ami dans son titre, et sous le titre de la modale « Détail de l'échange ». Aller sur un profil depuis la fenêtre
  * d'échange la ferme (la page change), sans sa question « Modifications non enregistrées ».
  */
@@ -59,7 +58,7 @@ export const playerLinks: Feature = {
   id: 'player-links',
   name: 'Liens vers les profils',
   description:
-    "Marché : vendeurs, meneur, gagnant et joueurs de l'historique des mises mènent à leur profil. Messages : pseudo et photos de l'interlocuteur, auteurs des messages de guilde. Échanges : pseudo de l'ami, dans la fenêtre d'échange et le détail d'un échange. Guilde : auteurs des demandes de la liste de souhaits.",
+    "Marché : vendeurs, meneur, gagnant et joueurs de l'historique des mises mènent à leur profil. Messages : photos de l'interlocuteur à côté de ses messages, auteurs des messages de guilde. Échanges : pseudo de l'ami, dans la fenêtre d'échange et le détail d'un échange. Guilde : auteurs des demandes de la liste de souhaits.",
   category: 'Marché',
   // La fenêtre d'échange s'ouvre sur plusieurs pages.
   routes: 'all',
@@ -117,21 +116,17 @@ export const playerLinks: Feature = {
         seen.add(image);
         place(image, { inside: image, keep: true }, h(ProfileLink, { username, label: `@${username}`, className: sellerClass() }));
       }
+      // En-tête laissé tel quel : le site y lie lui-même photo et pseudo (depuis le 09/10/2026) ; celui de la
+      // conversation de guilde est la guilde, pas un joueur. Photo à côté de chaque message (et pseudo au-dessus,
+      // chat de guilde).
       for (const { frame, peer, guild } of findChatWindows()) {
-        const { name, username } = peer;
-        // Conversation de guilde : son en-tête est la guilde, pas un joueur.
-        if (!guild) {
-          seen.add(name);
-          place(name, { after: name }, h(ProfileLink, { username, className: `${siteClasses(name)} wm-chat-name` }));
-        }
-        // Photo de l'en-tête, puis celle à côté de chaque message (et le pseudo au-dessus, chat de guilde).
         const list = findChatList(frame);
         const messages = list ? readChatDays(list).flat() : [];
-        const avatars = guild ? [] : [{ avatar: peer.avatar, username }];
+        const avatars: { avatar: HTMLElement; username: string }[] = [];
         for (const entry of messages) {
           if (entry.kind !== 'message') continue;
           // Chat de guilde : l'auteur de chaque message (pas encore connu : pas de lien) ; sinon l'interlocuteur.
-          const author = guild ? entry.senderName : (entry.senderName ?? username);
+          const author = guild ? entry.senderName : (entry.senderName ?? peer.username);
           if (!author) continue;
           if (entry.avatar) avatars.push({ avatar: entry.avatar, username: author });
           const label = entry.nameRow?.querySelector<HTMLElement>(':scope > span');

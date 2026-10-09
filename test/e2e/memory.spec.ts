@@ -113,12 +113,12 @@ test('historique du marché : liste, recherche, historique d’une carte, suppre
   await expect(page.getByRole('dialog', { name: 'Tour Eiffel' })).toHaveCount(0);
   await expect(memory).toBeVisible();
 
-  // Chargée il y a plus de 30 jours : Rome antique seulement ; tout choisir, puis supprimer après confirmation.
+  // Chargée il y a plus de 30 jours : Rome antique seulement ; tout sélectionner, puis supprimer après confirmation.
   await memory.getByRole('button', { name: 'Chargée' }).click();
   await page.getByRole('option', { name: 'Il y a plus de 30 jours' }).click();
   await memory.locator('.wm-memory-submit').click();
   await expect(memory.locator('.wm-memory-results')).toHaveText('1 élément sur 3');
-  await memory.getByRole('checkbox', { name: 'Tout choisir' }).check();
+  await memory.getByRole('checkbox', { name: 'Tout sélectionner' }).check();
   await memory.getByRole('button', { name: 'Supprimer la sélection' }).click();
   const confirm = page.getByRole('alertdialog', { name: 'Supprimer la sélection ?' });
   await expect(confirm).toContainText('1 élément de « Historique du marché » sera supprimé.');
@@ -135,21 +135,76 @@ test('historique du marché : liste, recherche, historique d’une carte, suppre
   expect(((await readMarketRecords(page, 'sales')) as { id: string }[]).map((record) => record.id)).toEqual(['c1']);
 });
 
-test('sélection : cocher, tout cocher, supprimer la sélection', async ({ page }) => {
+test('historique du marché : « Actualiser » d’une ligne redemande ses ventes, roue pendant la requête ; sans PRO, l’offre du site', async ({ page }) => {
+  let release = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
+  let count = 0;
+  await openSite(page, '/achievements', {
+    handle: async (route, url) => {
+      if (url.pathname !== '/api/marketplace/cards/c2/sales') return false;
+      count++;
+      await held;
+      await route.fulfill({ json: { wikipedia_title: 'Rome antique', sales: [sale('s3', 41, 'UR', 180), sale('s4', 1, 'UR', 200)], recent: [] } });
+      return true;
+    },
+  });
+  await seedMarket(page);
+  await openMemory(page, 'Historique du marché');
+  const rome = rows(page, 'market-history').filter({ hasText: 'Rome antique' });
+  await expect(rome.locator('.wm-memory-date')).toHaveAttribute('data-stale', '');
+
+  // À gauche de la corbeille, rond comme elle.
+  const actions = rome.locator('.wm-memory-actions button');
+  await expect(actions).toHaveCount(2);
+  await expect(actions.first()).toHaveAccessibleName('Actualiser « Rome antique »');
+  await expect(actions.first()).toHaveClass(/wm-button-round wm-button-sm/);
+
+  const refresh = rome.getByRole('button', { name: 'Actualiser « Rome antique »' });
+  await refresh.click();
+  await expect(refresh).toBeDisabled();
+  await expect(refresh.locator('.wm-spin')).toBeVisible();
+  release();
+  await expect(rome.locator('.wm-memory-details')).toHaveText('2 ventes · UR 2');
+  await expect(rome.locator('.wm-memory-date')).not.toHaveAttribute('data-stale');
+  await expect(refresh).toBeEnabled();
+  expect(count).toBe(1);
+  await expectDomIdle(page);
+
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('wikimasters:is-pro-changed', { detail: false })));
+  await refresh.click();
+  await expect(page.getByRole('dialog', { name: 'Vue du marché' })).toBeVisible();
+  expect(count).toBe(1);
+});
+
+test('sélection : cocher, voir la sélection, tout désélectionner, tout cocher, supprimer la sélection', async ({ page }) => {
   await openSite(page, '/achievements');
   await seedMarket(page);
   const memory = await openMemory(page, 'Historique du marché');
+  const selection = memory.locator('.wm-memory-selection');
   await rows(page, 'market-history').nth(0).getByRole('checkbox').check();
-  await expect(memory.locator('.wm-memory-selection')).toContainText('1 élément choisi');
-  await memory.getByRole('checkbox', { name: 'Tout choisir' }).check();
-  await expect(memory.locator('.wm-memory-selection')).toContainText('3 éléments choisis');
+  await expect(selection).toContainText('1 élément sélectionné');
+
+  // Sélection vidée depuis sa vue : la vue s'éteint, la case suivante n'y ramène pas.
+  await selection.getByRole('switch', { name: 'Voir la sélection' }).click();
+  await expect(rows(page, 'market-history')).toHaveCount(1);
+  await rows(page, 'market-history').nth(0).getByRole('checkbox').uncheck();
+  await expect(selection).toHaveCount(0);
+  await expect(rows(page, 'market-history')).toHaveCount(3);
+  await rows(page, 'market-history').nth(1).getByRole('checkbox').check();
+  await expect(selection.getByRole('switch', { name: 'Voir la sélection' })).toHaveAttribute('aria-checked', 'false');
+  await expect(rows(page, 'market-history')).toHaveCount(3);
+
+  await selection.getByRole('button', { name: 'Tout désélectionner' }).click();
+  await expect(selection).toHaveCount(0);
+  await memory.getByRole('checkbox', { name: 'Tout sélectionner' }).check();
+  await expect(selection).toContainText('3 éléments sélectionnés');
   await memory.getByRole('button', { name: 'Supprimer la sélection' }).click();
   await page.getByRole('alertdialog', { name: 'Supprimer la sélection ?' }).getByRole('button', { name: 'Supprimer' }).click();
   await expect(section(page, 'market-history').locator('.wm-memory-empty')).toHaveText('Rien de gardé.');
   expect(await readMarketRecords(page, 'sales')).toEqual([]);
 });
 
-test('historique du marché : filtres des ventes au bouton ou à Entrée, suppression de ce qu’ils montrent seulement', async ({ page }) => {
+test('historique du marché : filtres des ventes au bouton ou à Entrée ; la sélection survit aux filtres, « Voir la sélection » la montre', async ({ page }) => {
   await openSite(page, '/achievements');
   await seedMarket(page);
   const memory = await openMemory(page, 'Historique du marché');
@@ -188,19 +243,38 @@ test('historique du marché : filtres des ventes au bouton ou à Entrée, suppre
   await expect(names).toHaveText(['Rome antique']);
   await clear.click();
 
-  // Une carte choisie que les filtres cachent n'est pas supprimée.
+  // Une carte sélectionnée le reste quand les filtres la cachent, et compte.
+  const selection = memory.locator('.wm-memory-selection');
   await rows(page, 'market-history').filter({ hasText: 'Tour Eiffel' }).getByRole('checkbox').check();
   await filters.getByRole('button', { name: 'Dernière vente' }).click();
   await page.getByRole('option', { name: 'Il y a plus de 30 jours' }).click();
   await memory.locator('.wm-memory-submit').click();
   await expect(names).toHaveText(['Église', 'Rome antique']);
-  await expect(memory.locator('.wm-memory-selection')).toHaveCount(0);
-  await memory.getByRole('checkbox', { name: 'Tout choisir' }).check();
-  await expect(memory.locator('.wm-memory-selection')).toContainText('2 éléments choisis');
+  await expect(selection).toContainText('1 élément sélectionné');
+  await rows(page, 'market-history').filter({ hasText: 'Rome antique' }).getByRole('checkbox').check();
+  await expect(selection).toContainText('2 éléments sélectionnés');
+
+  // « Voir la sélection » : elle seule, sans les filtres ; une nouvelle recherche l'éteint.
+  const only = selection.getByRole('switch', { name: 'Voir la sélection' });
+  await only.click();
+  await expect(only).toHaveAttribute('aria-checked', 'true');
+  await expect(names).toHaveText(['Tour Eiffel', 'Rome antique']);
+  await expect(memory.locator('.wm-memory-results')).toHaveText('2 éléments sur 3');
+  const search = memory.getByLabel('Rechercher dans « Historique du marché »');
+  await search.fill('rome');
+  await search.press('Enter');
+  await expect(only).toHaveAttribute('aria-checked', 'false');
+  await expect(names).toHaveText(['Rome antique']);
+  await expect(selection).toContainText('2 éléments sélectionnés');
+
+  // Suppression : toute la sélection, cachée comprise.
   await memory.getByRole('button', { name: 'Supprimer la sélection' }).click();
-  await page.getByRole('alertdialog', { name: 'Supprimer la sélection ?' }).getByRole('button', { name: 'Supprimer' }).click();
+  const confirm = page.getByRole('alertdialog', { name: 'Supprimer la sélection ?' });
+  await expect(confirm).toContainText('2 éléments de « Historique du marché » seront supprimés.');
+  await confirm.getByRole('button', { name: 'Supprimer' }).click();
   await expect(section(page, 'market-history').locator('.wm-memory-empty')).toHaveText('Aucun élément trouvé.');
-  expect(((await readMarketRecords(page, 'sales')) as { id: string }[]).map((record) => record.id)).toEqual(['c1']);
+  await expect(selection).toHaveCount(0);
+  expect(((await readMarketRecords(page, 'sales')) as { id: string }[]).map((record) => record.id)).toEqual(['c3']);
   await expectDomIdle(page);
 });
 

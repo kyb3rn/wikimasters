@@ -1,5 +1,5 @@
 import type { ComponentChildren } from 'preact';
-import { useMemo } from 'preact/hooks';
+import { useCallback, useMemo, useState } from 'preact/hooks';
 import { parseRarity, rarityColor } from '@/site/rarity';
 import { Switch } from '@/ui/controls';
 import type { MarketEntry } from './cache';
@@ -7,7 +7,7 @@ import { Coin } from './Coin';
 import { chartModel } from './chart';
 import { formatDate, formatNumber, plural, round1 } from './format';
 import type { CardRef } from '@/site/cards';
-import { AVERAGE_WINDOWS, SalesChart } from './SalesChart';
+import { AVERAGE_WINDOWS, NO_MODES, SalesChart, type ChartModes } from './SalesChart';
 import { marketSettings } from './settings';
 import { lastMean, saleRarity, salesStats } from './stats';
 
@@ -20,10 +20,15 @@ const VIEW_KEYS = [
 const viewKeys = () => VIEW_KEYS.filter(({ setting }) => marketSettings.get(setting)).map((key) => key.help);
 
 const chartHelp = (keys: readonly string[]) =>
-  'Survoler un point : prix, date, rareté. Maj : lecture des moyennes au curseur. Ctrl : règle horizontale avec le ' +
-  'prix à gauche. Glisser dans le tracé : déplacer (les deux axes, jusque sous zéro). Glisser sur l’axe des dates ' +
+  'Survoler un point : prix, date, rareté. Lecture (ou Maj maintenue) : moyennes au curseur. Règle (ou Ctrl maintenue) : ' +
+  'règle horizontale avec le prix à gauche. Glisser dans le tracé : déplacer (les deux axes, jusque sous zéro). Glisser sur l’axe des dates ' +
   '(droite = zoom avant) ou des prix (haut = zoom avant) : zoom de cet axe. Molette : zoom des deux axes autour du ' +
   `curseur (un seul axe sur sa graduation). ${keys.map((key) => `${key}. `).join('')}Raretés au-dessus : choisir les ventes affichées.`;
+
+const MODE_HELP: Record<keyof ChartModes, string> = {
+  readout: 'Lecture des moyennes au curseur, ventes atténuées. Aussi tant que Maj est maintenue.',
+  rule: 'Règle horizontale avec son prix. Aussi tant que Ctrl est maintenue.',
+};
 
 const CHIP_HELP = 'Afficher ou masquer cette rareté (points, moyennes et tuiles suivent la sélection)';
 
@@ -96,6 +101,15 @@ export function MarketView({ card, entry, selection, onSelect, showAverages, onS
     };
   }, [entry, selection, card.rarity]);
   const { all, rarities, selected, everything, shown, mean7, model } = view;
+  // Interrupteurs des modes, pour une capture d'écran sans touche maintenue : allumés aussi par leur touche.
+  const [locked, setLocked] = useState(NO_MODES);
+  const [held, setHeld] = useState(NO_MODES);
+  const onKeys = useCallback(
+    (next: ChartModes) => setHeld((prev) => (prev.readout === next.readout && prev.rule === next.rule ? prev : next)),
+    [],
+  );
+  const modes: ChartModes = { readout: locked.readout || held.readout, rule: locked.rule || held.rule };
+  const flip = (mode: keyof ChartModes) => setLocked((prev) => ({ ...prev, [mode]: !prev[mode] }));
 
   const toggle = (rarity: string) => {
     if (rarity === '*') return onSelect([...rarities]);
@@ -196,26 +210,44 @@ export function MarketView({ card, entry, selection, onSelect, showAverages, onS
             <span class="wm-market-title" title={chartHelp(viewKeys())}>
               {everything ? 'Historique complet' : `Historique ${selected.join(' + ')}`}
             </span>
-            {model.averages.length > 0 && (
-              <span
-                class="wm-market-averages"
-                title={`Moyenne mobile simple des ${AVERAGE_WINDOWS.map(({ n }) => n).join(' et des ')} dernières ventes (pointillé : début de courbe avec moins de ventes). Maj : les affiche et atténue le reste.`}
-              >
-                <span>
-                  Moyennes{' '}
-                  {AVERAGE_WINDOWS.map(({ n, color }, index) => (
-                    <>
-                      {index > 0 && ' · '}
-                      <i style={{ color }}>{n}</i>
-                    </>
-                  ))}
-                </span>
-                <Switch label="Afficher les moyennes mobiles" checked={showAverages} onChange={onShowAverages} />
+            <span class="wm-market-modes">
+              {model.averages.length > 0 && (
+                <>
+                  <span
+                    class="wm-market-mode"
+                    title={`Moyenne mobile simple des ${AVERAGE_WINDOWS.map(({ n }) => n).join(' et des ')} dernières ventes (pointillé : début de courbe avec moins de ventes). La lecture les affiche et atténue le reste.`}
+                  >
+                    <span>
+                      Moyennes{' '}
+                      {AVERAGE_WINDOWS.map(({ n, color }, index) => (
+                        <>
+                          {index > 0 && ' · '}
+                          <i style={{ color }}>{n}</i>
+                        </>
+                      ))}
+                    </span>
+                    <Switch label="Afficher les moyennes mobiles" checked={showAverages} onChange={onShowAverages} />
+                  </span>
+                  <span class="wm-market-mode" title={MODE_HELP.readout}>
+                    Lecture
+                    <Switch label="Lecture des moyennes au curseur" checked={modes.readout} onChange={() => flip('readout')} />
+                  </span>
+                </>
+              )}
+              <span class="wm-market-mode" title={MODE_HELP.rule}>
+                Règle
+                <Switch label="Règle de prix" checked={modes.rule} onChange={() => flip('rule')} />
               </span>
-            )}
+            </span>
           </div>
           <div class="wm-market-chart-box">
-            <SalesChart key={`${entry.fetchedAt} ${selected.join()}`} model={model} showAverages={showAverages} />
+            <SalesChart
+              key={`${entry.fetchedAt} ${selected.join()}`}
+              model={model}
+              showAverages={showAverages}
+              modes={modes}
+              onKeys={onKeys}
+            />
           </div>
         </div>
       )}

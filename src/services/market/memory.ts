@@ -1,5 +1,7 @@
 import { announceDataChange, tally, type DataItem, type DataSet } from '@/core/data';
+import { siteErrorText } from '@/site/api';
 import { parseRarity, RARITIES } from '@/site/rarity';
+import { toast } from '@/ui/toast';
 import {
   clearCache,
   deleteEntries,
@@ -14,8 +16,8 @@ import {
   type MarketEntry,
 } from './cache';
 import { plural } from './format';
-import { isStale } from './market';
-import { showMarketModal } from './open';
+import { fetchMarket, isStale, marketNeedsPro } from './market';
+import { showMarketModal, showProOffer } from './open';
 import { median } from './stats';
 
 /** Prix des ventes par rareté (code du site, `?` : inconnue). */
@@ -94,6 +96,15 @@ export const marketHistoryData: DataSet = {
     void readEntry(key).then((entry) => {
       if (entry) showMarketModal({ id: entry.cardId, title: entry.title, rarity: undefined }, entry);
     });
+  },
+  // Comme « Actualiser » de l'historique : sans PRO, l'offre du site.
+  async refresh(key) {
+    const card = { id: key, title: (await readEntry(key))?.title ?? '', rarity: undefined };
+    if (marketNeedsPro()) {
+      showProOffer(card);
+      return;
+    }
+    await fetchMarket(card).catch((error: unknown) => toast.error(siteErrorText(error), { title: 'Ventes non actualisées' }));
   },
   transfer: {
     async dump() {

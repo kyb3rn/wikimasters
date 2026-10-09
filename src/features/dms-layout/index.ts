@@ -20,7 +20,7 @@ const LIST_WIDTH = 340;
 const GAP = 24;
 /** Largeur des deux colonnes ensemble, au plus (demande de l'utilisateur). */
 const MAX_WIDTH = 1500;
-/** Largeur de la page (marges `md:p-6` comprises) sous laquelle la conversation reste une modale : liste, écart et la largeur de celle du site (`max-w-md`). */
+/** Largeur de la page (marges `md:p-6` comprises) sous laquelle la conversation reste une modale : liste, écart et 448 px de conversation (`max-w-md`, sa largeur sur le site avant le 09/10). */
 const WIDE = 48 + LIST_WIDTH + GAP + 448;
 
 const RECT = ['top', 'left', 'width', 'height'] as const;

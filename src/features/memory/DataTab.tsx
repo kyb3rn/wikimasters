@@ -1,8 +1,8 @@
-import { useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { DataItem, DataSet } from '@/core/data';
 import { useConfirmStep, type ConfirmStep } from '@/services/site-confirm';
 import { buttonClass } from '@/ui/button';
-import { Pagination } from '@/ui/controls';
+import { Pagination, Switch } from '@/ui/controls';
 import { Icon } from '@/ui/icons';
 import { openConfirm } from '@/ui/modal';
 import { itemsLabel, NO_FILTERS, PAGE_SIZE, resultsLabel, sameFilters, selectItems, sortOptions, type ItemSort, type SalesFilters } from './list';
@@ -83,23 +83,34 @@ function DataSection({ set, state, reload, signal, onExport }: SectionProps) {
   const [sort, setSort] = useState<ItemSort>('date');
   const [page, setPage] = useState(1);
   const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set());
+  const [onlySelected, setOnlySelected] = useState(false);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [exporting, setExporting] = useState(false);
 
-  const shown = selectItems(items, large ? search : '', large ? sort : 'date', large && set.salesFilters ? filters : NO_FILTERS);
+  // Sélection : ce qui est encore là, que la recherche et les filtres le montrent ou non.
+  const selectedItems = items.filter((item) => chosen.has(item.key));
+  const selected = selectedItems.map((item) => item.key);
+  const viewing = onlySelected && selected.length > 0;
+  const shown = viewing
+    ? selectItems(selectedItems, '', sort)
+    : selectItems(items, large ? search : '', large ? sort : 'date', large && set.salesFilters ? filters : NO_FILTERS);
   const pages = Math.max(1, Math.ceil(shown.length / PAGE_SIZE));
   const current = Math.min(page, pages);
   const visible = large ? shown.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE) : shown;
-  // Sélection : seulement ce qui est encore là et que la recherche et les filtres montrent.
-  const selected = shown.filter((item) => chosen.has(item.key)).map((item) => item.key);
   const selectable = large && remove !== undefined;
   const nested = items.some((item) => item.children && item.children.length > 0);
+
+  // Sélection vidée : la vue de la sélection s'éteint (sans quoi la prochaine case cochée y ramènerait).
+  useEffect(() => {
+    if (onlySelected && selected.length === 0) setOnlySelected(false);
+  }, [onlySelected, selected.length]);
 
   const pending = draft !== search || !sameFilters(draftFilters, filters);
   const launch = () => {
     if (pending) {
       setSearch(draft);
       setFilters(draftFilters);
+      setOnlySelected(false);
       setPage(1);
     } else void reload();
   };
@@ -109,6 +120,7 @@ function DataSection({ set, state, reload, signal, onExport }: SectionProps) {
     setSearch('');
     setDraftFilters(NO_FILTERS);
     setFilters(NO_FILTERS);
+    setOnlySelected(false);
     setPage(1);
   };
   const toggle = (keys: readonly string[], on: boolean) =>
@@ -136,6 +148,12 @@ function DataSection({ set, state, reload, signal, onExport }: SectionProps) {
   };
   const deleteOne = (key: string) => async () => {
     await remove?.([key]);
+    toggle([key], false);
+    await reload();
+  };
+  const refresh = set.refresh;
+  const refreshOne = (key: string) => async () => {
+    await refresh?.(key);
     await reload();
   };
 
@@ -219,7 +237,9 @@ function DataSection({ set, state, reload, signal, onExport }: SectionProps) {
 
       {selectable && selected.length > 0 && (
         <div class="wm-memory-selection">
-          <span>{itemsLabel(selected.length)} choisi{selected.length > 1 ? 's' : ''}</span>
+          <span>
+            {itemsLabel(selected.length)} sélectionné{selected.length > 1 ? 's' : ''}
+          </span>
           <button
             type="button"
             class={buttonClass('standard', { size: 'sm', tone: 'danger', fill: 'solid' })}
@@ -228,12 +248,23 @@ function DataSection({ set, state, reload, signal, onExport }: SectionProps) {
             Supprimer la sélection
           </button>
           <button type="button" class={buttonClass('standard', { size: 'sm', fill: 'ghost' })} onClick={() => setChosen(new Set())}>
-            Tout décocher
+            Tout désélectionner
           </button>
+          <label class="wm-memory-only">
+            <Switch
+              label="Voir la sélection"
+              checked={viewing}
+              onChange={(on) => {
+                setOnlySelected(on);
+                setPage(1);
+              }}
+            />
+            Voir la sélection
+          </label>
         </div>
       )}
 
-      <ul class="wm-memory-list" aria-busy={state.loading}>
+      <ul class="wm-memory-list" aria-busy={state.loading} data-refresh={refresh ? '' : undefined}>
         {selectable && shown.length > 0 && (
           <HeadRow shown={shown} chosen={chosen} nested={nested} onToggle={(on) => toggle(shown.map((item) => item.key), on)} />
         )}
@@ -262,6 +293,7 @@ function DataSection({ set, state, reload, signal, onExport }: SectionProps) {
                     }),
                 })}
                 {...(openItem && { onOpen: () => openItem(item.key) })}
+                {...(refresh && { onRefresh: refreshOne(item.key) })}
                 {...(remove && { onDelete: deleteOne(item.key) })}
               />,
               ...(open
@@ -297,8 +329,8 @@ function HeadRow({ shown, chosen, nested, onToggle }: { shown: readonly DataItem
         type="checkbox"
         class="wm-memory-check"
         checked={all}
-        aria-label="Tout choisir"
-        title="Tout choisir (toutes les pages)"
+        aria-label="Tout sélectionner"
+        title="Tout sélectionner (toutes les pages)"
         onChange={(event) => onToggle(event.currentTarget.checked)}
       />
       {nested && <span class="wm-memory-spacer" />}

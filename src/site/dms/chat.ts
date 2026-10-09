@@ -4,14 +4,15 @@ import { parsePlayer, type Player } from '@/site/api';
 import { SITE_OVERLAY } from '@/site/modals';
 
 /**
- * Conversation privée ouverte depuis `/dms` (captures du 29/09/2026) : modale du site (portail dans `body`),
- * feuille en bas sur mobile.
+ * Conversation privée ouverte depuis `/dms` (captures du 29/09/2026 et du 09/10/2026) : modale du site (portail dans
+ * `body`), feuille en bas sur mobile.
  *
  *   div.fixed.inset-0.z-50 (fond)
- *     div.card-frame.flex.flex-col (cadre, `sm:max-w-md sm:h-[600px]`)
+ *     div.card-frame.flex.flex-col (cadre, `sm:max-w-2xl lg:max-w-4xl`)
  *       div.flex.items-center.gap-3.border-b (en-tête)
- *         div.rounded-full (photo : `img[alt=pseudo]`, sinon initiales en `span`)
- *         div.flex-1.min-w-0 > p.font-semibold (pseudo, `peer_username` de `/api/chat`)
+ *         a.flex-1.min-w-0[href=/profile/<pseudo>] (lien du site vers le profil, depuis le 09/10)
+ *           div.rounded-full (photo : `img[alt=pseudo]`, sinon initiales en `span`)
+ *           span.font-semibold (pseudo, `peer_username` de `/api/chat`)
  *         button « Fermer »
  *       div.flex-1.overflow-y-auto (messages, échanges)
  *       barre du message
@@ -20,7 +21,7 @@ import { SITE_OVERLAY } from '@/site/modals';
  * fermeture, le site les quitte et relit la liste des conversations.
  */
 export interface ChatPeer {
-  /** `p` du pseudo, rendu par le site. */
+  /** Pseudo, rendu par le site. */
   readonly name: HTMLElement;
   /** Rond de la photo (ou des initiales). */
   readonly avatar: HTMLElement;
@@ -43,8 +44,11 @@ export const GUILD_CHAT_CLASS = 'wm-guild-chat';
 const HEADER = 'div.flex.items-center.gap-3.border-b';
 
 function readHeader(header: HTMLElement): (ChatPeer & { close: HTMLButtonElement }) | undefined {
-  const avatar = header.querySelector<HTMLElement>(':scope > div.rounded-full:first-child');
-  const name = header.querySelector<HTMLElement>(':scope > div.flex-1.min-w-0 > p.font-semibold');
+  const link = header.querySelector<HTMLAnchorElement>(':scope > a') ?? undefined;
+  // Conversation de guilde du script : en-tête du site d'avant le 09/10, photo et nom directement dedans.
+  const box = link ?? header;
+  const avatar = box.querySelector<HTMLElement>(':scope > div.rounded-full:first-child');
+  const name = box.querySelector<HTMLElement>(':scope > span.font-semibold, :scope > div.flex-1.min-w-0 > p.font-semibold');
   const close = header.querySelector<HTMLButtonElement>(':scope > button[aria-label="Fermer"]');
   // Pseudo exact (pas d'espaces réduits) : il sert à l'adresse du profil.
   const username = (name?.textContent ?? '').trim();

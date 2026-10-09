@@ -80,12 +80,14 @@ _Relevé : code et captures du site, 29/09 ; case à cocher : 30/09._
 
 ## Gérer les étiquettes
 
-_Relevé : code du site, 29/09 ; aucune capture._
+_Relevé : code du site, 29/09 ; capture du 06/10 (67 étiquettes)._
 
 - Ouverte par l'option « Gérer les étiquettes… », la dernière de la liste des étiquettes : le `onChange` de la page reçoit `__manage_tags__`.
-- Portail `div.fixed.inset-0.z-[90] … bg-black/70 p-4`, cadre `card-frame-solid relative flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden`, croix ronde dans le coin, en-tête `h2` « Gérer les étiquettes ».
-- Création : sélecteur de couleur, « Nouvelle étiquette… », « Créer ».
-- Liste défilante (`min-h-0 flex-1 overflow-y-auto`), par étiquette `div.rounded-xl.border.p-3` › `div.flex.items-center.gap-2.min-w-0` › pastille, nom (`min-w-0 truncate`), « n carte(s) » (`text-xs`, coupé sur deux lignes quand le nom est long), Couleur · Renommer · Supprimer (`ml-auto`) ; sous la ligne, l'éditeur de couleur (code hexadécimal, « Appliquer ») ou de nom.
+- Portail `div.fixed.inset-0.z-[90] … bg-black/70 p-4`, cadre `card-frame-solid relative flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden`, croix ronde dans le coin, en-tête `h2` « Gérer les étiquettes » et son texte d'aide (`border-b p-4 pr-12`).
+- Création (`div.space-y-3.p-4` › `div.flex.gap-2`) : couleur (`label` › pastille et `input[type=color]`, « Couleur de la nouvelle étiquette »), « Nouvelle étiquette… » (`maxlength=48`), « Créer » (lucide `plus`, désactivé tant que le nom est vide).
+- Liste défilante (`min-h-0 flex-1 overflow-y-auto overscroll-contain border-t p-3` › `div.space-y-2`) : **toutes** les étiquettes d'un coup, triées par nom (`tags?…&order=name.asc`, ordre de Postgres : sans casse, « égypte » après « dev »). Par étiquette `div.rounded-xl.border.p-3` › `div.flex.items-center.gap-2.min-w-0` › pastille (`span.size-2.5.rounded-full`, couleur en `style`), nom (`min-w-0 truncate`), « n carte(s) » (`text-xs`, « 0 carte », coupé sur deux lignes quand le nom est long), Couleur · Renommer · Supprimer (`ml-auto`, lucide `palette`, `pencil`, `trash-2`) ; sous la ligne, l'éditeur de couleur (code hexadécimal, « Appliquer ») ou de nom (pas encore capturés).
+- **Piège** : ses « Supprimer » ont l'icône de « Défausser » ; `findCardModals` les écarte, sinon la fenêtre passait pour une modale de carte (« Marché » posé dans sa première ligne, capture du 06/10).
+- Couleurs choisies à la main, pas seulement la palette du site : 56 couleurs différentes pour 67 étiquettes.
 - Suppression confirmée par `window.confirm`.
 - Lecture : `src/site/collection/tag-manager.ts` (`findTagManager`, `tagManagerOpener`, `findManageTagsOption`).
 
@@ -99,4 +101,4 @@ _Relevé : code du site, 29/09._
 
 ## Dans le script
 
-`collection-filters`, `collection-search`, `collection-search-delay`, `collection-memory`, `collection-pagination`, `collection-selection`, `collection-selection-key`, `collection-bulk-tags`, `collection-prices`, `collection-stay`, `tag-manager`, `collection-card-display`. Détail : section « Collection » de [features.md](../features.md).
+`collection-filters`, `collection-search`, `collection-search-delay`, `collection-memory`, `collection-pagination`, `collection-selection`, `collection-selection-key`, `collection-bulk-tags`, `collection-prices`, `collection-sales-limit`, `collection-stay`, `tag-manager`, `collection-card-display`. Détail : section « Collection » de [features.md](../features.md).

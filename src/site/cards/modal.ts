@@ -116,7 +116,11 @@ export function findCardModals(doc: Document = document): CardModal[] {
     const tagInput = root.querySelector<HTMLInputElement>('input[placeholder^="Ajouter une étiquette"]');
     // Ceux de la modale seulement : pas ceux d'une modale du site ouverte dans son fond (confirmation, échange).
     const buttons = siteButtons(root).filter((button) => button.closest(SITE_OVERLAY) === root);
-    const discardButton = buttons.find((button) => hasIcon(button, 'trash-2', 'trash2') || /^Défausser\b/.test(textOf(button)));
+    // « Supprimer » (corbeille aussi) de chaque ligne de « Gérer les étiquettes » : sans cette exclusion, la fenêtre
+    // passait pour une modale de carte (bouton « Marché » posé dans sa première ligne, capture du 06/10/2026).
+    const discardButton = buttons.find(
+      (button) => (hasIcon(button, 'trash-2', 'trash2') && textOf(button) !== 'Supprimer') || /^Défausser\b/.test(textOf(button)),
+    );
     const auctionButton = buttons.find((button) => hasIcon(button, 'gavel') || ['Mettre aux enchères', 'Vendre'].includes(textOf(button)));
     const wishlistButton = buttons.find((button) => hasIcon(button, 'bell') && /liste de souhaits/i.test(textOf(button)));
     // Ses onglets Détails / Marché, ou au moins l'un de ces contrôles (sinon : autre modale du site).

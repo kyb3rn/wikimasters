@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { rateLevel, secondsLeft } from '@/features/sales-limit/level';
+import { rateLevel, secondsLeft } from '@/services/sales-gauge/level';
 
 const rate = (count: number, blocked = false) => ({ count, blocked, resetsAt: 60_000 });
 

@@ -8,7 +8,8 @@ import { GLOBAL_COLLECTION_ROUTE } from '@/site/routes';
 const CACHED_PAGE_DELAY = 300;
 
 /**
- * Comme la pagination de la Collection : la barre du site est cachée, la nôtre posée à sa place. Première,
+ * Comme la pagination de la Collection : la barre du site est cachée, la nôtre posée à sa place, et une seconde
+ * au-dessus de la grille (la Collection en a deux chez le site, Toutes les cartes une seule). Première,
  * dernière et numéro saisi changent l'état `page` de la page, puis remontent en haut comme elle le fait.
  * Pendant une recherche, sans total : pas de dernière page, suivante tant que le site en annonce une.
  */
@@ -31,6 +32,11 @@ export const globalCollectionPagination: Feature = {
         },
         jump: jumpByPageState(() => findGlobalCollectionStates()?.page),
         settleWithoutRequest: CACHED_PAGE_DELAY,
+        // Le site n'a sa barre que sous la grille : la même au-dessus, entre les filtres et la grille.
+        top() {
+          const area = findGlobalCollectionFilters()?.area;
+          return area?.parentElement ? { parent: area.parentElement, after: area } : undefined;
+        },
       },
       { signal, log },
     );

@@ -15,14 +15,29 @@ const SALES = {
   recent: [],
 };
 
+const LISTING = {
+  id: AUCTION,
+  card_id: 'c-mando',
+  snapshot_rarity: 'UR',
+  card: { id: 'c-mando', wikipedia_title: 'Michael Mando', rarity: 'UR' },
+};
+
 /**
- * Page d'une enchère : la page demande l'enchère, puis affiche le titre et le bouton « Vue du marché » (relevé
- * du 30/09/2026), qui ouvre la vue du site (ici `#site-market`).
+ * Comment le script connaît l'enchère : `request` (la page la demande, réponse vue passer), `state` (déjà dans l'état
+ * de la page, sans requête : script démarré après elle, F5 ou injection tardive de Tampermonkey), `none` (ni l'un ni
+ * l'autre).
  */
-const AUCTION_HTML = sitePage(
-  '<div id="auction"></div>',
-  `
-  fetch('/api/marketplace/${AUCTION}').then((r) => r.json()).then(({ auction }) => {
+type Source = 'request' | 'state' | 'none';
+
+/**
+ * Page d'une enchère : le titre et le bouton « Vue du marché » (relevé du 30/09/2026), qui ouvre la vue du site (ici
+ * `#site-market`).
+ */
+const auctionHtml = (source: Source) =>
+  sitePage(
+    '<div id="auction"></div>',
+    `
+  const render = (auction) => {
     const row = document.createElement('div');
     row.className = 'flex items-start gap-2';
     const title = document.createElement('h1'); title.textContent = auction.card.wikipedia_title;
@@ -37,17 +52,29 @@ const AUCTION_HTML = sitePage(
     };
     row.append(title, button);
     document.getElementById('auction').append(row);
-  });
+    return button;
+  };
+  const source = '${source}';
+  if (source === 'request') {
+    fetch('/api/marketplace/${AUCTION}').then((r) => r.json()).then(({ auction }) => render(auction));
+  } else {
+    const auction = ${JSON.stringify(LISTING)};
+    const button = render(auction);
+    if (source === 'state') kit.fiber(button, {}, kit.fiber(null, {}, null, { memoizedState: kit.hooks([[() => auction]])[0] }));
+  }
   `,
-);
+  );
 
 interface Server {
   sales: number;
+  auctions: number;
   release: () => void;
   hold: boolean;
+  /** Prochaine demande de l'enchère en échec. */
+  failAuction: boolean;
 }
 
-async function openAuction(page: Page, server: Server) {
+async function openAuction(page: Page, server: Server, source: Source = 'request') {
   let waiting: (() => void)[] = [];
   // La requête peut arriver après `release` : elle ne doit plus être retenue.
   server.release = () => {
@@ -56,19 +83,16 @@ async function openAuction(page: Page, server: Server) {
     waiting = [];
   };
   await openSite(page, `/marketplace/${AUCTION}`, {
-    html: AUCTION_HTML,
-    api: {
-      [`/api/marketplace/${AUCTION}`]: {
-        auction: {
-          id: AUCTION,
-          card_id: 'c-mando',
-          snapshot_rarity: 'UR',
-          card: { id: 'c-mando', wikipedia_title: 'Michael Mando', rarity: 'UR' },
-        },
-        bids: [],
-      },
-    },
+    html: auctionHtml(source),
+    api: { [`/api/marketplace/${AUCTION}`]: { auction: LISTING, bids: [] } },
     handle: async (route, url) => {
+      if (url.pathname === `/api/marketplace/${AUCTION}`) {
+        server.auctions++;
+        if (!server.failAuction) return false;
+        server.failAuction = false;
+        await route.fulfill({ status: 500, json: { error: 'Erreur serveur' } });
+        return true;
+      }
       if (!url.pathname.endsWith('/sales')) return false;
       server.sales++;
       if (server.hold) await new Promise<void>((resolve) => waiting.push(resolve));
@@ -81,7 +105,7 @@ async function openAuction(page: Page, server: Server) {
   return button;
 }
 
-const newServer = (): Server => ({ sales: 0, release: () => {}, hold: false });
+const newServer = (): Server => ({ sales: 0, auctions: 0, release: () => {}, hold: false, failAuction: false });
 
 test('« Vue du marché » ouvre notre historique des ventes, pas la vue du site ; roue pendant le chargement', async ({ page }) => {
   const server = { ...newServer(), hold: true };
@@ -112,4 +136,30 @@ test('compte non PRO : l’offre PRO, dans notre modale', async ({ page }) => {
   await expect(offer).toContainText('Découvre l’historique des ventes de « Michael Mando »');
   await expect(page.locator('#site-market')).toHaveCount(0);
   expect(server.sales).toBe(0);
+});
+
+test('script démarré après la requête de l’enchère : la carte lue dans l’état de la page, jamais la vue du site', async ({ page }) => {
+  const server = newServer();
+  const button = await openAuction(page, server, 'state');
+  await button.click();
+  const dialog = page.getByRole('dialog', { name: 'Michael Mando' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator('h2 > span')).toHaveText('UR');
+  await expect(page.locator('#site-market')).toHaveCount(0);
+  expect(server.auctions).toBe(0);
+});
+
+test('carte inconnue : l’enchère redemandée ; en échec, l’erreur seule, jamais la vue du site', async ({ page }) => {
+  const server = { ...newServer(), failAuction: true };
+  const button = await openAuction(page, server, 'none');
+  await button.click();
+  await expect(page.getByRole('alert').filter({ hasText: 'Marché indisponible' })).toBeVisible();
+  await expect(button).toBeEnabled();
+  await expect(page.locator('#site-market')).toHaveCount(0);
+  expect(server.auctions).toBe(1);
+
+  await button.click();
+  await expect(page.getByRole('dialog', { name: 'Michael Mando' })).toBeVisible();
+  await expect(page.locator('#site-market')).toHaveCount(0);
+  expect(server.auctions).toBe(2);
 });

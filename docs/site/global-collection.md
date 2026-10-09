@@ -62,4 +62,4 @@ _Relevé : captures du 29/09, code du 30/09._
 
 ## Dans le script
 
-`global-collection-filters`, `global-collection-search`, `global-collection-search-delay`, `global-collection-pagination`, `global-collection-memory`, `global-collection-friends`, `global-collection-prices`, `global-collection-card-display` ; `card-modal` (vue catalogue). Détail : section « Toutes les cartes » de [features.md](../features.md).
+`global-collection-filters`, `global-collection-search`, `global-collection-search-delay`, `global-collection-pagination`, `global-collection-memory`, `global-collection-friends`, `global-collection-prices`, `global-collection-load-prices`, `global-collection-sales-limit`, `global-collection-card-display` ; `card-modal` (vue catalogue). Détail : section « Toutes les cartes » de [features.md](../features.md).

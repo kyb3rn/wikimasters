@@ -42,5 +42,5 @@ export {
   type SelectionToggle,
 } from './selection';
 export { applyTagChange, shownCollectionReply, type PageTag, type TagChange } from './page-state';
-export { findManageTagsOption, findTagManager, tagManagerOpener, type TagManager } from './tag-manager';
+export { findManageTagsOption, findTagManager, tagManagerOpener, type TagManager, type TagManagerRow } from './tag-manager';
 export { normalizeTagName, randomTagColor, TAG_NAME_MAX, TAG_PALETTE, tagChipStyle } from './tags';

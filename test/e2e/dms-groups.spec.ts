@@ -27,10 +27,12 @@ const HTML = sitePage(
     if (!overlay) {
       document.body.insertAdjacentHTML('beforeend',
         '<div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70" id="chat">' +
-          '<div class="w-full sm:max-w-md flex flex-col card-frame overflow-hidden" style="width:448px">' +
+          '<div class="w-full sm:max-w-2xl lg:max-w-4xl flex flex-col card-frame overflow-hidden" style="width:448px">' +
             '<div class="flex items-center gap-3 px-4 py-3 border-b flex-shrink-0">' +
-              '<div class="w-9 h-9 rounded-full overflow-hidden"><span>AE</span></div>' +
-              '<div class="flex-1 min-w-0"><p class="font-semibold text-sm truncate">aelonka</p></div>' +
+              '<a class="hover:underline flex flex-1 min-w-0 items-center gap-3 rounded-lg text-inherit" href="/profile/aelonka">' +
+                '<div class="w-9 h-9 rounded-full overflow-hidden"><span>AE</span></div>' +
+                '<span class="min-w-0 font-semibold text-sm truncate">aelonka</span>' +
+              '</a>' +
               '<button class="p-1.5 rounded-lg" aria-label="Fermer"><svg class="w-4 h-4" viewBox="0 0 24 24"></svg></button>' +
             '</div>' +
             '<div class="flex-1 overflow-y-auto px-4 py-3 space-y-1" id="list"></div>' +

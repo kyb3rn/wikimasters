@@ -6,6 +6,7 @@ import { auctionModalLayout } from './auction-modal';
 import { auctionReport } from './auction-report';
 import { auctionResult } from './auction-result';
 import { auctionStay } from './auction-stay';
+import { auctionTypedBid } from './auction-typed-bid';
 import { auctionWishedPrice } from './auction-wished-price';
 import { cardFaces } from './card-faces';
 import { cardModalLayout } from './card-modal';
@@ -15,6 +16,7 @@ import { cardModalStay } from './card-modal-stay';
 import { collectionBulkTags } from './collection-bulk-tags';
 import { collectionCardDisplay } from './collection-card-display';
 import { collectionPrices } from './collection-prices';
+import { collectionSalesLimit } from './collection-sales-limit';
 import { collectionFilters } from './collection-filters';
 import { collectionPagination } from './collection-pagination';
 import { collectionMemory } from './collection-memory';
@@ -41,7 +43,9 @@ import { globalCollectionFilters } from './global-collection-filters';
 import { globalCollectionFriends } from './global-collection-friends';
 import { globalCollectionMemory } from './global-collection-memory';
 import { globalCollectionPagination } from './global-collection-pagination';
+import { globalCollectionLoadPrices } from './global-collection-load-prices';
 import { globalCollectionPrices } from './global-collection-prices';
+import { globalCollectionSalesLimit } from './global-collection-sales-limit';
 import { globalCollectionSearch } from './global-collection-search';
 import { globalCollectionSearchDelay } from './global-collection-search-delay';
 import { market } from './market';
@@ -149,6 +153,7 @@ export const features: readonly Feature[] = [
   collectionSelectionKey,
   collectionBulkTags,
   collectionPrices,
+  collectionSalesLimit,
   profileHeader,
   profileUnfriend,
   profileNotFound,
@@ -187,6 +192,7 @@ export const features: readonly Feature[] = [
   marketplacePrices,
   marketplaceWipeEnded,
   auctionLive,
+  auctionTypedBid,
   salesLimit,
   playerLinks,
   ownedBadge,
@@ -205,6 +211,8 @@ export const features: readonly Feature[] = [
   globalCollectionFilters,
   globalCollectionFriends,
   globalCollectionPrices,
+  globalCollectionLoadPrices,
+  globalCollectionSalesLimit,
   globalCollectionCardDisplay,
   guildCardDisplay,
   notifications,

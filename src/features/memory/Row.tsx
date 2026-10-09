@@ -54,6 +54,27 @@ export function DeleteButton({ step, target, name, onDelete }: DeleteButtonProps
   );
 }
 
+/** Redemande l'élément à sa source ; roue pendant la requête. */
+function RefreshButton({ name, onRefresh }: { name: string; onRefresh: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <button
+      type="button"
+      class={buttonClass('round', { size: 'sm', fill: 'ghost' })}
+      disabled={busy}
+      aria-busy={busy}
+      title="Actualiser"
+      aria-label={`Actualiser « ${name} »`}
+      onClick={() => {
+        setBusy(true);
+        void onRefresh().finally(() => setBusy(false));
+      }}
+    >
+      <Icon name="reload" size={14} busy={busy} />
+    </button>
+  );
+}
+
 export interface RowProps {
   readonly item: DataItem;
   /** Case de sélection : `undefined` sans colonne de cases. */
@@ -65,13 +86,15 @@ export interface RowProps {
   /** Mise en vente d'une carte, sous elle. */
   readonly child?: boolean;
   readonly onOpen?: () => void;
+  /** Absent : rien ne se redemande. */
+  readonly onRefresh?: () => Promise<void>;
   /** Absent : rien ne se supprime. */
   readonly onDelete?: () => Promise<void>;
   readonly step: ConfirmStep<string>;
 }
 
-/** Une ligne : case, dépliage, titre (badge de rareté), faits, âge, taille, corbeille. */
-export function Row({ item, selected, onSelect, expanded, onExpand, child = false, onOpen, onDelete, step }: RowProps) {
+/** Une ligne : case, dépliage, titre (badge de rareté), faits, âge, taille, actualisation, corbeille. */
+export function Row({ item, selected, onSelect, expanded, onExpand, child = false, onOpen, onRefresh, onDelete, step }: RowProps) {
   const rarity = parseRarity(item.rarity);
   return (
     <li class="wm-memory-row" data-key={item.key} data-child={child ? '' : undefined}>
@@ -80,7 +103,7 @@ export function Row({ item, selected, onSelect, expanded, onExpand, child = fals
           type="checkbox"
           class="wm-memory-check"
           checked={selected}
-          aria-label={`Choisir « ${item.title} »`}
+          aria-label={`Sélectionner « ${item.title} »`}
           onChange={(event) => onSelect?.(event.currentTarget.checked)}
         />
       )}
@@ -126,6 +149,7 @@ export function Row({ item, selected, onSelect, expanded, onExpand, child = fals
       </span>
       <span class="wm-memory-size">{formatBytes(item.bytes)}</span>
       <span class="wm-memory-actions">
+        {onRefresh && <RefreshButton name={item.title} onRefresh={onRefresh} />}
         {onDelete && <DeleteButton step={step} target={item.key} name={item.title} onDelete={onDelete} />}
       </span>
     </li>

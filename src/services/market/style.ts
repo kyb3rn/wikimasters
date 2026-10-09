@@ -33,14 +33,15 @@ export const CSS = `
 .wm-market-chip:hover { opacity: 0.75; }
 .wm-market-chip[aria-pressed="true"] { opacity: 1; border-color: currentColor; }
 
-/* Graphique : petit titre et interrupteur des moyennes sur une ligne, au-dessus du cadre. */
+/* Graphique : petit titre et interrupteurs (moyennes, lecture, règle) sur une ligne, au-dessus du cadre. */
 .wm-market-history { display: flex; flex-direction: column; gap: 6px; }
 .wm-market-chart-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
   padding: 0 2px; }
 .wm-market-title { flex: 1 1 auto; min-width: 0; font-size: 12px; font-weight: 600; opacity: 0.8; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis; }
-.wm-market-averages { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; white-space: nowrap; }
-.wm-market-averages i { font-style: normal; font-weight: 700; }
+.wm-market-modes { display: inline-flex; align-items: center; gap: 14px; font-size: 11px; white-space: nowrap; }
+.wm-market-mode { display: inline-flex; align-items: center; gap: 8px; }
+.wm-market-mode i { font-style: normal; font-weight: 700; }
 .wm-market-chart-box { padding: 6px 8px; border-radius: 8px; border: 1px solid ${tokens.border};
   background: ${tokens.surfaceLight}; }
 
@@ -54,7 +55,7 @@ export const CSS = `
 .wm-market-area, .wm-market-line { transition: opacity 0.15s; }
 .wm-market-point { stroke: ${tokens.surface}; stroke-width: 1; transition: r 0.1s, opacity 0.15s; }
 .wm-market-point[data-on] { stroke: #fff; stroke-width: 1.5; }
-/* Maj : ventes atténuées pour lire les moyennes. */
+/* Lecture (Maj) : ventes atténuées pour lire les moyennes. */
 .wm-market-chart[data-dim] .wm-market-area { opacity: 0.02; }
 .wm-market-chart[data-dim] .wm-market-line { opacity: 0.15; }
 .wm-market-chart[data-dim] .wm-market-point { opacity: 0.2; }
@@ -64,7 +65,7 @@ export const CSS = `
 .wm-market-guide { stroke: ${tokens.foreground}; opacity: 0.4; stroke-width: 1; stroke-dasharray: 3 3;
   vector-effect: non-scaling-stroke; }
 .wm-market-average-dot { stroke: #fff; stroke-width: 1.5; }
-/* Ctrl : règle horizontale, prix à gauche (halo du fond pour couvrir la graduation). */
+/* Règle (Ctrl) : règle horizontale, prix à gauche (halo du fond pour couvrir la graduation). */
 .wm-market-rule line { stroke: ${tokens.accent}; opacity: 0.85; stroke-width: 1; stroke-dasharray: 4 3;
   vector-effect: non-scaling-stroke; }
 .wm-market-chart .wm-market-rule text { fill: ${tokens.accent}; opacity: 1; font-weight: 700; stroke: ${tokens.surface};

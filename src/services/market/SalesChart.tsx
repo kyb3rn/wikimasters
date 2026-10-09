@@ -61,10 +61,13 @@ interface Drag {
   moved: boolean;
 }
 
-interface Keys {
-  readonly shift: boolean;
-  readonly ctrl: boolean;
+/** Modes du graphique : lecture des moyennes au curseur (Maj) et règle de prix (Ctrl). */
+export interface ChartModes {
+  readonly readout: boolean;
+  readonly rule: boolean;
 }
+
+export const NO_MODES: ChartModes = { readout: false, rule: false };
 
 let sequence = 0;
 
@@ -105,31 +108,34 @@ function interpolate(points: readonly { x: number; y: number; price: number }[],
 
 export interface SalesChartProps {
   readonly model: ChartModel;
-  /** Moyennes affichées (réglage) ; Maj les montre de toute façon. */
+  /** Moyennes affichées (réglage) ; la lecture les montre de toute façon. */
   readonly showAverages: boolean;
+  /** Modes en cours : interrupteur allumé ou touche maintenue. */
+  readonly modes: ChartModes;
+  /** Maj et Ctrl maintenues, à chaque touche et mouvement de souris (souvent inchangées). Fonction stable : lue au montage. */
+  readonly onKeys: (held: ChartModes) => void;
 }
 
 /**
  * Graphique des ventes (points à la couleur de leur rareté, ligne, fond jusqu'au prix 0, moyennes mobiles).
- * Survol : le point le plus proche (prix, date, rareté). Maj : ventes atténuées, moyennes au curseur. Ctrl :
- * règle horizontale avec son prix. Glisser dans le tracé : déplacer ; sur l'axe des dates (droite = avant) ou
+ * Survol : le point le plus proche (prix, date, rareté). Lecture (Maj) : ventes atténuées, moyennes au curseur.
+ * Règle (Ctrl) : règle horizontale avec son prix. Glisser dans le tracé : déplacer ; sur l'axe des dates (droite = avant) ou
  * des prix (haut = avant) : zoom de cet axe ; molette : zoom autour du curseur (un seul axe sur sa graduation).
  * R : 30 derniers jours (vue de départ), A : toutes les ventes (chacune désactivable). À remonter (`key`)
  * pour d'autres ventes.
  */
-export function SalesChart({ model, showAverages }: SalesChartProps) {
+export function SalesChart({ model, showAverages, modes, onKeys }: SalesChartProps) {
   const [clip] = useState(() => `wm-market-clip-${++sequence}`);
   const [view, setView] = useState(model.initial);
   const [hover, setHover] = useState<Hover>();
   const [tip, setTip] = useState<Tip>();
-  const [keys, setKeysState] = useState<Keys>({ shift: false, ctrl: false });
   const [dragging, setDragging] = useState(false);
   const svg = useRef<SVGSVGElement>(null);
   const wrap = useRef<HTMLDivElement>(null);
   const tipBox = useRef<HTMLDivElement>(null);
   // Lus par les écouteurs : toujours la dernière valeur, sans attendre le rendu.
   const viewRef = useRef(view);
-  const keysRef = useRef(keys);
+  const modesRef = useRef(modes);
   const pointer = useRef<{ x: number; y: number }>();
   const drag = useRef<Drag>();
 
@@ -145,14 +151,14 @@ export function SalesChart({ model, showAverages }: SalesChartProps) {
       return;
     }
     const inside = project(matrix.inverse(), at.x, at.y);
-    const { shift, ctrl } = keysRef.current;
-    if (ctrl) {
+    const { readout, rule } = modesRef.current;
+    if (rule) {
       const y = clampY(inside.y);
       setHover({ kind: 'rule', y, price: pOfY(GEO, current, y) });
       setTip(undefined);
       return;
     }
-    if (shift && model.averages.length) {
+    if (readout && model.averages.length) {
       const x = clampX(inside.x);
       const values = model.averages.map((line) =>
         interpolate(
@@ -234,12 +240,12 @@ export function SalesChart({ model, showAverages }: SalesChartProps) {
     return clamped;
   }
 
-  function setKeys(shift: boolean, ctrl: boolean): void {
-    if (shift === keysRef.current.shift && ctrl === keysRef.current.ctrl) return;
-    keysRef.current = { shift, ctrl };
-    setKeysState(keysRef.current);
+  const setKeys = (shift: boolean, ctrl: boolean) => onKeys({ readout: shift, rule: ctrl });
+
+  useLayoutEffect(() => {
+    modesRef.current = modes;
     refresh();
-  }
+  }, [modes.readout, modes.rule]);
 
   function svgPoint(clientX: number, clientY: number) {
     const matrix = svg.current?.getScreenCTM();
@@ -364,8 +370,8 @@ export function SalesChart({ model, showAverages }: SalesChartProps) {
         class="wm-market-chart"
         viewBox={`0 0 ${GEO.width} ${GEO.height}`}
         aria-hidden="true"
-        data-averages={showAverages || keys.shift || undefined}
-        data-dim={keys.shift || undefined}
+        data-averages={showAverages || modes.readout || undefined}
+        data-dim={modes.readout || undefined}
         data-drag={dragging || undefined}
         onMouseMove={(event) => {
           pointer.current = { x: event.clientX, y: event.clientY };

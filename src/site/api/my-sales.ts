@@ -1,11 +1,12 @@
 import { isRecord } from '@/core/guards';
+import { serverNow } from '@/site/clock';
 import { parseRarity, type Rarity } from '@/site/rarity';
 import { siteRequest } from './request';
 
 /**
  * Une de mes ventes en cours au marché : l'annonce et l'exemplaire mis en vente, aux valeurs de l'exemplaire (rareté,
  * ATK, DEF de l'annonce). Liste `selling` de `GET /api/marketplace?…&mine=1` (capture du 02/10/2026) : annonces
- * `active` du joueur, 10 au plus (compte PRO), `card` jointe.
+ * `active` du joueur, 10 au plus (compte PRO), `card` jointe ; finies comprises (`parseMySales`).
  */
 export interface MarketListing {
   /** Annonce (`/marketplace/<id>`). */
@@ -62,10 +63,18 @@ export function parseMarketListing(raw: unknown): MarketListing | undefined {
   };
 }
 
-/** Réponse de `mine=1` : ses ventes en cours (annonces illisibles laissées de côté). */
-export function parseMySales(raw: unknown): MarketListing[] | undefined {
+/**
+ * Réponse de `mine=1` : ses ventes en cours à `now` (heure du serveur), annonces illisibles laissées de côté. Une annonce
+ * finie n'en est plus une, même `active` : la route en garde plusieurs minutes après leur règlement (capture du
+ * 07/10 : réglées à 08:32, vendues ou déjà revenues dans la collection, encore `active` dans `selling` à 08:35).
+ */
+export function parseMySales(raw: unknown, now: number): MarketListing[] | undefined {
   if (!isRecord(raw) || !Array.isArray(raw.selling)) return undefined;
-  return raw.selling.flatMap((item) => (isRecord(item) && item.status !== 'active' ? [] : (parseMarketListing(item) ?? [])));
+  return raw.selling.flatMap((item) => {
+    if (isRecord(item) && item.status !== 'active') return [];
+    const listing = parseMarketListing(item);
+    return listing && listing.endAt > now ? [listing] : [];
+  });
 }
 
 /**
@@ -73,5 +82,5 @@ export function parseMySales(raw: unknown): MarketListing[] | undefined {
  * tentative.
  */
 export function fetchMySales(): Promise<MarketListing[]> {
-  return siteRequest('/api/marketplace?page=1&limit=1&mine=1', {}, parseMySales);
+  return siteRequest('/api/marketplace?page=1&limit=1&mine=1', {}, (raw) => parseMySales(raw, serverNow()));
 }

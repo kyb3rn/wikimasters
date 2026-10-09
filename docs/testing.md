@@ -55,7 +55,7 @@ Chacun imite une page d'après le code et les captures du site (dates en tête d
 
 | Fichier | Page imitée | Entrée |
 |---|---|---|
-| `collection.ts` | Collection : recherche, listes, pastilles, liste et compteurs, voile, pagination, « tirer pour rafraîchir » (fibers périmés compris), modale de carte (défausse, mise aux enchères), « Gérer les étiquettes » | `openCollection`, `collectionScript`, `entry`, `faces`, `titles` |
+| `collection.ts` | Collection : recherche, listes, pastilles, liste et compteurs, voile, pagination, « tirer pour rafraîchir » (fibers périmés compris), modale de carte (défausse, mise aux enchères), « Gérer les étiquettes » (balisage de la capture du 06/10, recréée à chaque ouverture) | `openCollection`, `collectionScript`, `entry`, `faces`, `titles`, `tagManagerMarkup`, `MANAGED_TAGS` |
 | `collection-selection.ts` | mode sélection de la Collection : barre du bas, modale d'étiquetage, défausse groupée, étiquettes lues à Supabase | `openSelectionPage` |
 | `global-collection.ts` | Toutes les cartes, modale de carte en vue catalogue (un ami qui a la carte, offre en cours) | `CATALOG_HTML`, `catalogHtml` |
 | `global-collection-list.ts` | liste de Toutes les cartes : filtres, effet de chargement, pages gardées en `sessionStorage`, états dans les hooks | `openGlobalCollection` |

@@ -21,9 +21,12 @@ function listing(id: string, extra: Record<string, unknown> = {}) {
   };
 }
 
+/** Avant la fin des annonces de `listing`. */
+const NOW = Date.parse('2026-10-02T06:00:00Z');
+
 describe('mes ventes en cours (`mine=1`)', () => {
   it('annonces de `selling`, aux valeurs de l’exemplaire en vente', () => {
-    expect(parseMySales({ auctions: [listing('autre')], selling: [listing('a1')] })).toEqual([
+    expect(parseMySales({ auctions: [listing('autre')], selling: [listing('a1')] }, NOW)).toEqual([
       {
         id: 'a1',
         cardId: 'card-a1',
@@ -45,12 +48,19 @@ describe('mes ventes en cours (`mine=1`)', () => {
   it('mise actuelle s’il y en a une, shiny d’une L seulement, image cachée', () => {
     const [sale] = parseMySales({
       selling: [listing('a', { current_bid: 500, effective_bid: 500, snapshot_rarity: 'L', is_shiny: true, card: { ...listing('a').card, hide_image: true } })],
-    }) ?? [];
+    }, NOW) ?? [];
     expect(sale).toMatchObject({ amount: 500, hasBid: true, shiny: true, image: undefined });
   });
 
   it('écarte une annonce finie ou illisible ; sans liste : illisible', () => {
-    expect(parseMySales({ selling: [listing('a', { status: 'settled_sold' }), { id: 'b' }, 'x'] })).toEqual([]);
-    expect(parseMySales({ auctions: [] })).toBeUndefined();
+    expect(parseMySales({ selling: [listing('a', { status: 'settled_sold' }), { id: 'b' }, 'x'] }, NOW)).toEqual([]);
+    expect(parseMySales({ auctions: [] }, NOW)).toBeUndefined();
+  });
+
+  it('écarte une annonce finie restée `active` (route en retard sur le règlement, 07/10)', () => {
+    const end = Date.parse('2026-10-02T06:27:59.212Z');
+    const ids = (now: number) => parseMySales({ selling: [listing('a'), listing('b', { end_at: '2026-10-02T07:00:00+00:00' })] }, now)?.map((sale) => sale.id);
+    expect(ids(end - 1)).toEqual(['a', 'b']);
+    expect(ids(end)).toEqual(['b']);
   });
 });

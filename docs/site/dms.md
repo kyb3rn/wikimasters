@@ -23,14 +23,15 @@ main > div.flex-1.p-4.md:p-6.space-y-6
 
 ## Conversation
 
-_Relevé : captures du 29/09._
+_Relevé : captures du 29/09 ; en-tête et cadre : capture du 09/10._
 
 ```
 div.fixed.inset-0.z-50 (fond)
-  div.card-frame.flex.flex-col (cadre, sm:max-w-md sm:h-[600px] ; feuille en bas sur mobile)
+  div.card-frame.flex.flex-col (cadre, sm:max-w-2xl lg:max-w-4xl, sm:h-[min(85vh,800px)] lg:h-[min(90vh,1000px)] ; feuille en bas sur mobile)
     div.flex.items-center.gap-3.border-b (en-tête)
-      div.rounded-full w-9 h-9 (photo : img[alt=pseudo], sinon initiales en span)
-      div.flex-1.min-w-0 > p.font-semibold (pseudo, peer_username de /api/chat)
+      a.flex.flex-1.min-w-0[href=/profile/<pseudo>] (title « Voir le profil de <pseudo> », hover:underline)
+        div.rounded-full w-9 h-9 (photo : img[alt=pseudo], sinon initiales en span)
+        span.font-semibold (pseudo, peer_username de /api/chat)
       button « Fermer » (aria-label)
     div.flex-1.overflow-y-auto (messages, échanges)
     barre du message
@@ -40,7 +41,7 @@ div.fixed.inset-0.z-50 (fond)
 - Ouverte, elle suit ses canaux temps réel (`chat:<ami>:<uid>`, `chat-trades:<ami>:<uid>`) ; à sa fermeture, le site les quitte et relit la liste (`GET /api/chat`).
 - Échanges en encarts (« Échange », état, « Détails »).
 - Le même composant sert hors de /dms (fenêtre « Message » de la page Amis, chat de guilde du site) ; le script l'ouvre aussi sur le profil d'un ami ([Ouverte par le script](#ouverte-par-le-script)).
-- Aucun lien vers le profil (ni pseudo, ni photo).
+- Depuis le 09/10, photo et pseudo de l'en-tête dans un lien du site vers le profil (avant : `div.rounded-full` et `div.flex-1.min-w-0 > p.font-semibold` directement dans l'en-tête, cadre `sm:max-w-md sm:h-[600px]` ; la conversation de guilde du script garde cet en-tête, sans lien). Photos des messages toujours sans lien.
 - Lecture : `src/site/dms/chat.ts` (`findChatWindows`).
 
 ## Ouverte par le script
@@ -77,4 +78,4 @@ div.flex-1.overflow-y-auto (liste)
 
 ## Dans le script
 
-`dms-layout` (conversation posée à droite de la liste), `dms-new-message` (« Nouveau message » : écrire à un ami, même sans conversation), `dms-trade` (« Échanger » dans l'en-tête de la conversation), `dms-groups` (messages groupés), `guild-chat` (conversation de guilde épinglée, `GUILD_CHAT_CLASS`), `player-links` (pseudo et photos en liens). Détail : section « Messages » de [features.md](../features.md).
+`dms-layout` (conversation posée à droite de la liste), `dms-new-message` (« Nouveau message » : écrire à un ami, même sans conversation), `dms-trade` (« Échanger » dans l'en-tête de la conversation), `dms-groups` (messages groupés), `guild-chat` (conversation de guilde épinglée, `GUILD_CHAT_CLASS`), `player-links` (photos des messages en liens). Détail : section « Messages » de [features.md](../features.md).

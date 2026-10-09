@@ -17,6 +17,54 @@ export function entry(id: string, title: string, rarity = 'C', count = 1) {
 
 export type Entry = ReturnType<typeof entry>;
 
+export interface ManagedTag {
+  readonly name: string;
+  readonly count: number;
+  /** `#rrggbb`. */
+  readonly color: string;
+}
+
+/** Étiquettes de la fenêtre « Gérer les étiquettes » de la Collection imitée, dans l'ordre du site (par nom). */
+export const MANAGED_TAGS: readonly ManagedTag[] = [
+  { name: 'égypte', count: 3, color: '#ff0000' },
+  { name: 'rare', count: 0, color: '#60a5fa' },
+  { name: 'sport', count: 12, color: '#4ade80' },
+];
+
+function managerRow({ name, count, color }: ManagedTag): string {
+  const action = (label: string, icon: string, tone: string) =>
+    `<button type="button" class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs ${tone}"><svg class="lucide lucide-${icon} size-3.5" width="14" height="14"></svg>${label}</button>`;
+  return (
+    `<div class="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-light)] p-3">` +
+    `<div class="flex items-center gap-2 min-w-0"><span class="size-2.5 shrink-0 rounded-full" aria-hidden="true" style="background-color: ${color};"></span>` +
+    `<span class="min-w-0 truncate text-sm font-semibold">${name}</span>` +
+    `<span class="text-xs text-[var(--color-foreground)]/45">${count}<!-- --> carte<!-- -->${count > 1 ? 's' : ''}</span>` +
+    `<div class="ml-auto flex items-center gap-1">` +
+    action('Couleur', 'palette', 'text-[var(--color-foreground)]/70') +
+    action('Renommer', 'pencil', 'text-[var(--color-foreground)]/70') +
+    action('Supprimer', 'trash2 lucide-trash-2', 'text-red-400') +
+    `</div></div></div>`
+  );
+}
+
+/** Fenêtre « Gérer les étiquettes » (capture du 06/10/2026) : en-tête, création, liste défilante des étiquettes. */
+export function tagManagerMarkup(tags: readonly ManagedTag[] = MANAGED_TAGS): string {
+  return (
+    `<div class="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 p-4">` +
+    `<div class="card-frame-solid relative flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden animate-fade-in-up isolate">` +
+    `<button type="button" class="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full" aria-label="Fermer"><svg class="lucide lucide-x size-[18px]"></svg></button>` +
+    `<div class="border-b border-[var(--color-border)] p-4 pr-12"><h2 class="text-lg font-bold">Gérer les étiquettes</h2>` +
+    `<p class="mt-1 text-xs">Créez, renommez, colorez ou supprimez vos étiquettes.</p></div>` +
+    `<div class="space-y-3 p-4"><div class="flex gap-2">` +
+    `<label class="relative flex size-[2.375rem] shrink-0 items-center justify-center rounded-lg border" title="Couleur de la nouvelle étiquette"><input aria-label="Couleur de la nouvelle étiquette" class="absolute inset-0 size-full opacity-0" type="color" value="#f472b6"></label>` +
+    `<input placeholder="Nouvelle étiquette…" maxlength="48" class="w-full rounded-lg border px-3 py-2 text-sm" type="text" value="">` +
+    `<button type="button" disabled class="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold"><svg class="lucide lucide-plus size-4"></svg>Créer</button>` +
+    `</div></div>` +
+    `<div class="min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-[var(--color-border)] p-3"><div class="space-y-2">${tags.map(managerRow).join('')}</div></div>` +
+    `</div></div>`
+  );
+}
+
 /**
  * Imitation de la page Collection : champ de recherche (pris en compte 300 ms après la frappe, 3 caractères
  * au moins), deux listes déroulantes du site (étiquette, tri) et pastilles de rareté (L UR SR R PC C) qui
@@ -60,18 +108,15 @@ export function collectionScript(selection = ''): string {
   window.__collection = { loads: 0, staleRefresh: 0, staleSetPage: 0, overlayShown: 0, manageOpened: 0, siteTagActions: 0 };
   nextRouter();
 
-  // Fenêtre « Gérer les étiquettes », ouverte par l'option du même nom de la liste des étiquettes.
+  // Fenêtre « Gérer les étiquettes », ouverte par l'option du même nom de la liste des étiquettes ; recréée à
+  // chaque ouverture, comme le portail du site.
   function openManager() {
     window.__collection.manageOpened++;
-    const back = el('div', 'fixed inset-0 z-[90] flex items-center justify-center bg-black/70 p-4');
+    const holder = el('div');
+    holder.innerHTML = ${JSON.stringify(tagManagerMarkup())};
+    const back = holder.firstElementChild;
     back.id = 'tag-manager';
-    const panel = el('div', 'card-frame-solid relative flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden');
-    const close = button('absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full', '×', () => back.remove());
-    close.setAttribute('aria-label', 'Fermer');
-    const head = el('div', 'border-b border-[var(--color-border)] p-4 pr-12');
-    head.append(el('h2', 'text-lg font-bold', 'Gérer les étiquettes'));
-    panel.append(close, head);
-    back.append(panel);
+    back.querySelector('[aria-label="Fermer"]').onclick = () => back.remove();
     document.body.append(back);
   }
 

@@ -4,10 +4,12 @@ import { expectDomIdle, letTimePass, openSettings, openSite, presetSettings, sit
 /** Heure du serveur figée en cours de minute : la remise à zéro est dans 50 s. */
 const NOW = new Date('2026-10-02T12:37:10Z');
 
+/** `loadSales(carte)` : le site demande les ventes d'une carte, comme son « Vue du marché ». */
+const LOAD_SALES = `window.loadSales = (card) => fetch('/api/marketplace/cards/' + card + '/sales').then((response) => response.status);`;
+
 /**
  * Marché réduit à ses onglets (capture du 29/09/2026) : rangée `border-b`, « Parcourir » choisi (`border-b-2`), son
- * contenu en frère suivant ; « Mes ventes » change l'onglet choisi et le contenu. `loadSales(carte)` : le site demande
- * les ventes d'une carte, comme son « Vue du marché ».
+ * contenu en frère suivant ; « Mes ventes » change l'onglet choisi et le contenu.
  */
 const HTML = sitePage(
   `<div class="flex-1 p-4 md:p-6 space-y-6">
@@ -26,7 +28,7 @@ const HTML = sitePage(
   };
   browse.onclick = () => choose(browse, 'Annonces du site');
   sales.onclick = () => choose(sales, 'Mes ventes du site');
-  window.loadSales = (card) => fetch('/api/marketplace/cards/' + card + '/sales').then((response) => response.status);
+  ${LOAD_SALES}
   `,
 );
 
@@ -39,13 +41,13 @@ interface Server {
   now: Date;
 }
 
-async function openMarket(page: Page, features: Record<string, boolean>): Promise<Server> {
+async function openPage(page: Page, path: string, html: string, features: Record<string, boolean>): Promise<Server> {
   const server: Server = { refuse: false, now: NOW };
   await page.clock.setFixedTime(NOW);
   // Sans la recherche avancée (outil de dev, choisie d'office à l'arrivée), sauf demande.
   await presetSettings(page, { features: { 'market-search': false, ...features }, values: {} });
-  await openSite(page, '/marketplace', {
-    html: HTML,
+  await openSite(page, path, {
+    html,
     handle: async (route, url) => {
       if (!/^\/api\/marketplace\/cards\/[^/]+\/sales$/.test(url.pathname)) return false;
       const headers = { date: server.now.toUTCString() };
@@ -53,6 +55,11 @@ async function openMarket(page: Page, features: Record<string, boolean>): Promis
       return true;
     },
   });
+  return server;
+}
+
+async function openMarket(page: Page, features: Record<string, boolean>): Promise<Server> {
+  const server = await openPage(page, '/marketplace', HTML, features);
   await expect(page.locator('#bar')).toBeVisible();
   return server;
 }
@@ -156,3 +163,28 @@ test('affiché aussi sur la recherche avancée, même ouverte depuis un autre on
   await page.getByRole('button', { name: 'Parcourir' }).click();
   await expect(box(page)).toBeVisible();
 });
+
+/** Pages où chaque carte a son bouton du prix : le compteur y a son interrupteur, dans leur onglet des paramètres. */
+const CARD_PAGES = [
+  { path: '/collection', tab: 'Collection' },
+  { path: '/global-collection', tab: 'Toutes les cartes' },
+] as const;
+
+for (const { path, tab } of CARD_PAGES) {
+  test(`${tab} : éteint par défaut ; activé dans son onglet des paramètres, le compteur s’affiche et compte`, async ({ page }) => {
+    await openPage(page, path, sitePage(`<h1>${tab}</h1>`, LOAD_SALES), {});
+    await letTimePass(page, 300);
+    await expect(gauge(page)).toHaveCount(0);
+
+    const settings = await openSettings(page, tab);
+    const toggle = settings.getByRole('switch', { name: 'Limite des historiques : Afficher le compteur' });
+    await expect(toggle).not.toBeChecked();
+    await toggle.click();
+    await expect(box(page)).toContainText('Historiques0 / 30');
+    await expect(box(page)).toContainText('Remis à zéro dans 50 s');
+
+    expect(await loadSales(page, 3)).toBe(200);
+    await expect(box(page)).toContainText('3 / 30');
+    await expectDomIdle(page);
+  });
+}

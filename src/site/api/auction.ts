@@ -2,6 +2,7 @@ import { isRecord, parseJson } from '@/core/guards';
 import type { NetRequest } from '@/core/net';
 import { parseCardRef, type CardRef } from '@/site/cards';
 import { parseRarity } from '@/site/rarity';
+import { siteRequest } from './request';
 
 /**
  * Enchères du marché (code du site, 29/09/2026) :
@@ -61,6 +62,11 @@ export function parseListingCard(auction: unknown): CardRef | undefined {
 /** La carte mise aux enchères, dans la réponse de sa page : `{ auction, bids }` (capture du 30/09/2026). */
 export function parseAuctionCard(body: unknown): CardRef | undefined {
   return parseListingCard(isRecord(body) ? body.auction : undefined);
+}
+
+/** La carte d'une enchère, demandée comme le fait sa page. */
+export function fetchAuctionCard(auctionId: string): Promise<CardRef> {
+  return siteRequest(`${AUCTIONS}/${encodeURIComponent(auctionId)}`, { method: 'GET' }, parseAuctionCard);
 }
 
 /**

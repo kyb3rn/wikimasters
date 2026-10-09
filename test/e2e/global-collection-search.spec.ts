@@ -66,7 +66,7 @@ test('tri, raretés et liste de souhaits ne rechargent pas : la loupe lance la r
   await expect(button).toHaveAttribute('aria-label', 'Lancer la recherche');
   await expect(titles(page)).toHaveText(['rarity toutes p0']);
   // Une autre page chargerait les nouveaux filtres.
-  await expect(page.getByRole('button', { name: 'Page suivante' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Page suivante' }).last()).toBeDisabled();
   expect(server.requests).toEqual(['page=0&sort=rarity']);
 
   const open = hold(server);
@@ -93,7 +93,7 @@ test('revenir aux choix de la liste affichée : plus rien à chercher, même si 
 test('le bouton recharge la liste affichée, même page, sans la page gardée par le site', async ({ page }) => {
   const server = await openGlobalCollection(page);
   await expect(titles(page)).toHaveText(['rarity toutes p0']);
-  await page.getByRole('button', { name: 'Page suivante' }).click();
+  await page.getByRole('button', { name: 'Page suivante' }).last().click();
   await expect(titles(page)).toHaveText(['rarity toutes p1']);
   await page.locator(BUTTON).click();
   await expect.poll(() => server.requests.length).toBe(3);
@@ -168,7 +168,7 @@ test('rechargement automatique permis : la recherche part seule après la frappe
   await expect(titles(page)).toHaveText(['rarity toutes «tour» p0']);
   expect(server.requests).toEqual(['page=0&sort=rarity', 'page=0&q=tour&sort=rarity']);
   // Sans total pendant une recherche : pas de dernière page.
-  await expect(page.getByRole('button', { name: 'Dernière page' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Dernière page' }).last()).toBeDisabled();
 
   await field.fill('tour eiffel');
   await field.press('Enter');
@@ -193,17 +193,38 @@ test('pendant une recherche, l’avertissement du site au-dessus des filtres est
   await expect(stats).toBeVisible();
 });
 
-test('pagination comme la Collection : barre du site cachée, dernière page d’un saut', async ({ page }) => {
+test('pagination comme la Collection : barre du site cachée, la nôtre sous la grille et au-dessus, dernière page d’un saut', async ({ page }) => {
   const server = await openGlobalCollection(page);
   await expect(titles(page)).toHaveText(['rarity toutes p0']);
   await expect(page.getByRole('button', { name: '← Précédent' })).toBeHidden();
-  const pagination = page.getByRole('navigation', { name: 'Pagination' });
-  await expect(pagination.getByRole('spinbutton', { name: 'Numéro de page' })).toHaveValue('1');
-  await expect(pagination).toContainText('/ 3');
-  await pagination.getByRole('button', { name: 'Dernière page' }).click();
+  const paginations = page.getByRole('navigation', { name: 'Pagination' });
+  await expect(paginations).toHaveCount(2);
+  const [top, bottom] = [paginations.first(), paginations.last()];
+  // Celle du haut entre les filtres et la grille, celle du bas sous la grille.
+  const [topBox, grid, bottomBox] = await Promise.all([rect(top), rect(page.locator('#grid')), rect(bottom)]);
+  expect(topBox.y + topBox.height).toBeLessThanOrEqual(grid.y);
+  expect(bottomBox.y).toBeGreaterThanOrEqual(grid.y + grid.height);
+  const pageNumbers = async (value: string) => {
+    for (const pagination of [top, bottom]) await expect(pagination.getByRole('spinbutton', { name: 'Numéro de page' })).toHaveValue(value);
+  };
+  await pageNumbers('1');
+  await expect(top).toContainText('/ 3');
+
+  // Roue sur le bouton cliqué seulement, l'autre pagination désactivée.
+  const release = hold(server);
+  await top.getByRole('button', { name: 'Dernière page' }).click();
+  await expect(top.getByRole('button', { name: 'Dernière page' })).toHaveAttribute('aria-busy', 'true');
+  await expect(bottom.getByRole('button', { name: 'Dernière page' })).toHaveAttribute('aria-busy', 'false');
+  await expect(bottom.getByRole('button', { name: 'Page précédente' })).toBeDisabled();
+  release();
   await expect(titles(page)).toHaveText(['rarity toutes p2']);
-  await expect(pagination.getByRole('spinbutton', { name: 'Numéro de page' })).toHaveValue('3');
+  await pageNumbers('3');
   expect(server.requests.at(-1)).toBe('page=2&sort=rarity');
+
+  await bottom.getByRole('button', { name: 'Première page' }).click();
+  await expect(titles(page)).toHaveText(['rarity toutes p0']);
+  await pageNumbers('1');
+  await expectDomIdle(page);
 });
 
 /** Carte de la liste gardée par le script : son titre (les filtres) et son identifiant (rang de la requête). */
@@ -252,7 +273,7 @@ test('filtres retenus : à l’arrivée, la dernière recherche revient aussitô
 
   // La suite passe par le site, avec les filtres retenus.
   release();
-  await page.getByRole('button', { name: 'Page suivante' }).click();
+  await page.getByRole('button', { name: 'Page suivante' }).last().click();
   await expect(titles(page)).toHaveText(['atk SR «tour» p1']);
   expect(server.requests).toEqual(['page=1&q=tour&rarity=SR&sort=atk']);
 });
@@ -284,7 +305,7 @@ test('liste gardée telle quelle jusqu’au prochain chargement : le bouton la r
   await expect.poll(() => server.requests.length).toBe(2);
   await expect.poll(() => keptCard(page)).toBe('rarity toutes p0 c-2');
   // Une autre page ne remplace pas la liste gardée : à l'arrivée, on revient en page 1.
-  await page.getByRole('button', { name: 'Page suivante' }).click();
+  await page.getByRole('button', { name: 'Page suivante' }).last().click();
   await expect(titles(page)).toHaveText(['rarity toutes p1']);
   await letTimePass(page, 300);
   expect(await keptCard(page)).toBe('rarity toutes p0 c-2');
@@ -368,7 +389,7 @@ test('paramètres : onglet Toutes les cartes, option active par défaut, désact
   await openGlobalCollection(page);
   await expect(titles(page)).toHaveText(['rarity toutes p0']);
   const dialog = await openSettings(page, 'Toutes les cartes');
-  await expect(dialog.locator('.wm-settings-heading')).toHaveText(['Recherche', 'Prix moyen', 'Apparence']);
+  await expect(dialog.locator('.wm-settings-heading')).toHaveText(['Recherche', 'Prix moyen', 'Limite des historiques', 'Apparence']);
   const toggle = dialog.getByRole('switch', { name: 'Recherche : Empêcher le rechargement automatique' });
   await expect(toggle).toHaveAttribute('aria-checked', 'true');
   await toggle.click();
