@@ -29,17 +29,19 @@ const RECT = ['top', 'left', 'width', 'height'] as const;
  * La page devient une grille centrée de 1500 px au plus (deux pistes vides de part et d'autre) : le titre
  * au-dessus, puis la liste à gauche (elle défile seule) et notre cadre à droite, du haut de la première conversation
  * jusqu'en bas. L'écart entre les colonnes est une marge du cadre : un `column-gap` s'ajouterait aussi entre les
- * pistes vides. La conversation du site (portail dans `body`) est posée exactement sur ce cadre : sans fond ni croix,
- * sous les modales du site (z-50) qu'elle peut ouvrir.
+ * pistes vides. Sans liste, la colonne de gauche a plusieurs blocs l'un sous l'autre (ligne de la guilde, puis
+ * « Aucune conversation » ou la roue du site) : trois rangées pour eux, que la liste et le cadre couvrent toutes, la
+ * dernière prenant le reste de la hauteur. La conversation du site (portail dans `body`) est posée exactement sur ce
+ * cadre : sans fond ni croix, sous les modales du site (z-50) qu'elle peut ouvrir.
  */
 const CSS = `
 .${PAGE}.${PAGE} { display: grid;
   grid-template-columns: minmax(0, 1fr) ${LIST_WIDTH}px minmax(0, ${MAX_WIDTH - LIST_WIDTH}px) minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr); row-gap: 24px; height: 100%; box-sizing: border-box; }
+  grid-template-rows: auto auto auto minmax(0, 1fr); row-gap: 24px; height: 100%; box-sizing: border-box; }
 .${PAGE} > * { grid-column: 2; min-width: 0; min-height: 0; margin: 0 !important; }
-.${PAGE} > .${HEAD} { grid-column: 2 / 4; }
-.${PAGE} > .${LIST} { overflow-y: auto; }
-.${PAGE} > .${PANEL} { grid-column: 3; grid-row: 2; margin-left: ${GAP}px !important; }
+.${PAGE} > .${HEAD} { grid-column: 2 / 4; grid-row: 1; }
+.${PAGE} > .${LIST} { grid-row: 2 / -1; overflow-y: auto; }
+.${PAGE} > .${PANEL} { grid-column: 3; grid-row: 2 / -1; margin-left: ${GAP}px !important; }
 .${PANEL} > div { height: 100%; display: flex; flex-direction: column; align-items: center;
   justify-content: center; gap: 12px; padding: 24px; text-align: center; }
 .${ACTIVE}.${ACTIVE} { background-color: var(--color-surface-light); }

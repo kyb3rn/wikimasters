@@ -162,6 +162,32 @@ test('page rendue par le serveur : le cadre de droite seulement une fois la page
   await expect(page.locator('.wm-dms-panel')).toContainText('Choisissez une conversation.');
 });
 
+test('aucune conversation (capture du 09/10) : ligne de la guilde et « Aucune conversation » du site l’un sous l’autre, cadre jusqu’en bas', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 800 });
+  await openSite(page, '/dms', { html: HTML });
+  await expect(page.locator('.wm-dms-panel')).toBeVisible();
+  // Liste vide chez le site : son encart à la place de la liste, la ligne de la guilde (à nous) sous le titre.
+  await page.evaluate(() => {
+    const list = document.getElementById('list');
+    list?.insertAdjacentHTML(
+      'beforebegin',
+      '<div class="wm-root" id="guild-row"><button type="button" style="display:block;height:68px">Chat de la guilde</button></div>' +
+        '<div class="card-frame p-12 text-center space-y-3 animate-fade-in-up" id="empty" style="height:240px">' +
+        '<p>Aucune conversation pour le moment.</p></div>',
+    );
+    list?.remove();
+  });
+  await settled(page);
+
+  const [guild, empty, frame] = await Promise.all([box(page, '#guild-row'), box(page, '#empty'), box(page, '.wm-dms-panel')]);
+  expect(guild.height).toBe(68);
+  expect(empty.y).toBe(guild.y + guild.height + 24);
+  expect(empty.x).toBe(guild.x);
+  expect(frame.y).toBe(guild.y);
+  expect(frame.y + frame.height).toBe(800 - 24);
+  expect(await page.locator('main').evaluate((main) => main.scrollHeight <= main.clientHeight)).toBe(true);
+});
+
 test('/dms sur un grand écran : les deux colonnes centrées, 1500 px au plus', async ({ page }) => {
   await page.setViewportSize({ width: 2400, height: 900 });
   await openSite(page, '/dms', { html: HTML });
