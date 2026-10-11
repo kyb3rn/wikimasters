@@ -17,15 +17,30 @@ export interface WishlistChange {
   readonly wished: boolean;
 }
 
-/** Carte ajoutée ou retirée par une requête `isWishlistChange` ; `undefined` si la requête ne se lit pas. */
-export function readWishlistChange(request: NetRequest): WishlistChange | undefined {
-  if (!isWishlistChange(request)) return undefined;
+/**
+ * Cartes ajoutées ou retirées par une requête `isWishlistChange` : une seule depuis la modale de carte, plusieurs
+ * depuis la sélection de Toutes les cartes (`POST …?on_conflict=user_id,card_id` `[{ user_id, card_id }, …]`,
+ * `DELETE …&card_id=in.(…)`). Rien si la requête ne se lit pas.
+ */
+export function readWishlistChanges(request: NetRequest): WishlistChange[] {
+  if (!isWishlistChange(request)) return [];
   if (request.method === 'DELETE') {
-    const cardId = /^eq\.(.+)$/.exec(request.url.searchParams.get('card_id') ?? '')?.[1];
-    return cardId ? { cardId, wished: false } : undefined;
+    return filterValues(request.url.searchParams.get('card_id') ?? '').map((cardId) => ({ cardId, wished: false }));
   }
   const body = request.body === undefined ? undefined : parseJson(request.body);
-  return isRecord(body) && typeof body.card_id === 'string' ? { cardId: body.card_id, wished: true } : undefined;
+  return (Array.isArray(body) ? body : [body]).flatMap((row: unknown) =>
+    isRecord(row) && typeof row.card_id === 'string' ? [{ cardId: row.card_id, wished: true }] : [],
+  );
+}
+
+/** Valeurs d'un filtre PostgREST : `eq.a`, ou `in.(a,b)` (entre guillemets, une valeur qui contient `,` ou `()`). */
+function filterValues(filter: string): string[] {
+  const eq = /^eq\.(.+)$/.exec(filter)?.[1];
+  if (eq) return [eq];
+  const list = /^in\.\((.*)\)$/.exec(filter)?.[1] ?? '';
+  return [...list.matchAll(/"((?:[^"\\]|\\.)*)"|([^,]+)/g)]
+    .map(([, quoted, plain]) => quoted?.replace(/\\(.)/g, '$1') ?? plain ?? '')
+    .filter((value) => value !== '');
 }
 
 function sessionUser(): string {

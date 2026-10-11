@@ -24,7 +24,7 @@ export {
 } from './owned-copies';
 export { fetchMySales, parseMarketListing, parseMySales, type MarketListing } from './my-sales';
 export { fetchCardSales, parseCardSales, parseSale, readSalesRequest, type CardSales, type Sale } from './sales';
-export { addToWishlist, isWishlistChange, readWishlistChange, removeFromWishlist, type WishlistChange } from './wishlist';
+export { addToWishlist, isWishlistChange, readWishlistChanges, removeFromWishlist, type WishlistChange } from './wishlist';
 export {
   answerFriendRequest,
   fetchFriendships,

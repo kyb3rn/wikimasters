@@ -164,15 +164,16 @@ test('un clic sur une carte ouvre la modale du site de cette carte, sans son', a
   expect(await playedSounds(page)).toEqual(['pack-rip']);
 });
 
-test('l’étoile d’une carte est celle du site : favori enregistré, carte et protection à jour', async ({ page }) => {
+test('l’étoile d’une carte est celle du site : favori de l’exemplaire enregistré, carte et verrou à jour', async ({ page }) => {
   const { starChanges } = await openPulls(page);
   await openPack(page, 3);
 
   await face(page, 1).getByRole('button', { name: 'Ajouter aux favoris' }).click();
   await expect(face(page, 1).getByRole('button', { name: 'Retirer des favoris' })).toBeVisible();
-  expect(starChanges).toEqual(['?user_id=eq.u0&card_id=eq.c2 {"starred":true}']);
+  expect(starChanges).toEqual(['?user_id=eq.u0&id=eq.u2 {"starred":true}']);
   await expect(page.locator('#card-modal')).toHaveCount(0);
-  await expect(slots(page).nth(1).locator('.wm-discard-next')).toHaveAttribute('data-status', 'protected');
+  await expect(slots(page).nth(1).locator('.wm-discard-next')).toHaveAttribute('data-status', 'starred');
+  await expect(slots(page).nth(0).locator('.wm-discard-next')).toHaveAttribute('data-status', 'ready');
 });
 
 test('une L shiny arrive révélée, comme au bout de son animation dans le carrousel', async ({ page }) => {

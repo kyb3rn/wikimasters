@@ -1,14 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { protectionReason } from '@/services/quick-discard';
 
-const facts = { starred: false, tagged: false };
-const rules = { starred: true, tagged: true };
+const facts = { tagged: false };
+const rules = { tagged: true };
 
 describe('protection du défaussage rapide', () => {
-  it('protège une carte en favori ou étiquetée, selon les réglages', () => {
-    expect(protectionReason({ ...facts, starred: true }, rules)).toBe('carte en favori');
-    expect(protectionReason({ ...facts, tagged: true }, rules)).toBe('carte avec une étiquette');
-    expect(protectionReason({ starred: true, tagged: true }, { starred: false, tagged: false })).toBeUndefined();
+  it('protège une carte étiquetée, selon les réglages', () => {
+    expect(protectionReason({ tagged: true }, rules)).toBe('carte avec une étiquette');
+    expect(protectionReason({ tagged: true }, { tagged: false })).toBeUndefined();
     expect(protectionReason(facts, rules)).toBeUndefined();
   });
 

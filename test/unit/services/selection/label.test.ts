@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { selectedLabel } from '@/features/collection-selection/label';
+import { selectedLabel } from '@/services/selection';
 
 it('compte de la sélection', () => {
   expect(selectedLabel(0)).toBe('sélectionnée');

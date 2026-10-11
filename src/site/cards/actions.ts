@@ -4,8 +4,9 @@ import type { NetRequest } from '@/core/net';
 /**
  * Actions du site sur les exemplaires faites en direct sur Supabase, lues dans ses requêtes (code du site,
  * 29/09/2026) ; la défausse et la mise aux enchères passent par ses routes (`site/api`) :
- * - favori : `PATCH SB /rest/v1/user_cards?user_id=eq.<uid>&card_id=eq.<carte>` `{ starred }`,
- *   appliqué à tous les exemplaires de la carte ;
+ * - favori, par exemplaire depuis le 10/10/2026 (avant : `card_id=eq.<carte>`, tous les exemplaires de la carte) :
+ *   `PATCH SB /rest/v1/user_cards?…id=eq.<exemplaire>` `{ starred }` (paquets : précédé de `user_id=eq.<uid>`),
+ *   `id=in.(<exemplaires>)` pour la sélection de la Collection ;
  * - étiquette ajoutée : `POST SB /rest/v1/user_card_tags` `{ user_card_id, tag_id }` ;
  * - étiquette retirée : `DELETE SB /rest/v1/user_card_tags?user_card_id=eq.<exemplaire>&tag_id=eq.<étiquette>`.
  */
@@ -20,12 +21,20 @@ function jsonBody(request: NetRequest): Record<string, unknown> | undefined {
   return isRecord(body) ? body : undefined;
 }
 
-/** Favori mis ou retiré sur une carte (tous ses exemplaires). */
-export function readStarChange(request: NetRequest): { cardId: string; starred: boolean } | undefined {
+/** Exemplaires d'un filtre `id` de PostgREST : `eq.<id>` ou `in.(<id>,…)` (valeurs parfois entre guillemets). */
+function idsParam(request: NetRequest): string[] {
+  const value = request.url.searchParams.get('id') ?? '';
+  if (value.startsWith('eq.')) return value.length > 3 ? [value.slice(3)] : [];
+  const list = /^in\.\((.*)\)$/.exec(value)?.[1];
+  return list ? list.split(',').map((id) => id.trim().replace(/^"(.*)"$/, '$1')).filter(Boolean) : [];
+}
+
+/** Favori mis ou retiré sur des exemplaires. */
+export function readStarChange(request: NetRequest): { userCardIds: readonly string[]; starred: boolean } | undefined {
   if (request.method !== 'PATCH' || !request.url.pathname.endsWith('/rest/v1/user_cards')) return undefined;
-  const cardId = eqParam(request, 'card_id');
+  const userCardIds = idsParam(request);
   const starred = jsonBody(request)?.starred;
-  return cardId && typeof starred === 'boolean' ? { cardId, starred } : undefined;
+  return userCardIds.length > 0 && typeof starred === 'boolean' ? { userCardIds, starred } : undefined;
 }
 
 /** Étiquette ajoutée à un exemplaire. */

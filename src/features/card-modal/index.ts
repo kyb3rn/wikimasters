@@ -42,7 +42,7 @@ export const cardModalLayout: Feature = {
   id: 'card-modal-layout',
   name: 'Modale de carte',
   description:
-    "Présentation de la modale de carte : signalement sur l'image, actions Vendre · Marché (historique du marché) · Défausser (roue pendant la défausse) ; carte seule (Toutes les cartes) ou d'un ami : Échanger · Liste de souhaits · Marché.",
+    "Présentation de la modale de carte : signalement sur l'image, actions Vendre · Marché (historique du marché) · Défausser (roue pendant la défausse) ; carte seule (Toutes les cartes) ou d'un ami : Échanger · Liste de souhaits · Marché ; carte en favori : Verrouillée (favori) · Marché.",
   category: 'Général',
   routes: 'all',
   required: true,
@@ -147,12 +147,14 @@ export const cardModalLayout: Feature = {
         markets.render(modal.root, h(MarketButton, market), { parent: modal.actionsRow, before: discard, inline: true });
       } else if (modal.panel) {
         // Sinon, la nôtre : l'échange et la liste de souhaits de la colonne de droite (boutons du site cachés,
-        // déclenchés par les nôtres), et « Marché ».
+        // déclenchés par les nôtres), le verrou du favori à la place de l'encart du site, et « Marché ».
         for (const control of modal.sideActions) ctx.hide(control);
+        if (modal.favoriteLock) ctx.hide(modal.favoriteLock.element);
         const { tradeButton: trade, wishlistButton: wish } = modal;
         markets.render(
           modal.root,
           h(ModalActions, {
+            locked: modal.favoriteLock && { title: modal.favoriteLock.text },
             trade: trade ? { pending: false, onClick: () => trade.click() } : modal.tradePending ? { pending: true, onClick: () => {} } : undefined,
             wishlist: wish && {
               active: modal.wishlisted,

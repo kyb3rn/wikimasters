@@ -7,7 +7,8 @@ import { SITE_OVERLAY } from '@/site/modals';
 /*
  * Page de la collection (captures du 29/09/2026) : liste de 50 exemplaires par page
  * (`GET /api/my-collection?sort=&page=&stats=0[&filtres]`) et ses compteurs (`GET /api/my-collection/stats?…`).
- * Grille `div.flex.flex-wrap.justify-center` > `div.relative.isolate.group` > face, dans l'ordre de la liste.
+ * Grille `div.flex.flex-wrap.justify-center` > case (`CARD_CELL`) > face, puis en mode sélection le calque et la case
+ * à cocher (`site/selection`), dans l'ordre de la liste.
  * Après une défausse ou une mise aux enchères réussie depuis sa modale, le site recharge tout : liste,
  * compteurs, échanges en cours, étiquettes, solde (la liste peut alors échouer : 500, grille vide).
  * La fenêtre d'échange (côté « Mes cartes ») lit la même route avec `owned_by=<ami>` : ce n'est pas la page.
@@ -20,11 +21,6 @@ export interface CollectionEntry {
   /** Exemplaires possédés de cette carte. */
   readonly count: number;
 }
-
-/** Case d'une carte de la grille : sa face, puis en mode sélection le calque et la case à cocher. */
-export const COLLECTION_CARD_BOX = 'div.relative.isolate.group';
-/** Calque du mode sélection, sur toute la case : anneau si cochée, voile si en échange (code du site, 01/10/2026). */
-export const SELECTION_OVERLAY = 'div.pointer-events-none.absolute.inset-0';
 
 /** Voile avec roue posé sur la grille pendant un chargement (sauf le premier : toute la page tourne). */
 export const LIST_LOADING_VEIL = 'div.absolute.inset-0.z-20[aria-busy="true"]';

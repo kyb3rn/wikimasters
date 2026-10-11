@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { CAROUSEL, openCard } from './support/pulls';
-import { presetSettings } from './support/site';
+import { expectDomIdle, presetSettings } from './support/site';
 
 // Le carrousel du site, sans « toutes les cartes d'un coup ».
 test.beforeEach(({ page }) => presetSettings(page, CAROUSEL));
@@ -29,17 +29,16 @@ async function listCurrentCard(page: Page, response: Creation = { status: 201, j
   await page.getByRole('dialog', { name: 'Mise en vente' }).getByRole('button', { name: 'Confirmer' }).click();
 }
 
-test('après la mise en vente : pas de redirection, retour à la carte, bouton grisé, notification', async ({ page }) => {
+test('après la mise en vente : pas de redirection, retour à la carte, « Voir l’enchère » à la place de Vendre, notification', async ({ page }) => {
   await listCurrentCard(page);
 
   const notification = page.getByRole('status').filter({ hasText: 'Enchère publiée' });
   await expect(notification).toContainText('« Tour Eiffel » est aux enchères.');
   expect(new URL(page.url()).pathname).toBe('/pulls');
   await expect(page.locator('#auction-modal')).toHaveCount(0);
-  const sell = page.locator('#card-modal').getByRole('button', { name: 'Vendre' });
-  await expect(sell).toBeDisabled();
-  await expect(sell).toHaveAttribute('title', 'Carte déjà en vente');
-  await expect(sell).toHaveCSS('cursor', 'not-allowed');
+  const modal = page.locator('#card-modal');
+  await expect(modal.getByRole('button', { name: 'Vendre' })).toBeHidden();
+  await expect(modal.getByRole('link', { name: "Voir l'enchère" })).toHaveAttribute('href', `/marketplace/${AUCTION_ID}`);
 
   // Le lien de la notification mène à l'enchère (navigation du site).
   const link = notification.getByRole('link', { name: "Voir l'enchère" });
@@ -69,14 +68,14 @@ test('Ctrl+clic sur « Voir l’enchère » : autre onglet, la page reste, notif
   expect(new URL(page.url()).pathname).toBe('/pulls');
 });
 
-test('carte aux enchères : Vendre, Défausser, étiquettes et défaussage rapide verrouillés', async ({ page }) => {
+test('carte aux enchères : « Voir l’enchère » à la place de Vendre ; Défausser, étiquettes et défaussage rapide verrouillés', async ({ page }) => {
   await listCurrentCard(page);
   const modal = page.locator('#card-modal');
-  const controls = [
-    modal.getByRole('button', { name: 'Vendre' }),
-    modal.getByRole('button', { name: /Défausser/ }),
-    modal.getByPlaceholder('Ajouter une étiquette…'),
-  ];
+  const sell = modal.getByRole('button', { name: 'Vendre' });
+  const link = modal.getByRole('link', { name: "Voir l'enchère" });
+  const controls = [modal.getByRole('button', { name: /Défausser/ }), modal.getByPlaceholder('Ajouter une étiquette…')];
+  await expect(link).toBeVisible();
+  await expect(sell).toBeHidden();
   for (const control of controls) {
     await expect(control).toBeDisabled();
     await expect(control).toHaveAttribute('title', 'Carte déjà en vente');
@@ -86,11 +85,20 @@ test('carte aux enchères : Vendre, Défausser, étiquettes et défaussage rapid
   await expect(trash).toHaveAttribute('data-status', 'listed');
   await expect(trash).toHaveAttribute('title', 'Carte déjà en vente');
   await expect(trash).toBeDisabled();
+  await expectDomIdle(page);
 
-  // Enchère retirée (depuis sa fiche) : l'exemplaire revient, tout se déverrouille.
+  // Enchère retirée (depuis sa fiche) : l'exemplaire revient, tout se déverrouille, « Vendre » revient.
   await page.evaluate((id) => fetch(`/api/marketplace/${id}`, { method: 'DELETE' }), AUCTION_ID);
-  for (const control of controls) await expect(control).toBeEnabled();
+  await expect(link).toHaveCount(0);
+  for (const control of [sell, ...controls]) await expect(control).toBeEnabled();
   await expect(trash).toHaveAttribute('data-status', 'ready');
+});
+
+test('« Voir l’enchère » de la modale : navigation du site vers l’enchère', async ({ page }) => {
+  await listCurrentCard(page);
+  await page.locator('#card-modal').getByRole('link', { name: "Voir l'enchère" }).click();
+  await expect.poll(() => new URL(page.url()).pathname).toBe(`/marketplace/${AUCTION_ID}`);
+  await expect(page.locator('#stage')).toHaveText(`Fiche /marketplace/${AUCTION_ID}`);
 });
 
 test('carte aux enchères : tampon « En vente » vert dans la modale (clic pour la revoir) et le carrousel', async ({ page }) => {

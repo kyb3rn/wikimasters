@@ -50,6 +50,32 @@ test('actions : Vendre à gauche, Marché (gris) au centre, Défausser (rouge) �
   await expect(modal.locator('.wm-market-button')).toHaveClass(/wm-button-window/);
 });
 
+test('carte en favori : l’encart du site devient « Verrouillée (favori) », désactivé, dans la rangée de Marché', async ({ page }) => {
+  const modal = await openCardModal(page);
+  const row = modal.locator('.wm-root', { has: page.locator('.wm-market-button') }).locator('button');
+  await modal.getByRole('button', { name: 'Ajouter aux favoris' }).click();
+
+  // Comme le site : ni Vendre ni Défausser ; son encart, caché.
+  await expect(modal.getByRole('button', { name: /Défausser|Vendre/ })).toHaveCount(0);
+  await expect(modal.getByRole('status')).toBeHidden();
+  await expect(row).toHaveText(['Verrouillée (favori)', 'Marché']);
+  const locked = row.first();
+  await expect(locked).toBeDisabled();
+  await expect(locked).toHaveAttribute('title', "Carte en favori : verrouillée. Retirez-la des favoris pour la vendre, la défausser ou l'échanger.");
+  await expect(locked).toHaveClass(/wm-button-window/);
+  await expect(locked).toHaveCSS('opacity', '0.5');
+  await expect(locked).toHaveCSS('cursor', 'not-allowed');
+  await expectDomIdle(page);
+
+  // Retirée des favoris : la rangée du site revient, avec Marché.
+  await modal.getByRole('button', { name: 'Retirer des favoris' }).click();
+  await expect(modal.getByText('Verrouillée (favori)')).toHaveCount(0);
+  const labels = await modal.getByRole('button', { name: /Défausser/ }).evaluate((discard) =>
+    [...(discard.parentElement?.querySelectorAll('button') ?? [])].map((button) => (button.textContent ?? '').trim()),
+  );
+  expect(labels).toEqual(['Vendre', 'Marché', 'Défausser+1']);
+});
+
 test('pas d’interrupteur dans les paramètres : c’est la présentation par défaut', async ({ page }) => {
   await openCardModal(page);
   await page.getByRole('button', { name: 'Fermer' }).click();

@@ -42,6 +42,12 @@ function installKit(): void {
     return `<svg class="lucide lucide-${name}${cls ? ` ${cls}` : ''}" width="${size}" height="${size}"></svg>`;
   }
 
+  /** Libellé de l'étoile d'une face (code du site du 10/10/2026), sur mes exemplaires ou ceux d'un ami. */
+  function starLabel(starred: boolean, friend?: string): string {
+    if (friend) return starred ? `En favori chez ${friend} : carte verrouillée` : `Pas en favori chez ${friend}`;
+    return starred ? 'Retirer des favoris (déverrouille la carte)' : 'Ajouter aux favoris (verrouille la carte : ni défausse, ni vente, ni échange)';
+  }
+
   /** Comme la base de Tailwind et le site : `border-box` partout, 16 px imposés aux champs. */
   function tailwindBase(): void {
     if (document.getElementById('kit-base')) return;
@@ -243,9 +249,10 @@ function installKit(): void {
    * (`catalogView`) et l'exemplaire d'un ami (`friendUsername`), rendu en portail dans `body` (`#card-modal`, noté
    * avec le fiber du composant). Face (favori sauf en vue catalogue, « Échange en attente » d'un ami), colonne de
    * droite (titre, rareté + onglets, étiquettes modifiables ou en lecture seule, ATK / DEF, infos, bloc échange et
-   * liste de souhaits, Wikipédia, « Signaler l'image »), rangée d'actions de mes exemplaires ou « Carte réservée
-   * dans un échange ». « Proposer un échange » ouvre la fenêtre d'échange dans le fond (`#trade-composer`). La page
-   * change `props` puis appelle `render()`.
+   * liste de souhaits, Wikipédia, « Signaler l'image »), rangée d'actions de mes exemplaires, ou à sa place l'encart du
+   * favori (verrouillé, code du 10/10) ou « Carte réservée dans un échange ». En favori chez un ami : « Carte
+   * verrouillée par <pseudo> » au lieu de « Proposer un échange », qui ouvre la fenêtre d'échange dans le fond
+   * (`#trade-composer`). La page change `props` puis appelle `render()`.
    */
   function cardModal(props: CardModalProps, parent: Fiber | null = null) {
     const back = el('div', 'fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm');
@@ -264,7 +271,7 @@ function installKit(): void {
       if (!props.catalogView) {
         const fill = props.starred ? 'currentColor' : 'none';
         const star = button('p-0.5 rounded-md', `<svg viewBox="0 0 24 24" width="16" height="16"><path fill="${fill}" stroke="currentColor" d="M12 2l3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1z"></path></svg>`);
-        star.setAttribute('aria-label', props.starred ? 'Retirer des favoris' : 'Ajouter aux favoris');
+        star.setAttribute('aria-label', starLabel(props.starred === true, props.friendUsername));
         star.style.cssText = 'position:absolute;top:4px;right:4px;z-index:30';
         node.append(star);
       }
@@ -311,7 +318,14 @@ function installKit(): void {
       const wishlist = Boolean(props.catalogView && props.onToggleWishlist);
       if (!friend && !wishlist) return undefined;
       const block = el('div', 'space-y-2');
-      if (friend && !props.friendOfferPending) {
+      // Comme le site (10/10) : exemplaire de l'ami en favori chez lui, verrouillé.
+      if (friend && !props.friendOfferPending && props.starred) {
+        const status = el('div', 'inline-flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold border');
+        status.setAttribute('role', 'status');
+        status.innerHTML = `${icon('lock', 'size-4 shrink-0')}Carte verrouillée par ${props.friendUsername ?? ''}`;
+        block.append(status);
+      }
+      if (friend && !props.friendOfferPending && !props.starred) {
         block.append(
           button('inline-flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold bg-[var(--color-accent)]/10', `${icon('handshake', 'size-4 shrink-0')}Proposer un échange`, () => {
             composing = true;
@@ -382,7 +396,8 @@ function installKit(): void {
       panel.append(close, columns);
 
       const own = !props.catalogView && !props.friendUsername;
-      if (own && (props.count ?? 0) > 0 && !props.ownOfferPending && props.userCardId) {
+      const starred = Boolean(props.starred);
+      if (own && (props.count ?? 0) > 0 && !props.ownOfferPending && !starred && props.userCardId) {
         const row = el('div', 'flex flex-col sm:flex-row gap-2');
         row.append(
           button('flex-1 inline-flex items-center justify-center gap-2 py-2.5 rounded-lg bg-[var(--color-accent)]/10', `${icon('gavel')}Mettre aux enchères`, () => props.onAuction?.()),
@@ -391,6 +406,12 @@ function installKit(): void {
         const actions = el('div', 'mt-3 space-y-2');
         actions.append(row);
         panel.append(actions);
+      } else if (own && (props.count ?? 0) > 0 && starred && !props.ownOfferPending) {
+        // Comme le site (10/10) : un exemplaire en favori est verrouillé, ni vente ni défausse.
+        const lock = el('div', 'mt-3 flex w-full items-center justify-center gap-2 py-2.5 px-3 rounded-lg bg-amber-400/10 border text-center');
+        lock.setAttribute('role', 'status');
+        lock.innerHTML = `${icon('lock', 'size-4 shrink-0')}Carte en favori : verrouillée. Retirez-la des favoris pour la vendre, la défausser ou l'échanger.`;
+        panel.append(lock);
       } else if (own && props.ownOfferPending) {
         panel.append(el('div', 'mt-3 inline-flex w-full items-center justify-center gap-2 py-2.5 rounded-lg bg-amber-400/15', 'Carte réservée dans un échange'));
       }
@@ -416,7 +437,7 @@ function installKit(): void {
     return { back, props, render };
   }
 
-  Reflect.set(window, 'kit', { el, button, icon, tailwindBase, fiber, chain, hooks, nextRouter, listbox, rarityPills, cardModal });
+  Reflect.set(window, 'kit', { el, button, icon, starLabel, tailwindBase, fiber, chain, hooks, nextRouter, listbox, rarityPills, cardModal });
 }
 
 /** Script de page qui pose `window.kit`. */

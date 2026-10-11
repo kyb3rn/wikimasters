@@ -1,9 +1,10 @@
 import { watchDom } from '@/core/dom';
 import type { Feature } from '@/core/runtime';
 import { trackPrices } from '@/services/market';
-import { readFaceCard } from '@/site/cards';
-import { COLLECTION_CARD_BOX, findCollectionFaces, SELECTION_OVERLAY } from '@/site/collection';
+import { CARD_CELL, readFaceCard } from '@/site/cards';
+import { findCollectionFaces } from '@/site/collection';
 import { COLLECTION_ROUTE } from '@/site/routes';
+import { SELECTION_OVERLAY } from '@/site/selection';
 import { createSlots } from '@/ui/mount';
 
 const PRICE = 'wm-card-price';
@@ -16,7 +17,7 @@ const PRICE_SPACE = 'calc(1.25rem + 6px)';
  */
 const CSS = `
 .wm-root.${PRICE} { display: block; width: 100%; margin-top: 6px; }
-${COLLECTION_CARD_BOX}:has(> .wm-root.${PRICE}) > ${SELECTION_OVERLAY} { bottom: ${PRICE_SPACE}; }
+${CARD_CELL}:has(> .wm-root.${PRICE}) > ${SELECTION_OVERLAY} { bottom: ${PRICE_SPACE}; }
 `;
 
 /** Les ventes ne sont relues qu'à leur changement : un prix qui dépasse la durée du cache passe au contour à ce rythme. */
@@ -48,7 +49,7 @@ export const collectionPrices: Feature = {
       for (const face of findCollectionFaces()) {
         const box = face.parentElement;
         const card = readFaceCard(face);
-        if (!box?.matches(COLLECTION_CARD_BOX) || !card) continue;
+        if (!box?.matches(CARD_CELL) || !card) continue;
         // Cache pas encore lu : rien, plutôt qu'un « Charger le prix » qui changerait aussitôt.
         const button = prices.button(card);
         if (!button) continue;

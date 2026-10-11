@@ -190,7 +190,7 @@ const SCRIPT = `
     function openCopy(copy) {
       closeCopy();
       modal = cardModal({
-        card: copy.card, userCardId: copy.id, starred: false, count: 1, tags: copy.tags ?? [], tagsReadOnly: true,
+        card: copy.card, userCardId: copy.id, starred: copy.starred === true, count: 1, tags: copy.tags ?? [], tagsReadOnly: true,
         friendUsername: 'aelonka', friendProfileId: 'p-aelonka', friendOfferPending: pending.has(copy.id), onClose: closeCopy,
       }, pageFiber);
     }

@@ -39,7 +39,7 @@ const DISCARDING = 'Défausse en cours…';
 
 function facts(state: OpenPack, card: PackCard): CardFacts {
   const copies = [...(state.copies?.values() ?? [])].filter((copy) => copy.cardId === card.id);
-  return { starred: copies.some((copy) => copy.starred), tagged: copies.some((copy) => copy.tags > 0) };
+  return { tagged: copies.some((copy) => copy.tags > 0) };
 }
 
 const sameTitle = (a: string | undefined, b: string | undefined) => normalizeText(a) === normalizeText(b);
@@ -71,6 +71,7 @@ export const pullsDiscardNext: Feature = {
       if (!card) return { status: 'unavailable' };
       const copy = state.chosen?.get(card.id);
       if (copy && listingOf(copy)) return { status: 'listed' };
+      if (copy && state.copies?.get(copy)?.starred) return { status: 'starred' };
       const reason = quickDiscardProtection(facts(state, card));
       if (reason) return { status: 'protected', reason };
       return { status: state.chosen?.has(card.id) ? 'ready' : 'unavailable' };

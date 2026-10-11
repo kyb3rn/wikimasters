@@ -5,8 +5,8 @@ import { expectDomIdle } from './support/site';
 const COPY = { id: 'u-7', card_id: 'c7', card: { id: 'c7', wikipedia_title: 'Bastogne', rarity: 'SR' }, tags: [{ id: 't1', name: 'rouge' }], owned_by_viewer: false };
 
 /** Collection d'un ami, un exemplaire ; clic sur sa face : la modale de carte du site, cas « exemplaire d'un ami ». */
-async function openFriendCopy(page: Page, { pending = false } = {}) {
-  await openFriendCollection(page, { collection: () => [COPY], pending: pending ? [COPY.id] : [] });
+async function openFriendCopy(page: Page, { pending = false, starred = false } = {}) {
+  await openFriendCollection(page, { collection: () => [{ ...COPY, starred }], pending: pending ? [COPY.id] : [] });
   await page.locator('#grid [class*="glow-"]').click();
   return page.locator('#card-modal');
 }
@@ -48,6 +48,15 @@ test('offre déjà en cours : « Échange en attente », désactivé', async ({ 
   await expect(actions(page)).toHaveText(['Échange en attente', 'Marché']);
   await expect(actions(page).first()).toBeDisabled();
   await expect(page.locator('#card-modal [role="status"]')).toBeHidden();
+});
+
+test('en favori chez l’ami (verrouillée) : « Verrouillée (favori) » désactivé à la place d’Échanger', async ({ page }) => {
+  await openFriendCopy(page, { starred: true });
+  await expect(actions(page)).toHaveText(['Verrouillée (favori)', 'Marché']);
+  await expect(actions(page).first()).toBeDisabled();
+  await expect(actions(page).first()).toHaveAttribute('title', 'Carte verrouillée par aelonka');
+  await expect(page.locator('#card-modal [role="status"]')).toBeHidden();
+  await expectDomIdle(page);
 });
 
 test('« Marché » ouvre l’historique des ventes de la carte', async ({ page }) => {

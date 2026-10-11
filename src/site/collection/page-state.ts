@@ -92,36 +92,40 @@ function pageStates(doc: Document): PageStates | undefined {
   return row && pageStatesAmong(currentFiberAncestors(row));
 }
 
-/** Étiquettes que la page affiche : sur ses exemplaires, dans ses compteurs. */
-export interface ShownTags {
+/** Ce que la page affiche : ses exemplaires (étiquettes, favori), ses compteurs des étiquettes. */
+export interface ShownCopies {
   readonly entries: readonly unknown[];
   readonly tagOptions: readonly unknown[];
 }
 
 /**
- * Réponse de la liste (`collection[]`) ou de ses compteurs (`tagOptions`) avec les étiquettes que la page affiche.
- * Les autres champs restent ceux de la réponse.
+ * Réponse de la liste (`collection[]`) ou de ses compteurs (`tagOptions`) avec ce que la page affiche : étiquettes
+ * et favori de chaque exemplaire, compteurs des étiquettes. Les autres champs restent ceux de la réponse.
  */
-export function withShownTags(kind: 'list' | 'stats', body: unknown, shown: ShownTags): unknown {
+export function withShownCopies(kind: 'list' | 'stats', body: unknown, shown: ShownCopies): unknown {
   if (!isRecord(body)) return body;
   if (kind === 'stats') return Array.isArray(body.tagOptions) ? { ...body, tagOptions: shown.tagOptions } : body;
   if (!Array.isArray(body.collection)) return body;
-  const tags = new Map<string, unknown[]>();
+  const current = new Map<string, Row>();
   for (const entry of shown.entries) {
     const id = idOf(entry);
-    if (id !== undefined && isRecord(entry) && Array.isArray(entry.tags)) tags.set(id, entry.tags);
+    if (id === undefined || !isRecord(entry)) continue;
+    current.set(id, {
+      ...(Array.isArray(entry.tags) && { tags: entry.tags }),
+      ...(typeof entry.starred === 'boolean' && { starred: entry.starred }),
+    });
   }
   const collection = (body.collection as unknown[]).map((row) => {
-    const current = tags.get(idOf(row) ?? '');
-    return current && isRecord(row) ? { ...row, tags: current } : row;
+    const shownRow = current.get(idOf(row) ?? '');
+    return shownRow && isRecord(row) ? { ...row, ...shownRow } : row;
   });
   return { ...body, collection };
 }
 
 /**
- * Réponse gardée de la liste ou de ses compteurs, à resservir : une étiquette posée ou retirée sur place depuis
- * son chargement (modale de carte, étiquetage groupé) n'y est pas, et la page la perdrait. On y met donc celles
- * que la page affiche. Rien si l'état de la page n'est pas reconnu ou la réponse illisible.
+ * Réponse gardée de la liste ou de ses compteurs, à resservir : une étiquette ou un favori posé ou retiré sur place
+ * depuis son chargement (modale de carte, sélection) n'y est pas, et la page le perdrait (un favori perdu rendrait
+ * Vendre et Défausser à une carte que le site a verrouillée). On y met donc ce que la page affiche. Rien si l'état de la page n'est pas reconnu ou la réponse illisible.
  */
 export function shownCollectionReply(request: NetRequest, body: string, doc: Document = document): string | undefined {
   const kind = isCollectionList(request) ? 'list' : isCollectionStats(request) ? 'stats' : undefined;
@@ -129,7 +133,7 @@ export function shownCollectionReply(request: NetRequest, body: string, doc: Doc
   const parsed = parseJson(body);
   if (!kind || !states || parsed === undefined) return undefined;
   const shown = { entries: states.list.value as unknown[], tagOptions: states.tagOptions.value as unknown[] };
-  return JSON.stringify(withShownTags(kind, parsed, shown));
+  return JSON.stringify(withShownCopies(kind, parsed, shown));
 }
 
 /**

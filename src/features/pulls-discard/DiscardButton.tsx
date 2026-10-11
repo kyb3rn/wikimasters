@@ -1,4 +1,4 @@
-import { CARD_MARK_REASONS } from '@/services/card-marks';
+import { CARD_MARK_REASONS, FAVORITE_LOCK } from '@/services/card-marks';
 import { PackActionButton } from '@/services/pulls-pack';
 
 /**
@@ -7,10 +7,11 @@ import { PackActionButton } from '@/services/pulls-pack';
  * - `blocked` : une autre action tient la carte (ouverture de la mise aux enchères) ;
  * - `discarded` : la carte est déjà défaussée ;
  * - `listed` : la carte est aux enchères (exemplaire réservé par le site), cadenas ;
- * - `protected` : défausse refusée par une protection (favori, étiquette…), cadenas ;
+ * - `starred` : exemplaire en favori, verrouillé par le site, cadenas ;
+ * - `protected` : défausse refusée par une protection (étiquette…), cadenas ;
  * - `unavailable` : exemplaire inconnu, défausse impossible.
  */
-export type DiscardStatus = 'ready' | 'busy' | 'blocked' | 'discarded' | 'listed' | 'protected' | 'unavailable';
+export type DiscardStatus = 'ready' | 'busy' | 'blocked' | 'discarded' | 'listed' | 'starred' | 'protected' | 'unavailable';
 
 function title(status: DiscardStatus, reason: string | undefined, advance: boolean): string {
   switch (status) {
@@ -24,6 +25,8 @@ function title(status: DiscardStatus, reason: string | undefined, advance: boole
       return CARD_MARK_REASONS.discarded;
     case 'listed':
       return CARD_MARK_REASONS.listed;
+    case 'starred':
+      return FAVORITE_LOCK.reason;
     case 'protected':
       return `Protégée : ${reason ?? 'défausse verrouillée'}`;
     case 'unavailable':
@@ -40,7 +43,7 @@ export interface DiscardButtonProps {
   readonly onClick: () => void;
 }
 
-/** Rond rouge en contour ; gris et cadenas quand la carte est protégée ou en vente. */
+/** Rond rouge en contour ; gris et cadenas quand la carte est protégée, en favori ou en vente. */
 export function DiscardButton({ status, reason, advance, onClick }: DiscardButtonProps) {
   return (
     <PackActionButton
@@ -50,7 +53,7 @@ export function DiscardButton({ status, reason, advance, onClick }: DiscardButto
       label={title(status, reason, advance)}
       enabled={status === 'ready'}
       busy={status === 'busy'}
-      locked={status === 'protected' || status === 'listed'}
+      locked={status === 'protected' || status === 'starred' || status === 'listed'}
       className="wm-discard-next"
       onClick={onClick}
     />

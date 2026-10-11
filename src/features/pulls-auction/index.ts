@@ -94,6 +94,7 @@ export const pullsAuction: Feature = {
       const copy = card && pack.chosen?.get(card.id);
       if (!copy) return { status: 'unavailable' };
       if (listingOf(copy)) return { status: 'listed' };
+      if (pack.copies?.get(copy)?.starred) return { status: 'starred' };
       return { status: 'ready' };
     }
 

@@ -52,11 +52,12 @@ describe('withGlobalCollectionFilters', () => {
 describe('forgetGlobalCollectionPages', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it('oublie les pages gardées par le site, rien d’autre', () => {
+  it('oublie les pages gardées par le site, quelle que soit sa version, rien d’autre', () => {
     const data = new Map([
-      ['gc_v11_/api/cards?page=0', '{}'],
+      ['gc_v12_/api/cards?page=0', '{}'],
       ['autre', 'x'],
       ['gc_v11_/api/cards?page=1', '{}'],
+      ['gc_vieux', 'x'],
     ]);
     vi.stubGlobal('sessionStorage', {
       get length() {
@@ -66,7 +67,7 @@ describe('forgetGlobalCollectionPages', () => {
       removeItem: (key: string) => void data.delete(key),
     });
     forgetGlobalCollectionPages();
-    expect([...data.keys()]).toEqual(['autre']);
+    expect([...data.keys()]).toEqual(['autre', 'gc_vieux']);
   });
 
   it('stockage inaccessible : sans erreur', () => {

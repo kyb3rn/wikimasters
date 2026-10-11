@@ -5,8 +5,9 @@ import { appendRarities, readBaseListQuery, type BaseListQuery } from '@/site/li
 /*
  * Catalogue « Toutes les cartes » (code du site, 30/09/2026) : une requête par chargement,
  * `GET /api/cards?page=&q=&rarity=…&sort=[&wishlist=1]` (50 cartes par page, `page` à partir de 0), total et
- * compteurs compris. Chaque réponse est gardée en `sessionStorage` sous `gc_v11_<adresse>` (sauf « Liste de
- * souhaits ») : une page déjà vue dans l'onglet ne redemande rien, elle s'affiche aussitôt.
+ * compteurs compris. Chaque réponse est gardée en `sessionStorage` sous `gc_v12_<adresse>` (sauf « Liste de
+ * souhaits ») : une page déjà vue dans l'onglet ne redemande rien, elle s'affiche aussitôt. Le numéro change avec les
+ * versions du site (`gc_v11_` avant le 10/10/2026), qui efface les autres à l'arrivée.
  */
 
 export interface GlobalCollectionQuery extends BaseListQuery {
@@ -39,7 +40,8 @@ export function withGlobalCollectionFilters(url: URL, query: GlobalCollectionQue
   return next;
 }
 
-const CACHE_PREFIX = 'gc_v11_';
+/** Clé d'une page gardée, quelle que soit la version du site. */
+const CACHE_KEY = /^gc_v\d+_/;
 
 /**
  * Oublie les pages gardées par le site dans l'onglet : il les redemandera. Sans quoi un changement de filtre
@@ -51,7 +53,7 @@ export function forgetGlobalCollectionPages(): void {
     const keys: string[] = [];
     for (let i = 0; i < sessionStorage.length; i++) {
       const key = sessionStorage.key(i);
-      if (key?.startsWith(CACHE_PREFIX)) keys.push(key);
+      if (key && CACHE_KEY.test(key)) keys.push(key);
     }
     for (const key of keys) sessionStorage.removeItem(key);
   } catch {

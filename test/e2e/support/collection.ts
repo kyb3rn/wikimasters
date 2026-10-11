@@ -88,7 +88,7 @@ export function tagManagerMarkup(tags: readonly ManagedTag[] = MANAGED_TAGS): st
 export function collectionScript(selection = ''): string {
   return `
 (() => {
-  const { el, button, icon, tailwindBase, chain, nextRouter, listbox, rarityPills } = kit;
+  const { el, button, icon, starLabel, tailwindBase, chain, nextRouter, listbox, rarityPills } = kit;
   const SELECTION = ${selection ? 'true' : 'false'};
   const stage = document.getElementById('stage');
   tailwindBase();
@@ -424,7 +424,7 @@ export function collectionScript(selection = ''): string {
     const face = el('div', 'w-72 h-[420px] glow-' + entry.card.rarity.toLowerCase() + ' relative rounded-2xl overflow-hidden');
     face.style.cssText = 'width:200px;height:280px;background:#30363d;position:relative';
     const star = button('p-0.5 rounded-md', '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="none" stroke="currentColor" d="M12 2l3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1z"></path></svg>');
-    star.setAttribute('aria-label', 'Ajouter aux favoris');
+    star.setAttribute('aria-label', starLabel(false));
     face.append(el('h3', 'text-base font-bold', entry.card.wikipedia_title), star);
     const tag = el('input', 'w-full rounded-lg');
     tag.placeholder = 'Ajouter une étiquette…';

@@ -2,7 +2,7 @@ import { findPropsAbove } from '@/core/react';
 import { textOf } from '@/core/text';
 import { hasIcon, siteButtons } from '@/site/dom';
 import { SITE_OVERLAY } from '@/site/modals';
-import { findStarButton } from './dom';
+import { findStarButton, parseStarLabel, type StarState } from './dom';
 import { FACE, findFaceImage } from './face';
 import { parseCardRef, type CardRef } from './ref';
 
@@ -22,11 +22,12 @@ import { parseCardRef, type CardRef } from './ref';
  *       div.mt-3 > div.flex (rangée d'actions) : « Mettre aux enchères » (marteau), « Défausser » (corbeille, « +1 »)
  *
  * Un seul composant pour trois cas (`CardModalKind`, code du site du 02/10/2026), selon ses props :
- * - un de mes exemplaires : ci-dessus (rangée d'actions absente s'il est réservé dans un échange) ;
+ * - un de mes exemplaires : ci-dessus ; rangée d'actions absente s'il est réservé dans un échange, ou en favori
+ *   (depuis le 10/10/2026 : « Carte en favori : verrouillée… » à sa place, cadenas) ;
  * - vue catalogue (Toutes les cartes) : la carte seule, ni favori, ni étiquettes, ni rangée d'actions ; dans la
  *   colonne de droite, « Proposer un échange » si un ami a la carte, puis la liste de souhaits (cloche) ;
- * - exemplaire d'un ami (sa collection) : favori, ses étiquettes en lecture seule, « Proposer un échange », ni
- *   liste de souhaits ni rangée d'actions.
+ * - exemplaire d'un ami (sa collection) : favori, ses étiquettes en lecture seule, « Proposer un échange » (en
+ *   favori chez lui : « Carte verrouillée par <pseudo> » à sa place), ni liste de souhaits ni rangée d'actions.
  *
  * Les boutons d'action sont reconnus à leur icône lucide (le script peut en changer le texte).
  */
@@ -68,6 +69,12 @@ export interface CardModal {
   readonly tradePending: boolean;
   /** Ce qu'il faut masquer pour sortir l'échange et la liste de souhaits de la colonne de droite. */
   readonly sideActions: readonly HTMLElement[];
+  /**
+   * Encart du site sur un exemplaire en favori, verrouillé (`div[role=status]`, cadenas, code du 10/10/2026) : le mien,
+   * « Carte en favori : verrouillée. Retirez-la des favoris… » à la place de la rangée d'actions ; celui d'un ami,
+   * « Carte verrouillée par <pseudo> » à la place de « Proposer un échange ».
+   */
+  readonly favoriteLock: { readonly element: HTMLElement; readonly text: string } | undefined;
   /** Carte en favori (étoile de la face) ; `undefined` si l'étoile est introuvable. */
   readonly starred: boolean | undefined;
   /** Étiquettes de l'exemplaire associé (chacune a son bouton « Retirer l'étiquette … »). */
@@ -76,34 +83,32 @@ export interface CardModal {
   readonly statsBlock: HTMLElement | undefined;
 }
 
-/**
- * Étoile de la face (captures du 29/09/2026) : « Ajouter aux favoris » et contour seul, ou « Retirer des
- * favoris » et étoile remplie (`fill="currentColor"`). Libellé inattendu : compté en favori, par prudence.
- */
-function readStarred(face: HTMLElement | undefined): boolean | undefined {
+/** Étoile de la face : contour seul, ou remplie (`fill="currentColor"`) en favori ; libellés : `parseStarLabel`. */
+function readStar(face: HTMLElement | undefined): StarState | undefined {
   const star = face && findStarButton(face);
   if (!star) return undefined;
-  const fill = star.querySelector('path')?.getAttribute('fill');
-  return star.getAttribute('aria-label') !== 'Ajouter aux favoris' || fill === 'currentColor';
+  return parseStarLabel(star.getAttribute('aria-label') ?? '', star.querySelector('path')?.getAttribute('fill') === 'currentColor');
 }
 
 /**
  * Échange et liste de souhaits de la colonne de droite (code du 02/10/2026) : bloc `div.space-y-2` avec « Proposer un
- * échange » ou « Échange en attente » (`div[role=status]`), puis `div.space-y-1.5 > (liste de souhaits, p d'aide)`.
- * Le bloc n'est masqué en entier que s'il ne contient rien d'autre ; sinon, chacun.
+ * échange », « Échange en attente » ou « Carte verrouillée par <pseudo> » (`div[role=status]`), puis
+ * `div.space-y-1.5 > (liste de souhaits, p d'aide)`. Le bloc n'est masqué en entier que s'il ne contient rien d'autre ;
+ * sinon, chacun. L'encart du favori (`favoriteLock`), masqué à part, compte seulement pour savoir si le bloc est vide.
  */
 function readSideActions(
   trade: HTMLElement | undefined,
   pending: HTMLElement | undefined,
+  lock: HTMLElement | undefined,
   wishlist: HTMLButtonElement | undefined,
 ): Pick<CardModal, 'sideActions' | 'wishlistHint'> {
   const wishBlock = wishlist?.parentElement ?? undefined;
-  const items = [trade, pending, wishBlock].filter((item): item is HTMLElement => item !== undefined);
+  const items = [trade, pending, lock, wishBlock].filter((item): item is HTMLElement => item !== undefined);
   const outer = items[0]?.parentElement;
   const alone = outer?.classList.contains('space-y-2') && [...outer.children].every((child) => items.includes(child as HTMLElement));
   const hint = wishBlock && [...wishBlock.children].find((child) => child.tagName === 'P');
   return {
-    sideActions: outer && alone ? [outer] : items,
+    sideActions: outer && alone ? [outer] : items.filter((item) => item !== lock),
     wishlistHint: hint ? textOf(hint) || undefined : undefined,
   };
 }
@@ -127,16 +132,16 @@ export function findCardModals(doc: Document = document): CardModal[] {
     if (!heading || !(tablist || tagInput || discardButton || auctionButton || wishlistButton)) continue;
 
     const face = [...root.querySelectorAll<HTMLElement>(FACE)].find((el) => el.querySelector('h3'));
-    const starred = readStarred(face);
+    const star = readStar(face);
     const tradeButton = buttons.find((button) => hasIcon(button, 'handshake') || textOf(button) === 'Proposer un échange');
-    const pending = [...root.querySelectorAll<HTMLElement>('[role="status"]')].find(
-      (status) => status.closest(SITE_OVERLAY) === root && (hasIcon(status, 'refresh-cw') || textOf(status) === 'Échange en attente'),
-    );
-    // Vue catalogue : la carte seule, sans favori ; exemplaire d'un ami : de quoi lui proposer un échange.
+    const statuses = [...root.querySelectorAll<HTMLElement>('[role="status"]')].filter((status) => status.closest(SITE_OVERLAY) === root);
+    const pending = statuses.find((status) => hasIcon(status, 'refresh-cw') || textOf(status) === 'Échange en attente');
+    const lock = statuses.find((status) => hasIcon(status, 'lock'));
+    // Vue catalogue : la carte seule, sans favori ; exemplaire d'un ami : son étoile, de quoi lui proposer un échange.
     const kind: CardModalKind =
-      wishlistButton !== undefined || (face !== undefined && starred === undefined)
+      wishlistButton !== undefined || (face !== undefined && star === undefined)
         ? 'catalog'
-        : tradeButton !== undefined || pending !== undefined
+        : star?.friend || tradeButton !== undefined || pending !== undefined
           ? 'friend'
           : 'own';
     const tabs = tablist ? [...tablist.querySelectorAll<HTMLButtonElement>('button[role="tab"]')] : [];
@@ -162,8 +167,9 @@ export function findCardModals(doc: Document = document): CardModal[] {
       wishlisted: wishlistButton !== undefined && /^Retirer/i.test(textOf(wishlistButton)),
       tradeButton,
       tradePending: pending !== undefined,
-      ...readSideActions(tradeButton, pending, wishlistButton),
-      starred,
+      ...readSideActions(tradeButton, pending, lock, wishlistButton),
+      favoriteLock: lock && { element: lock, text: textOf(lock) },
+      starred: star?.starred,
       tagCount: buttons.filter((button) => /^Retirer l.étiquette/.test(button.getAttribute('aria-label') ?? '')).length,
       statsBlock: [...root.querySelectorAll('svg.lucide-swords')]
         .filter((svg) => !face?.contains(svg))

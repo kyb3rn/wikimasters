@@ -26,8 +26,8 @@ ${STRONG}.${CONFIRM_WAIT} { opacity: 0.55 !important; cursor: not-allowed !impor
 /**
  * Le site garde la main : le clic de l'utilisateur sur « Défausser » ouvre sa confirmation, qu'on cache
  * et accepte aussitôt. Défausse, fermeture de la modale et mise à jour du solde restent les siennes.
- * Carte protégée (favori, étiquette selon les réglages) : un premier clic passe le bouton en
- * « Confirmer ? », seul un second clic défausse.
+ * Carte protégée (étiquette, selon les réglages) : un premier clic passe le bouton en « Confirmer ? », seul un
+ * second clic défausse. Une carte en favori n'a pas de « Défausser » : le site la verrouille.
  */
 export const cardModalDiscard: Feature = {
   id: 'card-modal-discard',
@@ -61,8 +61,7 @@ export const cardModalDiscard: Feature = {
         const modal = findCardModals().find((candidate) => candidate.discardButton?.contains(target));
         const button = modal?.discardButton;
         if (!modal || !button || button.disabled) return;
-        // Étoile illisible : on la suppose en favori.
-        const reason = quickDiscardProtection({ starred: modal.starred !== false, tagged: modal.tagCount > 0 });
+        const reason = quickDiscardProtection({ tagged: modal.tagCount > 0 });
         const first = step.stage(button) === 'idle';
         if (reason && !step.press(button)) {
           // Premier clic (ou clic trop rapproché) : le site n'en voit rien.

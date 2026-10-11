@@ -1,7 +1,8 @@
-/** Ce qu'on sait d'une carte pour décider si sa défausse est permise. */
+/**
+ * Ce qu'on sait d'une carte pour décider si sa défausse est permise. Le favori n'en fait pas partie : le site verrouille
+ * lui-même un exemplaire en favori (depuis le 10/10/2026), il n'y a rien à protéger de plus.
+ */
 export interface CardFacts {
-  /** En favori (un de ses exemplaires, le site les met tous). */
-  readonly starred: boolean;
   /** Au moins une étiquette sur un de ses exemplaires. */
   readonly tagged: boolean;
   /**
@@ -12,7 +13,6 @@ export interface CardFacts {
 }
 
 export interface ProtectionRules {
-  readonly starred: boolean;
   readonly tagged: boolean;
   /** Protège au-dessus de cette valeur ; `undefined` : pas de protection par la valeur. */
   readonly minValue?: number;
@@ -20,7 +20,6 @@ export interface ProtectionRules {
 
 /** Raison de protéger la carte (affichée à l'utilisateur), ou `undefined` si la défausse est permise. */
 export function protectionReason(facts: CardFacts, rules: ProtectionRules): string | undefined {
-  if (rules.starred && facts.starred) return 'carte en favori';
   if (rules.tagged && facts.tagged) return 'carte avec une étiquette';
   if (rules.minValue !== undefined && facts.value !== undefined && facts.value > rules.minValue) {
     return `vaut environ ${Math.round(facts.value)} wikibidous`;

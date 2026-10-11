@@ -6,9 +6,8 @@ beforeEach(() => vi.stubGlobal('localStorage', fakeStorage()));
 afterEach(() => vi.unstubAllGlobals());
 
 describe('défaussage rapide : protections communes', () => {
-  it('protège favoris et étiquettes par défaut', () => {
-    expect(quickDiscardProtection({ starred: true, tagged: false })).toBe('carte en favori');
-    expect(quickDiscardProtection({ starred: false, tagged: true })).toBe('carte avec une étiquette');
-    expect(quickDiscardProtection({ starred: false, tagged: false })).toBeUndefined();
+  it('protège les étiquettes par défaut', () => {
+    expect(quickDiscardProtection({ tagged: true })).toBe('carte avec une étiquette');
+    expect(quickDiscardProtection({ tagged: false })).toBeUndefined();
   });
 });

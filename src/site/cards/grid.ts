@@ -7,8 +7,8 @@ import { FACE } from './face';
  *
  * | Page | Rangée | Case |
  * |---|---|---|
- * | Collection | `gap-3 sm:gap-[22px] md:gap-[26px]` | `div.relative.isolate.group` > face (+ calque et case à cocher en sélection) |
- * | Toutes les cartes | idem | la face elle-même |
+ * | Collection | `gap-3 sm:gap-[22px] md:gap-[26px]` | `CARD_CELL` > face (+ calque et case à cocher en sélection) |
+ * | Toutes les cartes | idem | `CARD_CELL` > face (avant le 10/10/2026 : la face elle-même) |
  * | Profils (vitrines, collection) | idem | `div.relative` > face ; « Choisir une carte » (modale) : `gap-4` |
  * | Marché (tous les onglets) | `gap-4 md:gap-5` | vignette `div#marketplace-auction-<id>` (`w-[184px]`, face, prix, durée) |
  * | Échanges (modale, choix des cartes) | `gap-3`, en `grid grid-cols-2` sous 500 px (`min-[500px]:flex-wrap`) | `button` > face |
@@ -16,6 +16,9 @@ import { FACE } from './face';
  * Ailleurs (modale de carte, carrousel de /pulls), la grande face (`w-72`) n'est dans aucune rangée `flex-wrap`.
  */
 const MAX_DEPTH = 6;
+
+/** Case d'une carte dans les grilles de la Collection et de Toutes les cartes : sa face, puis ce que la page y ajoute. */
+export const CARD_CELL = 'div.relative.isolate.group';
 
 const isWrapRow = (element: Element) =>
   [...element.classList].some((name) => name === 'flex-wrap' || name.endsWith(':flex-wrap'));

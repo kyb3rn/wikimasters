@@ -2,12 +2,13 @@ import { h } from 'preact';
 import { childController } from '@/core/async';
 import { watchDom } from '@/core/dom';
 import type { Feature } from '@/core/runtime';
+import { filterLineEnd } from '@/services/list-search';
 import { fetchMarket, isStale, marketNeedsPro, onSalesRateChange, salesRate, trackPrices } from '@/services/market';
 import { secondsLeft } from '@/services/sales-gauge';
 import { siteErrorText } from '@/site/api';
 import { readFaceCard, type CardRef } from '@/site/cards';
 import { onServerSecond, preciseServerNow } from '@/site/clock';
-import { findGlobalCollectionFilters, findGlobalCollectionGrid } from '@/site/global-collection';
+import { findGlobalCollectionCards, findGlobalCollectionFilters } from '@/site/global-collection';
 import { GLOBAL_COLLECTION_ROUTE } from '@/site/routes';
 import { createSlot } from '@/ui/mount';
 import { toast } from '@/ui/toast';
@@ -50,10 +51,10 @@ export const globalCollectionLoadPrices: Feature = {
 
     /** Cartes de la grille, dans l'ordre, une fois chacune ; liste en chargement : `undefined`. */
     function gridCards(): CardRef[] | undefined {
-      const grid = findGlobalCollectionGrid();
-      if (!grid) return undefined;
+      const shown = findGlobalCollectionCards();
+      if (!shown) return undefined;
       const cards = new Map<string, CardRef>();
-      for (const face of grid.faces) {
+      for (const { face } of shown) {
         const card = readFaceCard(face);
         if (card && !cards.has(card.id)) cards.set(card.id, card);
       }
@@ -130,9 +131,9 @@ export const globalCollectionLoadPrices: Feature = {
       const rate = salesRate();
       const waitSeconds = hasRoom(rate) ? undefined : secondsLeft(rate, preciseServerNow());
       tick(waitSeconds !== undefined && !progress);
+      // Au bout de la ligne, avant la sélection (global-collection-selection).
       slot.render(h(LoadPricesButton, { pending, progress, waitSeconds, onClick: () => void run() }), {
-        parent: filters.line,
-        before: null,
+        parent: filterLineEnd(filters.line, signal),
         className: SLOT,
       });
     }

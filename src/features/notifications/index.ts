@@ -25,7 +25,7 @@ import {
   parseProfileFriendship,
   readFriendshipAction,
   readNotificationsMarkRead,
-  readWishlistChange,
+  readWishlistChanges,
   removeFromWishlist,
   siteErrorText,
   supabaseUserId,
@@ -396,14 +396,15 @@ export const notifications: Feature = {
       },
       { signal },
     );
-    // Liste de souhaits changée par le site (modale de carte) : le bouton de ses notifications suit. Déjà dans la
-    // liste (409, code 23505) : ignoré par le site, la carte y est.
+    // Liste de souhaits changée par le site (modale de carte, sélection de Toutes les cartes) : le bouton de ses
+    // notifications suit. Déjà dans la liste (409, code 23505) : ignoré par le site, la carte y est.
     net.observe(
       (request) => isWishlistChange(request) && !request.own,
       (exchange) => {
-        const change = readWishlistChange(exchange.request);
-        if (!change || !(exchange.ok || (change.wished && exchange.status === 409))) return;
-        rememberWish(change.cardId, change.wished);
+        const changes = readWishlistChanges(exchange.request);
+        const wished = changes.every((change) => change.wished);
+        if (changes.length === 0 || !(exchange.ok || (wished && exchange.status === 409))) return;
+        for (const change of changes) rememberWish(change.cardId, change.wished);
         store.set({ removed: removedWishes() });
       },
       { signal },

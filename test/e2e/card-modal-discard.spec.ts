@@ -12,6 +12,12 @@ const modal = (page: Page) => page.locator('#card-modal');
 const discardButton = (page: Page) => modal(page).locator('button:has(svg.lucide-trash-2)');
 const confirmation = (page: Page) => page.locator('#discard-confirm');
 
+/** Étiquette posée dans la modale : carte protégée (le favori, lui, retire « Défausser » : le site verrouille la carte). */
+async function tagCard(page: Page, name = 'garder') {
+  await modal(page).getByPlaceholder('Ajouter une étiquette…').fill(name);
+  await modal(page).getByPlaceholder('Ajouter une étiquette…').press('Enter');
+}
+
 /** Défaussée : la modale reste ouverte (réglage par défaut), carte marquée, sans confirmation. */
 async function expectKept(page: Page) {
   await expect(modal(page).locator('.wm-stamp')).toHaveText('Défaussée');
@@ -60,7 +66,7 @@ test('pendant la défausse : roue à la place de la corbeille, bouton désactiv�
 test('après « Confirmer ? » aussi : roue et bouton désactivé le temps de la requête', async ({ page }) => {
   const { reply, release } = held();
   await openCard(page, { discard: reply });
-  await modal(page).getByRole('button', { name: 'Ajouter aux favoris' }).click();
+  await tagCard(page);
   await discardButton(page).click();
   await expect(discardButton(page)).not.toHaveClass(/wm-discard-confirm-wait/);
   await discardButton(page).click();
@@ -110,9 +116,9 @@ test('refus du site : message en notification, la modale de carte reste utilisab
   await expect.poll(() => discarded).toEqual(['u1', 'u1']);
 });
 
-test('carte en favori : le bouton passe en « Confirmer ? », un second clic défausse', async ({ page }) => {
+test('carte protégée : le bouton passe en « Confirmer ? », un second clic défausse', async ({ page }) => {
   const { discarded } = await openCard(page);
-  await modal(page).getByRole('button', { name: 'Ajouter aux favoris' }).click();
+  await tagCard(page);
   await discardButton(page).click();
 
   // Pas de modale de confirmation : le bouton demande un second clic, d'abord inactif un court instant.
@@ -129,9 +135,9 @@ test('carte en favori : le bouton passe en « Confirmer ? », un second clic dé
   await expectKept(page);
 });
 
-test('carte en favori : un double-clic ne défausse pas', async ({ page }) => {
+test('carte protégée : un double-clic ne défausse pas', async ({ page }) => {
   const { discarded } = await openCard(page);
-  await modal(page).getByRole('button', { name: 'Ajouter aux favoris' }).click();
+  await tagCard(page);
   await discardButton(page).dblclick();
   await expect(discardButton(page)).not.toHaveClass(/wm-discard-confirm-wait/);
   await expect(discardButton(page)).toHaveAccessibleName('Confirmer ?');
@@ -141,7 +147,7 @@ test('carte en favori : un double-clic ne défausse pas', async ({ page }) => {
 
 test('sans second clic, le bouton redevient « Défausser »', async ({ page }) => {
   const { discarded } = await openCard(page);
-  await modal(page).getByRole('button', { name: 'Ajouter aux favoris' }).click();
+  await tagCard(page);
   await discardButton(page).click();
   await expect(discardButton(page)).toHaveAccessibleName('Confirmer ?');
   // 0,75 s inactif puis 3,5 s actif.
@@ -157,8 +163,7 @@ test('sans second clic, le bouton redevient « Défausser »', async ({ page }) 
 
 test('carte avec une étiquette : second clic demandé ; étiquette retirée, plus de protection', async ({ page }) => {
   const { discarded } = await openCard(page);
-  await modal(page).getByPlaceholder('Ajouter une étiquette…').fill('garder');
-  await modal(page).getByPlaceholder('Ajouter une étiquette…').press('Enter');
+  await tagCard(page);
   await discardButton(page).click();
   await expect(discardButton(page)).toHaveAccessibleName('Confirmer ?');
   expect(discarded).toEqual([]);
@@ -170,10 +175,10 @@ test('carte avec une étiquette : second clic demandé ; étiquette retirée, pl
   await expectKept(page);
 });
 
-test('protection des favoris désactivée : sans confirmation, même en favori', async ({ page }) => {
-  await presetSettings(page, { features: {}, values: { 'quick-discard': { protectStarred: false } } });
+test('protection des étiquettes désactivée : sans confirmation, même étiquetée', async ({ page }) => {
+  await presetSettings(page, { features: {}, values: { 'quick-discard': { protectTagged: false } } });
   const { discarded } = await openCard(page);
-  await modal(page).getByRole('button', { name: 'Ajouter aux favoris' }).click();
+  await tagCard(page);
   await discardButton(page).click();
   await expect.poll(() => discarded).toEqual(['u1']);
   await expect(confirmation(page)).toHaveCount(0);

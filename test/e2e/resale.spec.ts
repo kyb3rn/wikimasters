@@ -481,11 +481,17 @@ test('défaussée depuis la modale : la carte reste, tamponnée « Défaussée �
   await expectDomIdle(page);
 });
 
-test('mise aux enchères : tamponnée « En vente » ; étiquetée : grisée sans texte, hors du total', async ({ page }) => {
+test('mise aux enchères : tamponnée « En vente », elle se rouvre ; étiquetée : grisée sans texte, hors du total', async ({ page }) => {
   await openWithModal(page);
   await face(page, 'a').click();
   await siteModal(page).getByRole('button', { name: 'Mettre aux enchères' }).click();
   await expect(face(page, 'a').locator('.wm-stamp')).toHaveText('En vente');
+  await siteModal(page).getByRole('button', { name: 'Fermer' }).click();
+  await expect(siteModal(page)).toHaveCount(0);
+  // En vente, elle s'ouvre toujours (demande de l'utilisateur) : sa modale mène à l'enchère.
+  await face(page, 'a').click();
+  await expect(siteModal(page).locator('h2')).toHaveText('Tour Eiffel');
+  expect(await modalProps(page)).toMatchObject({ userCardId: 'a' });
   await siteModal(page).getByRole('button', { name: 'Fermer' }).click();
 
   await face(page, 'b').click();

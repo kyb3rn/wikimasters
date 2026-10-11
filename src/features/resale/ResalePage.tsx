@@ -311,8 +311,8 @@ function stampOf(status: CopyStatus) {
 }
 
 /**
- * Case d'une carte : sa face (clic : la modale de carte du site, sauf défaussée ou en vente), puis ses prix. Après
- * une action, la carte reste en place, tamponnée.
+ * Case d'une carte : sa face (clic : la modale de carte du site, sauf défaussée ; en vente, elle s'ouvre toujours,
+ * demande de l'utilisateur), puis ses prix. Après une action, la carte reste en place, tamponnée.
  */
 function ResaleCell(props: { readonly copy: OwnedCopy; readonly status: CopyStatus | undefined; readonly onOpen: () => void; readonly children: ComponentChildren }) {
   const { copy, status, onOpen, children } = props;
@@ -321,10 +321,9 @@ function ResaleCell(props: { readonly copy: OwnedCopy; readonly status: CopyStat
     const face = cell.current?.firstElementChild;
     if (face instanceof HTMLElement) stampFace(face, STAMP_OWNER, status && stampOf(status));
   }, [status]);
-  const gone = status === 'discarded' || status === 'listed';
   return (
     <div ref={cell} class={siteClass.cardCell} data-copy={copy.id} data-status={status}>
-      <CardFace card={copy} onClick={gone ? undefined : onOpen} />
+      <CardFace card={copy} onClick={status === 'discarded' ? undefined : onOpen} />
       {children}
     </div>
   );

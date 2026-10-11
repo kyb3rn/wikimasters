@@ -1,11 +1,9 @@
 export {
-  COLLECTION_CARD_BOX,
   findCollectionFaces,
   isCollectionList,
   isCollectionStats,
   LIST_LOADING_VEIL,
   parseCollection,
-  SELECTION_OVERLAY,
   type CollectionEntry,
 } from './collection';
 export {
@@ -23,23 +21,17 @@ export { findCollectionPageSetter, findCollectionPaginationBars, isPageLoading }
 export {
   findBulkDiscardConfirm,
   findBulkTagModal,
-  findSelectionBar,
   findSelectionMode,
   findSelectionState,
-  findSelectionToggle,
   isBulkDiscard,
+  isBulkStarChange,
   readBulkDiscard,
   readBulkDiscardFailures,
-  selectionMarkOf,
   selectionStateAmong,
   type BulkDiscardConfirm,
   type BulkTagModal,
   type BulkTagOption,
-  type SelectionBar,
-  type SelectionMark,
-  type SelectionMode,
   type SelectionState,
-  type SelectionToggle,
 } from './selection';
 export { applyTagChange, shownCollectionReply, type PageTag, type TagChange } from './page-state';
 export { findManageTagsOption, findTagManager, tagManagerOpener, type TagManager, type TagManagerRow } from './tag-manager';

@@ -359,7 +359,7 @@ test('rechargement automatique permis : la liste gardée revient aussi quand le 
   // Le site ne garde dans l'onglet que la liste par défaut : il l'affiche sans requête à l'arrivée.
   await page.evaluate(() => {
     for (const key of Object.keys(sessionStorage)) {
-      if (key.startsWith('gc_v11_') && key !== 'gc_v11_/api/cards?page=0&sort=rarity') sessionStorage.removeItem(key);
+      if (key.startsWith('gc_v12_') && key !== 'gc_v12_/api/cards?page=0&sort=rarity') sessionStorage.removeItem(key);
     }
   });
 
@@ -389,7 +389,7 @@ test('paramètres : onglet Toutes les cartes, option active par défaut, désact
   await openGlobalCollection(page);
   await expect(titles(page)).toHaveText(['rarity toutes p0']);
   const dialog = await openSettings(page, 'Toutes les cartes');
-  await expect(dialog.locator('.wm-settings-heading')).toHaveText(['Recherche', 'Prix moyen', 'Limite des historiques', 'Apparence']);
+  await expect(dialog.locator('.wm-settings-heading')).toHaveText(['Recherche', 'Sélection', 'Prix moyen', 'Limite des historiques', 'Apparence']);
   const toggle = dialog.getByRole('switch', { name: 'Recherche : Empêcher le rechargement automatique' });
   await expect(toggle).toHaveAttribute('aria-checked', 'true');
   await toggle.click();

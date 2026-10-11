@@ -12,12 +12,15 @@ const FAKE_TAGS = [
 /**
  * Mode sélection du site, inséré dans la page Collection imitée (`collectionScript`) : « Sélectionner » à droite
  * du titre (une fois les compteurs reçus), cases cochées au clic, barre du bas (compte, « Tout sélectionner
- * (page) », « Étiqueter », « Retirer l'étiquette », « Défausser (+n) »), modale d'étiquetage (`#bulk-tags`) et
- * confirmation de défausse (`#bulk-discard`). Au chargement, les étiquettes sont lues à Supabase avec la session.
+ * (page) », « Étiqueter », « Retirer l'étiquette », « Mettre en favori (n) », « Retirer des favoris (n) »,
+ * « Défausser (+n) »), modale d'étiquetage (`#bulk-tags`) et confirmation de défausse (`#bulk-discard`). Favoris :
+ * `PATCH` groupé à Supabase, favoris et défausse désactivés pendant la requête ; réussi, sélection vidée ; refusé, erreur
+ * dans la barre. Au chargement, les étiquettes sont lues à Supabase avec la session.
  */
 const SELECTION_SCRIPT = `
   const TAGS = ${JSON.stringify(FAKE_TAGS)};
   let discardError = null;
+  let starring = false;
   // Comme React : n'écrit que ce qui change.
   const setHTML = (node, html) => { if (node.__html !== html) { node.__html = html; node.innerHTML = html; } };
   const svg = (name) => icon(name, '', 14);
@@ -40,7 +43,14 @@ const SELECTION_SCRIPT = `
 
   // Barre du bas (portail dans body) : compte, puis les boutons ; erreur de défausse dessous.
   const selBar = el('div', 'fixed bottom-4 z-[80] flex flex-col gap-3 card-frame bg-[var(--color-background)] p-3 shadow-xl');
-  selBar.style.cssText = 'left:0;bottom:16px;width:900px;display:flex;flex-direction:column;gap:12px;background:#161b22';
+  selBar.style.cssText = 'bottom:16px;display:flex;flex-direction:column;gap:12px;background:#161b22';
+  // Comme le site : calée sur la largeur de <main> moins 48 px, 768 px au plus, centrée sur lui.
+  const placeBar = () => {
+    const box = document.querySelector('main').getBoundingClientRect();
+    const width = Math.max(280, Math.min(768, Math.max(0, box.width - (innerWidth >= 768 ? 48 : 32))));
+    selBar.style.left = box.left + (box.width - width) / 2 + 'px';
+    selBar.style.width = width + 'px';
+  };
   const selRow = el('div', 'flex flex-wrap items-center gap-3');
   const countBox = el('div', 'flex items-center gap-2 text-sm');
   const actionsBox = el('div', 'ml-auto flex flex-wrap items-center gap-2');
@@ -52,11 +62,34 @@ const SELECTION_SCRIPT = `
   });
   const tagButton = button(barButton, svg('tag') + 'Étiqueter', () => openBulk('add'));
   const untagButton = button(barButton, svg('tag') + "Retirer l'étiquette", () => openBulk('remove'));
+  const starButton = button(barButton, '', () => void star(true));
+  const unstarButton = button(barButton, '', () => void star(false));
   const discardButton = button(barButton + ' bg-red-500/90', '', () => { discardError = null; renderSelection(); openDiscardConfirm(); });
-  actionsBox.append(pageButton, tagButton, untagButton, discardButton);
+  actionsBox.append(pageButton, tagButton, untagButton, starButton, unstarButton, discardButton);
   selRow.append(countBox, actionsBox);
   const selError = el('p', 'text-xs text-red-500');
   selBar.append(selRow);
+
+  /** Favoris des cartes cochées qui ne le sont pas (ou qui le sont), comme le site. */
+  const toStar = (on) => entries.filter((e) => selected.has(e.id) && e.starred !== on);
+  async function star(on) {
+    const ids = toStar(on).map((e) => e.id);
+    if (starring || loading || ids.length === 0) return;
+    starring = true;
+    discardError = null;
+    renderSelection();
+    try {
+      const response = await fetch('${SUPABASE}/rest/v1/user_cards?user_id=eq.u0&id=in.(' + ids.join(',') + ')', {
+        method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ starred: on }),
+      }).catch(() => null);
+      if (!response?.ok) { discardError = on ? 'Impossible de mettre ces cartes en favori.' : 'Impossible de retirer ces cartes des favoris.'; return; }
+      for (const e of entries) if (ids.includes(e.id)) e.starred = on;
+      selected.clear();
+    } finally {
+      starring = false;
+      renderSelection();
+    }
+  }
 
   toggleEntry = (entry) => {
     if (selected.has(entry.id)) selected.delete(entry.id);
@@ -96,7 +129,7 @@ const SELECTION_SCRIPT = `
       if (box.className !== boxCls) box.className = boxCls;
     }
     if (!selecting) { selBar.remove(); return; }
-    if (!selBar.isConnected) document.body.append(selBar);
+    if (!selBar.isConnected) { placeBar(); document.body.append(selBar); }
     const n = entries.filter((e) => selected.has(e.id)).length;
     setHTML(countBox, loading
       ? '<span class="animate-spin"></span>Actualisation…'
@@ -106,8 +139,12 @@ const SELECTION_SCRIPT = `
     setDisabled(pageButton, loading || entries.length === 0);
     setDisabled(tagButton, loading || n === 0);
     setDisabled(untagButton, loading || !entries.some((e) => selected.has(e.id) && e.tags.length > 0));
+    setHTML(starButton, svg('star') + 'Mettre en favori (' + toStar(true).length + ')');
+    setDisabled(starButton, loading || starring || toStar(true).length === 0);
+    setHTML(unstarButton, svg('star-off') + 'Retirer des favoris (' + toStar(false).length + ')');
+    setDisabled(unstarButton, loading || starring || toStar(false).length === 0);
     setHTML(discardButton, svg('trash-2') + 'Défausser (+' + n + ')');
-    setDisabled(discardButton, loading || n === 0);
+    setDisabled(discardButton, loading || starring || n === 0);
     if (discardError) { selError.textContent = discardError; if (!selError.isConnected) selBar.append(selError); }
     else selError.remove();
   };

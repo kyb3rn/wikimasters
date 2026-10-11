@@ -1,6 +1,6 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { CAROUSEL, openPulls as openFakePulls, PACK, packFaces } from './support/pulls';
-import { letTimePass, nextFrame, openSettings, presetSettings, rect } from './support/site';
+import { letTimePass, nextFrame, presetSettings, rect } from './support/site';
 
 // Le carrousel du site, sans « toutes les cartes d'un coup ».
 test.beforeEach(({ page }) => presetSettings(page, CAROUSEL));
@@ -111,19 +111,24 @@ test('un refus du site s’affiche en toast sous le solde, sans changer de carte
   await expect(page.locator(TRASH)).toHaveAttribute('data-status', 'ready');
 });
 
-test('une carte en favori est protégée (cadenas), selon le réglage', async ({ page }) => {
+test('un exemplaire en favori est verrouillé comme sur le site (cadenas) ; retiré des favoris, il se défausse', async ({ page }) => {
   const starred = { ...PACK, owned_copies: PACK.owned_copies.map((c) => (c.card_id === 'c1' ? { ...c, starred: true } : c)) };
   const discarded = await openPulls(page, accept, starred);
   await page.click('#open');
 
   const trash = page.locator(TRASH);
-  await expect(trash).toHaveAttribute('data-status', 'protected');
-  await expect(trash).toHaveAttribute('title', 'Protégée : carte en favori');
+  const locked = "Carte en favori : verrouillée. Retirez-la des favoris pour la vendre, la défausser ou l'échanger.";
+  await expect(trash).toHaveAttribute('data-status', 'starred');
+  await expect(trash).toHaveAttribute('title', locked);
   await expect(trash).toBeDisabled();
+  // Ni vente : le marteau aussi.
+  await expect(page.locator('.wm-auction-quick')).toHaveAttribute('data-status', 'starred');
+  await expect(page.locator('.wm-auction-quick')).toHaveAttribute('title', locked);
 
-  await (await openSettings(page)).getByRole('switch', { name: 'Protéger les cartes en favori' }).click();
-  await page.keyboard.press('Escape');
+  // L'étoile du carrousel (celle du site), par exemplaire.
+  await page.locator('main').getByRole('button', { name: 'Retirer des favoris' }).click();
   await expect(trash).toHaveAttribute('data-status', 'ready');
+  await expect(page.locator('.wm-auction-quick')).toHaveAttribute('data-status', 'ready');
   await trash.click();
   await expect.poll(() => discarded).toEqual(['u1']);
 });

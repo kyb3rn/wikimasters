@@ -1,3 +1,4 @@
+import { FAVORITE_LOCK } from '@/services/card-marks';
 import { ProBadge } from '@/services/market';
 import { buttonClass } from '@/ui/button';
 import { Icon } from '@/ui/icons';
@@ -73,7 +74,26 @@ export function WishlistButton({ active, title, busy, onClick }: WishlistButtonP
   );
 }
 
+export interface LockedButtonProps {
+  /** Texte de l'encart du site qu'il remplace (caché), en info-bulle. */
+  readonly title: string;
+}
+
+/**
+ * « Verrouillée (favori) », désactivé, à la place de l'encart du site sur un exemplaire en favori (le mien : au lieu de
+ * Vendre et Défausser ; celui d'un ami : au lieu d'Échanger). Texte court, comme celui du site sur une face verrouillée.
+ */
+export function LockedButton({ title }: LockedButtonProps) {
+  return (
+    <button type="button" class={buttonClass('window')} disabled title={title}>
+      <Icon name="lock" size={16} />
+      {FAVORITE_LOCK.label}
+    </button>
+  );
+}
+
 export interface ModalActionsProps {
+  readonly locked: LockedButtonProps | undefined;
   readonly trade: TradeButtonProps | undefined;
   readonly wishlist: WishlistButtonProps | undefined;
   readonly market: MarketButtonProps;
@@ -81,13 +101,14 @@ export interface ModalActionsProps {
 
 /**
  * Rangée d'actions quand la modale n'a pas celle du site (carte seule, exemplaire d'un ami, le mien réservé dans un
- * échange), faite comme la sienne sous les deux colonnes : échange · liste de souhaits · Marché. Textes courts pour que
- * les trois tiennent sur une ligne (demande de l'utilisateur).
+ * échange ou en favori), faite comme la sienne sous les deux colonnes : verrou du favori · échange · liste de souhaits
+ * · Marché. Textes courts pour que les trois tiennent sur une ligne (demande de l'utilisateur).
  */
-export function ModalActions({ trade, wishlist, market }: ModalActionsProps) {
+export function ModalActions({ locked, trade, wishlist, market }: ModalActionsProps) {
   return (
     <div class={siteClass.cardModalActions}>
       <div class={siteClass.cardModalActionsRow}>
+        {locked && <LockedButton {...locked} />}
         {trade && <TradeButton {...trade} />}
         {wishlist && <WishlistButton {...wishlist} />}
         <MarketButton {...market} />

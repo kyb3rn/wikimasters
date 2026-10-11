@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pageStatesAmong, recountTagOptions, retagEntries, withShownTags } from '@/site/collection/page-state';
+import { pageStatesAmong, recountTagOptions, retagEntries, withShownCopies } from '@/site/collection/page-state';
 import { stateComponent } from '../../support';
 
 const rare = { id: 't1', name: 'rare', color: '#f472b6' };
@@ -38,15 +38,23 @@ describe('réponse gardée, resservie avec les étiquettes affichées', () => {
 
   it('liste : étiquettes de chaque exemplaire affiché, le reste tel quel', () => {
     const body = { collection: [card('u1', [rare]), card('u2', [sport]), card('u9', [rare])], total: null, tagOptions: [] };
-    expect(withShownTags('list', body, shown)).toEqual({
+    expect(withShownCopies('list', body, shown)).toEqual({
       collection: [card('u1', [rare, sport]), card('u2'), card('u9', [rare])],
       total: null,
       tagOptions: [],
     });
   });
 
+  it('liste : favori de chaque exemplaire affiché (mis ou retiré sur place)', () => {
+    const page = { entries: [{ ...card('u1'), starred: true }, { ...card('u2'), starred: false }, card('u3')], tagOptions: [] };
+    const body = { collection: [{ ...card('u1'), starred: false }, { ...card('u2'), starred: true }, { ...card('u3'), starred: true }] };
+    expect(withShownCopies('list', body, page)).toEqual({
+      collection: [{ ...card('u1'), starred: true }, { ...card('u2'), starred: false }, { ...card('u3'), starred: true }],
+    });
+  });
+
   it('compteurs : ceux de la page', () => {
-    expect(withShownTags('stats', { total: 3, rarityCounts: { C: 3 }, tagOptions: [{ ...rare, cardCount: 1 }] }, shown)).toEqual({
+    expect(withShownCopies('stats', { total: 3, rarityCounts: { C: 3 }, tagOptions: [{ ...rare, cardCount: 1 }] }, shown)).toEqual({
       total: 3,
       rarityCounts: { C: 3 },
       tagOptions: shown.tagOptions,
@@ -54,8 +62,8 @@ describe('réponse gardée, resservie avec les étiquettes affichées', () => {
   });
 
   it('forme inattendue : telle quelle', () => {
-    expect(withShownTags('list', { error: 'x' }, shown)).toEqual({ error: 'x' });
-    expect(withShownTags('stats', null, shown)).toBeNull();
+    expect(withShownCopies('list', { error: 'x' }, shown)).toEqual({ error: 'x' });
+    expect(withShownCopies('stats', null, shown)).toBeNull();
   });
 });
 

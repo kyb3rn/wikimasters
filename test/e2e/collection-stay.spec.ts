@@ -81,7 +81,8 @@ test('enchère finie sans vente : l’exemplaire revenu n’est plus « en vente
   });
   await faces(page).nth(0).click();
   await modal(page).getByRole('button', { name: 'Vendre' }).click();
-  await expect(modal(page).getByRole('button', { name: 'Vendre' })).toBeDisabled();
+  await expect(modal(page).getByRole('link', { name: "Voir l'enchère" })).toHaveAttribute('href', '/marketplace/a1b2c3d4-0000-4000-8000-000000000001');
+  await expect(modal(page).getByRole('button', { name: 'Vendre' })).toBeHidden();
   await expect(modal(page).locator('.wm-stamp')).toHaveText('En vente');
   await modal(page).getByRole('button', { name: 'Fermer' }).click();
 
@@ -96,6 +97,7 @@ test('enchère finie sans vente : l’exemplaire revenu n’est plus « en vente
   for (const control of [modal(page).getByRole('button', { name: 'Vendre' }), modal(page).getByRole('button', { name: /Défausser/ })]) {
     await expect(control).toBeEnabled();
   }
+  await expect(modal(page).getByRole('link', { name: "Voir l'enchère" })).toHaveCount(0);
   await expect(modal(page).getByPlaceholder('Ajouter une étiquette…')).toBeEnabled();
   await expect(modal(page).locator('.wm-stamp')).toHaveCount(0);
 });

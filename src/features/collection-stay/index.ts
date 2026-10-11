@@ -14,11 +14,11 @@ import {
   parseCollection,
   readBulkDiscard,
   readBulkDiscardFailures,
-  selectionMarkOf,
   shownCollectionReply,
   type CollectionEntry,
 } from '@/site/collection';
 import { COLLECTION_ROUTE } from '@/site/routes';
+import { selectionMarkOf } from '@/site/selection';
 import { unlockAll } from '@/ui/lock';
 import { STAMPS, syncStamps, unstampAll, type Stamp } from '@/ui/stamp';
 

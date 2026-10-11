@@ -1,4 +1,4 @@
-import { CARD_MARK_REASONS } from '@/services/card-marks';
+import { CARD_MARK_REASONS, FAVORITE_LOCK } from '@/services/card-marks';
 import { PackActionButton } from '@/services/pulls-pack';
 
 /**
@@ -7,9 +7,10 @@ import { PackActionButton } from '@/services/pulls-pack';
  * - `blocked` : une autre action tient la carte (défausse en cours) ;
  * - `discarded` : la carte est défaussée ;
  * - `listed` : la carte est déjà aux enchères (exemplaire réservé par le site), cadenas ;
+ * - `starred` : exemplaire en favori, verrouillé par le site, cadenas ;
  * - `unavailable` : exemplaire inconnu, rien à mettre en vente.
  */
-export type AuctionStatus = 'ready' | 'busy' | 'blocked' | 'discarded' | 'listed' | 'unavailable';
+export type AuctionStatus = 'ready' | 'busy' | 'blocked' | 'discarded' | 'listed' | 'starred' | 'unavailable';
 
 function title(status: AuctionStatus, reason: string | undefined): string {
   switch (status) {
@@ -23,6 +24,8 @@ function title(status: AuctionStatus, reason: string | undefined): string {
       return CARD_MARK_REASONS.discarded;
     case 'listed':
       return CARD_MARK_REASONS.listed;
+    case 'starred':
+      return FAVORITE_LOCK.reason;
     case 'unavailable':
       return 'Exemplaire introuvable : mise aux enchères impossible';
   }
@@ -35,7 +38,7 @@ export interface AuctionButtonProps {
   readonly onClick: () => void;
 }
 
-/** Rond vert en contour ; gris et cadenas quand la carte est déjà en vente. */
+/** Rond vert en contour ; gris et cadenas quand la carte est déjà en vente ou en favori. */
 export function AuctionButton({ status, reason, onClick }: AuctionButtonProps) {
   return (
     <PackActionButton
@@ -45,7 +48,7 @@ export function AuctionButton({ status, reason, onClick }: AuctionButtonProps) {
       label={title(status, reason)}
       enabled={status === 'ready'}
       busy={status === 'busy'}
-      locked={status === 'listed'}
+      locked={status === 'listed' || status === 'starred'}
       className="wm-auction-quick"
       onClick={onClick}
     />

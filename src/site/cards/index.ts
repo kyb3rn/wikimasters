@@ -10,7 +10,7 @@ export {
 } from './auction-modal';
 export { findDiscardConfirm, type DiscardConfirm } from './discard-confirm';
 export { locateCardModal, openCardModal, type CardModalOptions, type CardModalProps, type OpenedCardModal } from './open-modal';
-export { findStarButton } from './dom';
+export { findStarButton, parseStarLabel, type StarState } from './dom';
 export {
   cloneSiteFace,
   FACE,
@@ -24,7 +24,7 @@ export {
   SMALL_FACE,
   type CloneFaceOptions,
 } from './face';
-export { findCardGrids } from './grid';
+export { CARD_CELL, findCardGrids } from './grid';
 export { findCardModals, findModalFaces, readModalCard, readModalView, type CardModal, type CardModalView } from './modal';
 export { readFaceCard } from './face-card';
 export { parseCardRef, type CardRef } from './ref';

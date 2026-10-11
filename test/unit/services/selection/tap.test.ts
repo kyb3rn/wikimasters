@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createCtrlTap, TAP_MAX_MS } from '@/features/collection-selection-key/tap';
+import { createCtrlTap, TAP_MAX_MS } from '@/services/selection';
 
 const key = (name: string, extra: Partial<{ repeat: boolean; shiftKey: boolean; altKey: boolean; metaKey: boolean }> = {}) => ({
   key: name,

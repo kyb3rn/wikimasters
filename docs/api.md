@@ -84,7 +84,7 @@ Carte d'un paquet : champs de la carte, plus `summary, content_length, rarity_or
 | `DELETE SB /rest/v1/user_card_tags?user_card_id=eq.<id>&tag_id=eq.<id>` | étiquette retirée (modale de carte) | `readTagRemoved` |
 | `POST SB /rest/v1/user_card_tags?on_conflict=user_card_id,tag_id` `[{ user_card_id, tag_id }…]`, `Prefer: resolution=ignore-duplicates, count=exact` | 201, corps vide, `Content-Range: */<ajoutées>` : une étiquette sur toute la sélection (captures du 29/09) | `addTagsToCards` : toutes les étiquettes choisies en une requête (`return=minimal`, sans comptage) |
 | `DELETE SB /rest/v1/user_card_tags?tag_id=eq.<id>&user_card_id=in.(…)` (par 100) | étiquette retirée de la sélection | `removeTagsFromCards` : tout en une requête (`tag_id=in.(…)`) |
-| `PATCH SB /rest/v1/user_cards?user_id=eq.<uid>&card_id=eq.<card_id>` `{ starred }` | favori mis ou retiré, sur tous les exemplaires de la carte | `readStarChange` |
+| `PATCH SB /rest/v1/user_cards?user_id=eq.<uid>&id=eq.<exemplaire>` `{ starred }` | favori mis ou retiré sur un exemplaire (paquets ; Collection : sans `user_id` ; sélection : `id=in.(…)`). Par exemplaire depuis le 10/10 (avant : `card_id=eq.<carte>`, tous les exemplaires). Exemplaire en favori verrouillé par le site : ni défausse, ni vente, ni échange | `readStarChange` |
 | `POST /api/user-cards/bulk-discard` `{ card_ids: [user_card_id…] }` | `{ discarded_count, failed: [] }` : un exemplaire de chaque carte sélectionnée défaussé (forme des éléments de `failed` inconnue) ; `{ error }` sinon | `isBulkDiscard`, `readBulkDiscard`, `readBulkDiscardFailures` |
 | `GET SB /rest/v1/cards?select=summary&id=eq.<card_id>` | `{ summary }` (résumé Wikipédia, parfois `null`) | |
 
@@ -120,10 +120,12 @@ Relevés de la sonde :
 | Requête | Réponse | Script |
 |---|---|---|
 | `GET /api/cards?page=[&q=][&rarity=…]&sort=[&wishlist=1]` (dans cet ordre) | `{ cards: [carte], total, searchHasMore, rarityCounts, friendOwners, ownedCardIds, wishlistCardIds, friendPendingOfferKeys }` ; avec une recherche (capture du 30/09, `q=mesrine`) : `total: null`, `rarityCounts: {}`, `searchHasMore` | `isGlobalCollectionList`, `globalCollectionList` |
-| `POST SB /rest/v1/wishlist_items` `{ user_id, card_id }` | 201, corps vide : carte ajoutée à la liste de souhaits (409, code 23505 si elle y est déjà, ignoré par le site) | `isWishlistChange`, `readWishlistChange`, `addToWishlist` |
-| `DELETE SB /rest/v1/wishlist_items?user_id=eq.<uid>&card_id=eq.<card_id>` | carte retirée de la liste | `isWishlistChange`, `readWishlistChange`, `removeFromWishlist` |
+| `POST SB /rest/v1/wishlist_items` `{ user_id, card_id }` | 201, corps vide : carte ajoutée à la liste de souhaits (409, code 23505 si elle y est déjà, ignoré par le site) | `isWishlistChange`, `readWishlistChanges`, `addToWishlist` |
+| `DELETE SB /rest/v1/wishlist_items?user_id=eq.<uid>&card_id=eq.<card_id>` | carte retirée de la liste | `isWishlistChange`, `readWishlistChanges`, `removeFromWishlist` |
+| `POST SB /rest/v1/wishlist_items?on_conflict=user_id,card_id` `[{ user_id, card_id }, …]` (`Prefer: resolution=ignore-duplicates`) | sélection de Toutes les cartes : ses cartes pas encore dans la liste, ajoutées d'un coup | `isWishlistChange`, `readWishlistChanges` |
+| `DELETE SB /rest/v1/wishlist_items?user_id=eq.<uid>&card_id=in.(<card_id>,…)` | sélection de Toutes les cartes : ses cartes de la liste, retirées d'un coup | `isWishlistChange`, `readWishlistChanges` |
 
-Relevé : code du site, 30/09.
+Relevé : code du site, 30/09 ; sélection : 10/10.
 
 - `page` commence à **0**, 50 cartes par page ; `sort` : `rarity`, `name`, `atk`, `def` ; `q` utilisé à partir de 3 caractères (pas de total, `searchHasMore`) ; `wishlist=1` : seulement les cartes de ma liste.
 - `friendOwners` : `{ <card_id>: [{ id, username, … }] }`, amis qui possèdent la carte (le premier sert à « Proposer un échange ») ; `friendPendingOfferKeys` : `"<id de l'ami>:<card_id>"` quand une offre est déjà en cours ; `ownedCardIds`, `wishlistCardIds` : identifiants de cartes.

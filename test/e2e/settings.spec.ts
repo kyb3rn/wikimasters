@@ -178,10 +178,9 @@ test('défaussage rapide : protections seules dans sa catégorie, options dans P
   await openPulls(page);
   const dialog = await openSettings(page);
 
-  // Sa catégorie : une section sans interrupteur, les protections.
+  // Sa catégorie : une section sans interrupteur, les protections (le favori, lui, est verrouillé par le site).
   await expect(dialog.locator('.wm-settings-section')).toHaveCount(1);
-  await expect(dialog.getByRole('switch')).toHaveCount(2);
-  await expect(dialog.getByRole('switch', { name: 'Protéger les cartes en favori' })).toBeVisible();
+  await expect(dialog.getByRole('switch')).toHaveCount(1);
   await expect(dialog.getByRole('switch', { name: 'Protéger les cartes avec une étiquette' })).toBeVisible();
 
   await dialog.getByRole('button', { name: 'Paquets' }).click();

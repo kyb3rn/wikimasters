@@ -110,6 +110,8 @@ test('le script démarre et expose ses commandes', async ({ page }) => {
       ['global-collection-search-delay', 'idle'],
       ['global-collection-pagination', 'idle'],
       ['global-collection-filters', 'idle'],
+      ['global-collection-selection', 'idle'],
+      ['global-collection-selection-key', 'idle'],
       ['global-collection-friends', 'idle'],
       ['global-collection-prices', 'idle'],
       ['global-collection-load-prices', 'off'],

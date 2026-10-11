@@ -60,7 +60,7 @@ const SCRIPT = `
 (() => {
   const ARROW = 'w-12 h-12 rounded-full bg-[var(--color-surface-light)] border border-[var(--color-border)] flex items-center justify-center disabled:opacity-20 hover:bg-[var(--color-accent)]/10 transition-all cursor-pointer disabled:cursor-not-allowed';
   const DOT = 'w-3 h-3 rounded-full transition-all duration-200 cursor-pointer';
-  const { el, button, icon, nextRouter } = kit;
+  const { el, button, icon, starLabel: siteStarLabel, nextRouter } = kit;
   const svg = (points) => '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="' + points + '"></polyline></svg>';
   let cards = [], copies = [], index = 0, seen = new Set(), revealed = new Set(), revealTimer, counter, area, prev, dots, next, cont;
   let swiped = false;
@@ -98,8 +98,13 @@ const SCRIPT = `
     document.getElementById('stage').textContent = 'Fiche ' + href;
   });
   const copyOf = (card) => copies.find((copy) => copy.card_id === card.id)?.id;
-  /** Cartes en favori, étiquettes par exemplaire (état du site, pour la modale). */
+  /** Exemplaires en favori (par exemplaire depuis le 10/10), étiquettes par exemplaire (état du site, pour la modale). */
   const starred = new Set(), tags = new Map();
+  /** Comme le site : favori d'un exemplaire, PATCH user_cards?user_id=eq.<uid>&id=eq.<exemplaire>. */
+  const toggleStar = (copy, next) => {
+    if (next) starred.add(copy); else starred.delete(copy);
+    fetch('/rest/v1/user_cards?user_id=eq.u0&id=eq.' + copy, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ starred: next }) });
+  };
 
   async function open(url) {
     const body = await (await fetch(url, { method: 'POST' })).json();
@@ -109,6 +114,8 @@ const SCRIPT = `
       copies = await (await fetch('${SUPABASE}/rest/v1/user_cards?select=id,card_id,starred,is_shiny&user_id=eq.u0&card_id=in.(' + ids + ')')).json();
     }
     cards = body.cards; index = 0; seen = new Set([0]); revealed = new Set();
+    starred.clear();
+    for (const copy of copies) if (copy.starred) starred.add(copy.id);
     build(); render();
     playSound('pack-rip');
     return body;
@@ -215,13 +222,15 @@ const SCRIPT = `
     });
   }
   // Structure relevée sur le site : face (image en haut, favori), colonne de droite (titre, ligne rareté +
-  // onglets Détails / Marché, étiquettes, bloc « Signaler l'image »), rangée d'actions (icônes lucide).
+  // onglets Détails / Marché, étiquettes, bloc « Signaler l'image »), rangée d'actions (icônes lucide), ou à sa
+  // place, exemplaire en favori, l'encart du verrou (10/10).
   function openModal(card) {
     closeModal();
     const back = el('div', 'fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm');
     back.id = 'card-modal';
     // Comme le site : le composant de la modale (props card, onClose…) rend lui-même le fond.
-    back['__reactFiber$test'] = { memoizedProps: {}, return: { memoizedProps: { card, starred: false, count: 1, onClose: closeModal, userCardId: copyOf(card) }, return: null } };
+    const props = { card, starred: starred.has(copyOf(card)), count: 1, onClose: closeModal, userCardId: copyOf(card) };
+    back['__reactFiber$test'] = { memoizedProps: {}, return: { memoizedProps: props, return: null } };
     const panel = el('div', 'card-frame relative w-full animate-fade-in-up p-6');
     const close = button('absolute top-3 right-3', '×', closeModal); close.setAttribute('aria-label', 'Fermer');
 
@@ -230,14 +239,14 @@ const SCRIPT = `
     const image = el('div', 'absolute top-0 left-0 right-0 h-[45%] z-20 bg-black/20');
     image.style.cssText = 'position:absolute;top:0;left:0;right:0;height:45%;background:#57606a';
     // Comme le site : libellé et remplissage de l'étoile selon l'état.
-    const starLabel = () => (starred.has(card.id) ? 'Retirer des favoris' : 'Ajouter aux favoris');
-    const starIcon = () => '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="' + (starred.has(card.id) ? 'currentColor' : 'none') + '" stroke="currentColor" d="M12 2l3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1z"></path></svg>';
+    const starLabel = () => siteStarLabel(props.starred);
+    const starIcon = () => '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="' + (props.starred ? 'currentColor' : 'none') + '" stroke="currentColor" d="M12 2l3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1z"></path></svg>';
     const star = button('p-0.5 rounded-md', starIcon(), () => {
-      const next = !starred.has(card.id);
-      if (next) starred.add(card.id); else starred.delete(card.id);
+      props.starred = !props.starred;
+      toggleStar(props.userCardId, props.starred);
       star.setAttribute('aria-label', starLabel());
       star.innerHTML = starIcon();
-      fetch('/rest/v1/user_cards?user_id=eq.u0&card_id=eq.' + card.id, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ starred: next }) });
+      renderActions();
     });
     star.setAttribute('aria-label', starLabel());
     star.style.cssText = 'position:absolute;top:4px;right:4px;z-index:30';
@@ -334,8 +343,19 @@ const SCRIPT = `
     });
     const row = el('div', 'flex flex-col sm:flex-row gap-2'); row.append(auction, discard);
     const actions = el('div', 'mt-3 space-y-2'); actions.append(row);
+    const lock = el('div', 'mt-3 flex w-full items-center justify-center gap-2 py-2.5 px-3 rounded-lg bg-amber-400/10 border text-center');
+    lock.setAttribute('role', 'status');
+    lock.innerHTML = icon('lock', 'size-4 shrink-0') + "Carte en favori : verrouillée. Retirez-la des favoris pour la vendre, la défausser ou l'échanger.";
+    // Comme React : la rangée ou l'encart, à la même place.
+    function renderActions() {
+      const shown = props.starred ? lock : actions;
+      const other = props.starred ? actions : lock;
+      if (other.parentNode) other.replaceWith(shown);
+      else if (!shown.parentNode) panel.append(shown);
+    }
 
-    panel.append(close, columns, actions);
+    panel.append(close, columns);
+    renderActions();
     back.append(panel);
     document.body.append(back);
   }
@@ -392,15 +412,14 @@ const SCRIPT = `
     };
     const title = el('h3', 'text-xs shrink-0 font-bold');
     title.textContent = card.wikipedia_title;
-    const on = starred.has(card.id);
+    const on = starred.has(copyOf(card));
     const star = button('p-0.5 rounded-md', '');
-    star.setAttribute('aria-label', on ? 'Retirer des favoris' : 'Ajouter aux favoris');
+    star.setAttribute('aria-label', siteStarLabel(on));
     star.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="' + (on ? 'currentColor' : 'none') + '" stroke="currentColor" d="M12 2l3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1z"></path></svg>';
     star.style.cssText = 'position:absolute;top:4px;right:4px';
     star.onclick = (event) => {
       event.stopPropagation();
-      if (on) starred.delete(card.id); else starred.add(card.id);
-      fetch('/rest/v1/user_cards?user_id=eq.u0&card_id=eq.' + card.id, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ starred: !on }) });
+      toggleStar(copyOf(card), !on);
       render();
     };
     face.append(title, star);

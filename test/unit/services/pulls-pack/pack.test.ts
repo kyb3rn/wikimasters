@@ -47,8 +47,10 @@ describe('paquet ouvert sur /pulls', () => {
     const controller = new AbortController();
     onPackChange(() => changes++, { signal: controller.signal });
 
-    await call(`${SB}/user_cards?user_id=eq.x&card_id=eq.c1`, { method: 'PATCH', body: JSON.stringify({ starred: true }) });
-    expect(currentPack()?.copies?.get('u1')?.starred).toBe(true);
+    // Favori par exemplaire : les autres exemplaires de la carte n'en changent pas.
+    await call(`${SB}/user_cards?user_id=eq.x&id=eq.u2`, { method: 'PATCH', body: JSON.stringify({ starred: true }) });
+    expect(currentPack()?.copies?.get('u2')?.starred).toBe(true);
+    expect(currentPack()?.copies?.get('u3')?.starred).toBe(false);
     await call(`${SB}/user_card_tags`, { method: 'POST', body: JSON.stringify({ user_card_id: 'u3', tag_id: 't1' }) });
     expect(currentPack()?.copies?.get('u3')?.tags).toBe(1);
     await call('/api/user-cards/u3/discard', { method: 'POST' });

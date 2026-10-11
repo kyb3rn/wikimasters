@@ -4,6 +4,8 @@ import { snugSearchButtonCss } from './SearchButton';
 
 /** Ce qu'une fonctionnalité pose au bout de la ligne, calé à droite : conteneur à nous non `inline`, dernier enfant. */
 const RIGHT = `.${ROOT_CLASS}:not(.${INLINE_CLASS}):last-child`;
+/** Bout de la ligne partagé (`filterLineEnd`). */
+const LINE_END = 'wm-line-end';
 
 /** Classes posées par une page sur sa ligne des filtres et ses parties. */
 export interface FilterLineParts {
@@ -32,8 +34,8 @@ const ONE_ROW_FROM = '960px';
  * tri, puis le bouton de la recherche, à 8 px du tri. Trop étroite : le champ sur sa rangée, le reste dessous. Sur une
  * rangée, tout est collé à gauche comme dans la Collection : le champ part de 550 px et un côté droit vide
  * (pseudo-élément) de la même base prend le reste ; quand la ligne se réduit, champ et vide rétrécissent ensemble, le
- * champ jusqu'à 300 px. Un contenu posé au bout de la ligne (`RIGHT`) tient lieu de côté droit, calé à droite ; trop
- * étroite, il suit le bouton de la recherche.
+ * champ jusqu'à 300 px. Un contenu posé au bout de la ligne (`RIGHT` ; plusieurs : `filterLineEnd`) tient lieu de côté
+ * droit, calé à droite ; trop étroite, il suit le bouton de la recherche.
  */
 export function filterLineCss({ area, line, field, sort }: FilterLineParts, { sortBasis, sortMin, gap }: FilterLineSizes): string {
   return `
@@ -43,6 +45,7 @@ export function filterLineCss({ area, line, field, sort }: FilterLineParts, { so
 .${line} > .${sort} { flex: 1 1 ${sortMin}; }
 ${snugSearchButtonCss(`.${line}`)}
 .${line} > ${RIGHT} { display: flex; justify-content: flex-end; align-items: center; flex: 1 0 auto; }
+.${line} > .${LINE_END} { gap: inherit; }
 @container ${area} (min-width: ${ONE_ROW_FROM}) {
   .${line} { flex-wrap: nowrap; }
   .${line} > .${field} { flex: 0 1 550px; min-width: 300px; }
@@ -52,4 +55,38 @@ ${snugSearchButtonCss(`.${line}`)}
   .${line} > ${RIGHT} { flex: 1 1 550px; }
 }
 `;
+}
+
+const ends = new WeakMap<Element, { readonly element: HTMLElement; readonly users: Set<AbortSignal> }>();
+
+/**
+ * Bout de la ligne des filtres (`filterLineCss`), calé à droite : un conteneur à nous, dernier enfant de `line`, où
+ * plusieurs fonctionnalités posent leur interface (`createSlot` avec ce seul `parent` : leur ordre se règle en CSS,
+ * par `order`). Retiré quand toutes celles qui s'en servent sont démontées (`signal`).
+ */
+export function filterLineEnd(line: Element, signal: AbortSignal): HTMLElement {
+  let end = ends.get(line);
+  if (!end) {
+    const element = document.createElement('div');
+    element.className = `${ROOT_CLASS} ${LINE_END}`;
+    end = { element, users: new Set() };
+    ends.set(line, end);
+  }
+  const { element, users } = end;
+  if (signal.aborted) return element;
+  if (!users.has(signal)) {
+    users.add(signal);
+    signal.addEventListener(
+      'abort',
+      () => {
+        users.delete(signal);
+        if (users.size > 0) return;
+        element.remove();
+        ends.delete(line);
+      },
+      { once: true },
+    );
+  }
+  if (element.parentNode !== line || element.nextElementSibling !== null) line.append(element);
+  return element;
 }

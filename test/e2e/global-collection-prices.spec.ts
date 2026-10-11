@@ -23,9 +23,9 @@ const CARDS = [
 ];
 
 /*
- * Toutes les cartes (captures du 29/09/2026) : la face est la case de la grille, composant aux props `{ card, … }`.
- * Pas de Tailwind : la taille d'une face vient de ses classes, écrites ici comme les génère le site (la case du
- * calque les reprend) ; rangée et écart en style. Un clic sur une face est noté dans `window.opened`.
+ * Toutes les cartes (capture du 10/10/2026) : rangée > case `div.relative.isolate.group` > face, composant aux props
+ * `{ card, … }`. Pas de Tailwind : la taille d'une face vient de ses classes, écrites ici comme les génère le site ;
+ * rangée et écart en style. Un clic sur une face est noté dans `window.opened`.
  */
 const SCRIPT = `
   const { el, fiber } = kit;
@@ -38,13 +38,15 @@ const SCRIPT = `
   grid.id = 'grid';
   grid.setAttribute('style', 'display:flex;flex-wrap:wrap;justify-content:center;gap:26px;width:600px');
   for (const card of ${JSON.stringify(CARDS)}) {
+    const cell = el('div', 'relative isolate group');
     const face = el('div', Object.keys(sizes).join(' ') + ' glow-' + card.rarity.toLowerCase() + ' relative rounded-2xl overflow-hidden');
     face.style.background = '#555';
     face.dataset.card = card.id;
     face.innerHTML = '<h3>' + card.wikipedia_title + '</h3>';
     fiber(face, {}, fiber(null, { card, size: 'sm' }, null, { key: card.id }));
     face.addEventListener('click', () => window.opened.push(card.id));
-    grid.append(face);
+    cell.append(face);
+    grid.append(cell);
   }
   document.querySelector('main').append(grid);
 `;
@@ -69,7 +71,7 @@ async function openPage(page: Page): Promise<SalesServer> {
   return server;
 }
 
-const faces = (page: Page) => page.locator('#grid > [data-card]');
+const faces = (page: Page) => page.locator('#grid [data-card]');
 const priceButtons = (page: Page) => page.locator('#grid .wm-catalog-price button');
 const opened = (page: Page) => page.evaluate(() => (window as unknown as { opened: string[] }).opened);
 
@@ -114,13 +116,6 @@ test('sous chaque carte, sur toutes les lignes : « Charger le prix », rien dem
   expect(await opened(page)).toEqual([]);
 });
 
-test('le calque laisse passer les clics vers les cartes', async ({ page }) => {
-  await openPage(page);
-  await expect(priceButtons(page).first()).toBeVisible();
-  await faces(page).nth(4).locator('h3').click();
-  expect(await opened(page)).toEqual(['c-3']);
-});
-
 test('taille et espacement des cartes réglés : chaque bouton reste sous sa carte', async ({ page }) => {
   await presetSettings(page, { features: {}, values: { 'global-collection-card-display': { scale: 75, gap: 30 } } });
   await openPage(page);
@@ -132,21 +127,20 @@ test('la liste change (autre page) : les boutons suivent les nouvelles cartes', 
   await openPage(page);
   await expect(priceButtons(page)).toHaveCount(CARDS.length);
   await page.evaluate(() => {
-    for (const face of [...document.querySelectorAll('#grid > [data-card]')].slice(2)) face.remove();
+    for (const cell of [...document.querySelectorAll('#grid > div')].slice(2)) cell.remove();
   });
   await expect(priceButtons(page)).toHaveCount(2);
   await expect(priceButtons(page).nth(1)).toHaveText('Charger le prix');
 });
 
-test('réglage : « Prix moyen » dans l’onglet Toutes les cartes, actif par défaut ; coupé, plus de prix ni de marge', async ({ page }) => {
+test('réglage : « Prix moyen » dans l’onglet Toutes les cartes, actif par défaut ; coupé, plus de prix', async ({ page }) => {
   await openPage(page);
   await expect(priceButtons(page).first()).toBeVisible();
   const settings = await openSettings(page, 'Toutes les cartes');
   const toggle = settings.getByRole('switch', { name: 'Prix moyen : Afficher le prix moyen des cartes' });
   await expect(toggle).toHaveAttribute('aria-checked', 'true');
   await toggle.click();
-  await expect(page.locator('.wm-catalog-prices')).toHaveCount(0);
-  expect(await faces(page).first().evaluate((face) => getComputedStyle(face).marginBottom)).toBe('0px');
+  await expect(page.locator('.wm-catalog-price')).toHaveCount(0);
   await toggle.click();
   await expect(priceButtons(page).first()).toHaveText('Charger le prix');
 });
@@ -156,7 +150,7 @@ test('coupé d’avance : rien sous les cartes', async ({ page }) => {
   await openPage(page);
   await expect(faces(page)).toHaveCount(CARDS.length);
   await letTimePass(page, 300);
-  await expect(page.locator('.wm-catalog-prices')).toHaveCount(0);
+  await expect(page.locator('.wm-catalog-price')).toHaveCount(0);
 });
 
 test('au repos, la page ne bouge plus', async ({ page }) => {

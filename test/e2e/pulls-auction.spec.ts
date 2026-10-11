@@ -254,11 +254,12 @@ test.describe('toutes les cartes d’un coup', () => {
     await expect(slot(page, 1).locator('.wm-pulls-card .wm-stamp')).toHaveText('En vente');
     await expect(slot(page, 0).locator('.wm-stamp')).toHaveCount(0);
     await expect(slot(page, 2).locator('.wm-stamp')).toHaveCount(0);
-    // Sa modale, ouverte depuis la grille : tamponnée, Vendre et Défausser verrouillés.
+    // Sa modale, ouverte depuis la grille : tamponnée, « Voir l'enchère » à la place de Vendre, Défausser verrouillé.
     await slot(page, 1).locator('.wm-pulls-card > *').click();
     const modal = page.locator('#card-modal');
     await expect(modal.locator('.wm-stamp')).toHaveText('En vente');
-    await expect(modal.getByRole('button', { name: 'Vendre' })).toBeDisabled();
+    await expect(modal.getByRole('link', { name: "Voir l'enchère" })).toHaveAttribute('href', `/marketplace/${AUCTION_ID}`);
+    await expect(modal.getByRole('button', { name: 'Vendre' })).toBeHidden();
     await expect(modal.getByRole('button', { name: /Défausser/ })).toBeDisabled();
   });
 

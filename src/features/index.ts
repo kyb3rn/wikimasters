@@ -48,6 +48,8 @@ import { globalCollectionPrices } from './global-collection-prices';
 import { globalCollectionSalesLimit } from './global-collection-sales-limit';
 import { globalCollectionSearch } from './global-collection-search';
 import { globalCollectionSearchDelay } from './global-collection-search-delay';
+import { globalCollectionSelection } from './global-collection-selection';
+import { globalCollectionSelectionKey } from './global-collection-selection-key';
 import { market } from './market';
 import { marketSearch } from './market-search';
 import { marketplaceCardDisplay } from './marketplace-card-display';
@@ -209,6 +211,8 @@ export const features: readonly Feature[] = [
   globalCollectionSearchDelay,
   globalCollectionPagination,
   globalCollectionFilters,
+  globalCollectionSelection,
+  globalCollectionSelectionKey,
   globalCollectionFriends,
   globalCollectionPrices,
   globalCollectionLoadPrices,

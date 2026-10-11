@@ -49,19 +49,19 @@ test('barre du bas : seulement les boutons, à l’allure des actions de la moda
   await expect(page.getByText('carte sélectionnée')).toBeHidden();
   await expect(page.locator('body > div.fixed.bottom-4 button:not(.wm-root button)').first()).toBeHidden();
   const buttons = actions(page).getByRole('button');
-  await expect(buttons).toHaveText([/^Sélectionner toute la page/, 'Étiqueter', 'Désétiqueter', /^Défausser tout/]);
+  await expect(buttons).toHaveText([/^Sélectionner toute la page/, 'Étiqueter', 'Désétiqueter', 'Mettre en favori (0)', 'Retirer des favoris (0)', /^Défausser tout/]);
   await expect(action(page, 'Sélectionner toute la page')).toBeVisible();
   // Largeur selon le texte, hauteur des champs.
   const boxes = await Promise.all((await buttons.all()).map(rect));
-  expect(new Set(boxes.map((box) => Math.round(box.width))).size).toBe(4);
+  expect(new Set(boxes.map((box) => Math.round(box.width))).size).toBe(6);
   // Boutons standard moyens : hauteur des champs.
   for (const box of boxes) expect(Math.round(box.height)).toBe(45);
-  // Barre resserrée sur ses boutons, autant de marge des deux côtés, centrée là où le site la place
-  // (le faux site : 900 px de large depuis le bord gauche, centre à 450 px).
-  const bar = await rect(page.locator('body > div.fixed.bottom-4'));
-  const row = await rect(actions(page));
-  expect(bar.width).toBeLessThan(900);
-  expect(Math.round(bar.x + bar.width / 2)).toBe(450);
+  // Barre resserrée sur ses boutons, sur une rangée, autant de marge des deux côtés, centrée là où le site la place
+  // (sur <main>) ; plus large que ses 768 px quand nos boutons le demandent, jamais plus que <main> moins 48 px.
+  const [bar, row, main] = await Promise.all([rect(page.locator('body > div.fixed.bottom-4')), rect(actions(page)), rect(page.locator('main'))]);
+  expect(Math.round(bar.x + bar.width / 2)).toBe(Math.round(main.x + main.width / 2));
+  expect(bar.width).toBeLessThanOrEqual(main.width - 48);
+  expect(new Set(boxes.map((box) => Math.round(box.y))).size).toBe(1);
   expect(Math.round(row.x - bar.x)).toBe(Math.round(bar.x + bar.width - (row.x + row.width)));
   await expect(action(page, 'Défausser tout')).toHaveClass(/wm-tone-danger/);
   await expect(action(page, 'Étiqueter')).toBeDisabled();
@@ -256,4 +256,40 @@ test('défausse refusée : message du site en toast, sa confirmation refermée',
   await expect(page.locator('body > div.fixed.bottom-4 p.text-red-500')).toBeHidden();
   expect(server.discards).toEqual([['u3']]);
   await expect(action(page, 'Défausser tout')).toBeEnabled();
+});
+
+test('« Mettre en favori (n) » : roue et désactivé pendant la requête du site ; refusé, son message en toast', async ({ page }) => {
+  let release = () => {};
+  let fail = false;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  const server = await openSelectionPage(page, {
+    supabase: async (route, url) => {
+      if (url.pathname !== '/rest/v1/user_cards') return false;
+      await held;
+      await route.fulfill(fail ? { status: 500, json: { message: 'erreur' } } : { status: 204, body: '' });
+      return true;
+    },
+  });
+  await select(page, 0, 2);
+  const star = action(page, 'Mettre en favori (2)');
+  await star.click();
+  await expect(star).toHaveAttribute('aria-busy', 'true');
+  await expect(star).toBeDisabled();
+  await expect(action(page, 'Défausser tout')).toBeDisabled();
+  await expect.poll(() => server.supabase.filter((r) => r.method === 'PATCH').map((r) => [r.url, r.body])).toEqual([
+    ['/rest/v1/user_cards?user_id=eq.u0&id=in.(u1,u3)', { starred: true }],
+  ]);
+  release();
+  // Réussi : sélection vidée par le site, aucun toast.
+  await expect(page.locator('.wm-selection-count')).toHaveText('0sélectionnée');
+  await expect(action(page, 'Mettre en favori (0)')).toHaveAttribute('aria-busy', 'false');
+  await expect(page.getByRole('alert')).toHaveCount(0);
+
+  fail = true;
+  await faces(page).nth(1).click();
+  await action(page, 'Mettre en favori (1)').click();
+  const alert = page.getByRole('alert');
+  await expect(alert).toContainText('Favoris');
+  await expect(alert).toContainText('Impossible de mettre ces cartes en favori.');
+  await expect(action(page, 'Mettre en favori (1)')).toBeEnabled();
 });

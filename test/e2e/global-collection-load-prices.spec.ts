@@ -38,10 +38,12 @@ const SCRIPT = `
   const grid = el('div', 'flex flex-wrap justify-center gap-3');
   grid.id = 'grid';
   for (const card of ${JSON.stringify(CARDS)}) {
+    const cell = el('div', 'relative isolate group');
     const face = el('div', 'w-[clamp(8.4rem,43vw,10rem)] h-[clamp(11.8rem,60vw,14rem)] glow-sr relative rounded-2xl overflow-hidden');
     face.innerHTML = '<h3>' + card.wikipedia_title + '</h3>';
     fiber(face, {}, fiber(null, { card, size: 'sm' }, null, { key: card.id }));
-    grid.append(face);
+    cell.append(face);
+    grid.append(cell);
   }
   document.querySelector('main').append(area, grid);
   sortList.render();

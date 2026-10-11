@@ -1,3 +1,4 @@
+import { h } from 'preact';
 import { watchDom } from '@/core/dom';
 import { net } from '@/core/net';
 import { matchRoute } from '@/core/router';
@@ -11,9 +12,11 @@ import { readAuctionCreation } from '@/site/api';
 import { findCardModals, readModalView, type CardModal } from '@/site/cards';
 import { findCarousel } from '@/site/pulls';
 import { ensureRouterGuards, guardRouterPush } from '@/site/router';
-import { AUCTION_ROUTE } from '@/site/routes';
+import { AUCTION_ROUTE, auctionPath } from '@/site/routes';
 import { unlockAll } from '@/ui/lock';
+import { createSlots } from '@/ui/mount';
 import { STAMPS, syncStamps, unstampAll } from '@/ui/stamp';
+import { AuctionLink } from './AuctionLink';
 
 const OWNER = 'auction-stay';
 /** Au-delà, une redirection vers une annonce n'est plus considérée comme la suite de la mise en vente. */
@@ -33,7 +36,8 @@ export const auctionStay: Feature = {
   id: 'auction-stay',
   name: 'Mise aux enchères',
   toggleLabel: 'Rester sur la carte après la mise aux enchères',
-  description: "Pas de redirection vers l'enchère : une notification confirme la publication, avec un lien vers l'enchère.",
+  description:
+    "Pas de redirection vers l'enchère : une notification confirme la publication ; on rejoint l'enchère depuis elle ou depuis la carte en vente.",
   category: 'Enchères',
   routes: 'all',
   async mount(ctx) {
@@ -92,15 +96,29 @@ export const auctionStay: Feature = {
       return copy;
     }
 
+    const links = createSlots<HTMLElement>(signal);
+
     // Exemplaire aux enchères : réservé par le site, plus de vente, de défausse ni d'étiquette. Reconnu à son
     // identifiant, pas au titre : un autre exemplaire de la carte, ou celui revenu d'une enchère invendue, reste libre.
+    // Son enchère connue (réponse de sa création) : « Voir l'enchère » à la place de « Vendre », sinon « Vendre » grisé.
     function sync(): void {
+      const linked = new Set<HTMLElement>();
       for (const modal of findCardModals()) {
         // Carte seule (modèle) ou exemplaire d'un ami : jamais un de mes exemplaires « en vente ».
         if (modal.kind !== 'own') continue;
         const copy = copyOf(modal);
-        markModalCard(modal, OWNER, copy !== undefined && listingOf(copy) ? 'listed' : undefined);
+        const listing = copy === undefined ? undefined : listingOf(copy);
+        markModalCard(modal, OWNER, listing ? 'listed' : undefined);
+        const sell = modal.auctionButton;
+        if (!sell) continue;
+        const row = sell.parentElement;
+        if (row && listing?.auctionId) {
+          links.render(modal.root, h(AuctionLink, { href: auctionPath(listing.auctionId) }), { parent: row, before: sell, inline: true });
+          linked.add(modal.root);
+        }
+        ctx.hide(sell, linked.has(modal.root));
       }
+      links.prune((root) => linked.has(root));
       const carousel = findCarousel();
       if (!carousel) return;
       const pack = packCarousel()?.pack;

@@ -2,42 +2,24 @@ import { isRecord, isSet, parseJson } from '@/core/guards';
 import type { NetRequest } from '@/core/net';
 import { currentFiberAncestors, fiberOf, findPropsAbove, type Fiber } from '@/core/react';
 import { textOf } from '@/core/text';
-import { hasIcon, isOwn } from '@/site/dom';
 import { statesAboveRefresh } from '@/site/list-page';
 import { SITE_OVERLAY } from '@/site/modals';
-import { COLLECTION_CARD_BOX, SELECTION_OVERLAY } from './collection';
+import { siteSelectionMode, type SelectionMode } from '@/site/selection';
 import { findCollectionFilters } from './filters';
 
 /**
- * Mode « sélection » de la page Collection (code et captures du site, 29/09/2026).
+ * Mode « sélection » de la page Collection (code du site, 10/10/2026), commun avec Toutes les cartes (`site/selection`).
  *
- * - « Sélectionner » / « Quitter la sélection » : à droite du titre `h1` « Collection » (quand la collection
- *   n'est pas vide) ; lucide `square-check-big` / `x`. Entrer ou sortir vide la sélection.
- * - En sélection, un clic sur une carte la coche (sauf carte en échange). Barre fixe en bas (portail dans
- *   `body`, `div.fixed.bottom-4.z-[80] … card-frame`, calée sur la largeur du contenu) : « n cartes
- *   sélectionnées » (« Actualisation… » avec une roue pendant un chargement ou un changement de filtre),
- *   puis « Tout sélectionner (page) » / « Désélectionner la page » (`square-check-big` / `square`),
- *   « Étiqueter », « Retirer l'étiquette » (deux lucide `tag`), « Défausser (+n) » (`trash-2`, rouge), et
- *   sous la rangée l'erreur de la dernière défausse. Tout est désactivé pendant un chargement.
- * - La sélection est vidée à chaque changement de filtre ou de page, et réduite aux cartes encore affichées
- *   après un rechargement.
+ * - « Sélectionner » / « Quitter la sélection » à droite du titre `h1` « Collection », seulement quand le total des
+ *   compteurs est non nul.
+ * - En sélection, un clic sur une carte la coche. Barre du bas : « Tout sélectionner (page) » / « Désélectionner la
+ *   page », « Étiqueter », « Retirer l'étiquette » (deux lucide `tag`), « Mettre en favori (n) » (`star`), « Retirer
+ *   des favoris (n) » (`star-off`), « Défausser (+n) » (`trash-2`, rouge : ni les cartes en favori ni celles en
+ *   échange) ; sous la rangée, l'erreur de la dernière action. Tout est désactivé pendant un chargement ; favoris et
+ *   défausse aussi pendant l'une d'elles.
+ * - La sélection est vidée à chaque changement de filtre ou de page, et réduite aux cartes encore affichées après
+ *   un rechargement.
  */
-
-export interface SelectionToggle {
-  readonly button: HTMLButtonElement;
-  /** Mode sélection actif (le bouton est « Quitter la sélection »). */
-  readonly active: boolean;
-}
-
-/** Bouton du site qui entre dans le mode sélection ou en sort. */
-export function findSelectionToggle(doc: Document = document): SelectionToggle | undefined {
-  const heading = [...(doc.querySelector('main')?.querySelectorAll('h1') ?? [])].find((h1) => textOf(h1) === 'Collection');
-  const button = heading?.parentElement?.querySelector<HTMLButtonElement>(':scope > button');
-  if (!button) return undefined;
-  if (hasIcon(button, 'square-check-big')) return { button, active: false };
-  if (hasIcon(button, 'x')) return { button, active: true };
-  return undefined;
-}
 
 export interface SelectionState {
   readonly active: boolean;
@@ -54,18 +36,12 @@ export function findSelectionState(doc: Document = document): SelectionState | u
   return row ? selectionStateAmong(currentFiberAncestors(row)) : undefined;
 }
 
-export interface SelectionMode {
-  readonly active: boolean;
-  /** Entre dans le mode ou en sort, comme le bouton du site. */
-  toggle(): void;
-}
-
 /** Mode sélection : le bouton du site s'il est affiché (cliqué comme par l'utilisateur), sinon l'état de la page. */
 export function findSelectionMode(doc: Document = document): SelectionMode | undefined {
-  const site = findSelectionToggle(doc);
-  if (site) return { active: site.active, toggle: () => site.button.click() };
+  const site = siteSelectionMode(doc);
+  if (site) return site;
   const state = findSelectionState(doc);
-  return state && { active: state.active, toggle: () => state.setActive(!state.active) };
+  return state && { active: state.active, disabled: false, toggle: () => state.setActive(!state.active) };
 }
 
 /**
@@ -90,63 +66,9 @@ export function selectionStateAmong(ancestors: readonly Fiber[]): SelectionState
   };
 }
 
-export interface SelectionBar {
-  readonly root: HTMLElement;
-  /** Rangée du compte et des boutons. */
-  readonly row: HTMLElement;
-  /** Cartes sélectionnées ; `undefined` pendant « Actualisation… ». */
-  readonly count: number | undefined;
-  /** « Tout sélectionner (page) », ou « Désélectionner la page » quand toute la page l'est. */
-  readonly selectPage: HTMLButtonElement | undefined;
-  readonly pageSelected: boolean;
-  readonly tag: HTMLButtonElement | undefined;
-  readonly untag: HTMLButtonElement | undefined;
-  readonly discard: HTMLButtonElement | undefined;
-  /** Message d'erreur sous la rangée (défausse refusée). */
-  readonly error: HTMLElement | undefined;
-}
-
-export function findSelectionBar(doc: Document = document): SelectionBar | undefined {
-  for (const root of doc.querySelectorAll<HTMLElement>('body > div.fixed.bottom-4.card-frame')) {
-    // Nos interfaces peuvent s'y ajouter (`.wm-root`) : la rangée du site est son premier enfant à lui.
-    const row = [...root.children].find((child) => !isOwn(child));
-    if (!(row instanceof HTMLElement) || !/sélectionnée|Actualisation/.test(textOf(row.firstElementChild))) continue;
-    const buttons = [...row.querySelectorAll<HTMLButtonElement>('button')];
-    const selectPage = buttons.find((button) => hasIcon(button, 'square-check-big', 'square'));
-    const [tag, untag] = buttons.filter((button) => hasIcon(button, 'tag'));
-    const number = row.firstElementChild?.querySelector('span.font-semibold');
-    const count = number ? Number.parseInt(textOf(number), 10) : Number.NaN;
-    return {
-      root,
-      row,
-      count: Number.isInteger(count) ? count : undefined,
-      selectPage,
-      pageSelected: !!selectPage && hasIcon(selectPage, 'square') && !hasIcon(selectPage, 'square-check-big'),
-      tag,
-      untag,
-      discard: buttons.find((button) => hasIcon(button, 'trash-2', 'trash2')),
-      error: root.querySelector<HTMLElement>(':scope > p.text-red-500') ?? undefined,
-    };
-  }
-  return undefined;
-}
-
-/** Calque d'une carte de la grille en sélection : anneau d'accent (`ring-4`) si elle est cochée. */
-export interface SelectionMark {
-  readonly overlay: HTMLElement;
-  readonly selected: boolean;
-}
-
-/**
- * Calque de sélection de la case d'une face de la grille (hors sélection : aucun). En sélection, chaque case
- * (`div.relative.isolate.group`) reçoit après sa face un `div.pointer-events-none.absolute.inset-0.z-10`
- * (`transition-all duration-300`) : anneau d'accent si cochée, `bg-black/50` si la carte est en échange (pas
- * sélectionnable), sinon transparent ; et une case à cocher dans le coin (`z-30`). Le clic de la carte est
- * sur sa face (`div` à classe `glow-…`, `onClick`).
- */
-export function selectionMarkOf(face: HTMLElement): SelectionMark | undefined {
-  const overlay = face.closest(COLLECTION_CARD_BOX)?.querySelector<HTMLElement>(`:scope > ${SELECTION_OVERLAY}`);
-  return overlay ? { overlay, selected: overlay.classList.contains('ring-4') } : undefined;
+/** Favoris mis ou retirés sur les exemplaires sélectionnés : `PATCH SB /rest/v1/user_cards?user_id=eq.…&id=in.(…)` `{ starred }`. */
+export function isBulkStarChange(request: NetRequest): boolean {
+  return request.method === 'PATCH' && request.url.pathname.endsWith('/rest/v1/user_cards') && (request.url.searchParams.get('id') ?? '').startsWith('in.');
 }
 
 /** Étiquette proposée dans la modale d'étiquetage groupé. */

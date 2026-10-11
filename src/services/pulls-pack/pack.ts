@@ -118,8 +118,11 @@ export function trackPack(): void {
     changes.emit();
   });
   // Favori, étiquettes et défausses, faits dans la modale du site ou par nous.
-  onAction(readStarChange, ({ cardId, starred }, state) => {
-    for (const copy of state.copies?.values() ?? []) if (copy.cardId === cardId) copy.starred = starred;
+  onAction(readStarChange, ({ userCardIds, starred }, state) => {
+    for (const id of userCardIds) {
+      const copy = state.copies?.get(id);
+      if (copy) copy.starred = starred;
+    }
   });
   onAction(readTagAdded, ({ userCardId }, state) => {
     const copy = state.copies?.get(userCardId);

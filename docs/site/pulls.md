@@ -123,7 +123,7 @@ _Relevé : code du site, 29/09._
 - `POST /api/packs/open` rend les cartes (`cards`) et les exemplaires possédés (`owned_copies` : `{ id, card_id, starred, is_shiny, user_card_tags }`). Le pack PRO ne rend pas `owned_copies` : le site les demande ensuite à Supabase (`user_cards?…&card_id=in.(…)`, [api.md](../api.md#paquets)).
 - Exemplaire associé à chaque carte, donc celui que défausse ou met en vente la modale : le premier dont l'état shiny est celui de la carte tirée, sinon le premier tout court.
 - La page garde ces exemplaires en mémoire : après une défausse faite hors de sa modale (par le script), défausser la même carte par la modale du site donne un 409.
-- Favori et étiquettes changés dans la modale : requêtes Supabase (`readStarChange`, `readTagAdded`, `readTagRemoved`).
+- Favori et étiquettes changés dans la modale ou par l'étoile du carrousel : requêtes Supabase (`readStarChange`, `readTagAdded`, `readTagRemoved`). Favori par exemplaire (capture et code du 10/10 : `PATCH user_cards?user_id=eq.<uid>&id=eq.<exemplaire>`, état du carrousel gardé par exemplaire) ; un exemplaire en favori est verrouillé : sa modale n'a ni « Mettre aux enchères » ni « Défausser », l'encart « Carte en favori : verrouillée… » à leur place.
 - Lecture : `src/site/pulls/pack.ts` (`isPackOpening`, `isCopiesQuery`, `parsePack`, `copiesByCard`).
 
 ## Sons
