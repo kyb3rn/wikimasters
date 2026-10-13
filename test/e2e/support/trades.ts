@@ -91,7 +91,11 @@ const SCRIPT = `
   frame.style.cssText = 'background:#161b22;max-width:1024px;height:90vh';
   const head = el('div', 'flex flex-shrink-0 items-center justify-between gap-4 p-4 border-b');
   const title = el('h2', 'text-lg font-bold truncate', 'Échanger avec ');
-  title.append(el('span', 'text-[var(--color-accent)]', friend));
+  // Lien du site vers le profil de l'ami (12/10/2026).
+  const profile = el('a', 'hover:underline text-[var(--color-accent)]', friend);
+  profile.href = '/profile/' + friend;
+  profile.title = 'Voir le profil de ' + friend;
+  title.append(profile);
   head.append(el('div', 'min-w-0 flex-1'));
   head.firstChild.append(title);
   const summary = el('div', 'flex flex-shrink-0 items-center justify-center gap-2 px-4 py-2 border-b text-xs');

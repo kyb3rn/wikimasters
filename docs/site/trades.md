@@ -36,7 +36,7 @@ _Relevé : code du site, 30/09._
 « Échanger avec … » / « Contre-offre avec … », ouverte depuis /trades, la page Amis (« Échanger ») et la modale de carte du catalogue (« Proposer un échange ») : elle peut apparaître sur toutes ces pages. Le script l'ouvre aussi sur le profil d'un ami et dans une conversation de /dms ([Ouverte par le script](#ouverte-par-le-script)).
 
 - Portail dans `body`, fond `fixed inset-0 z-50` (`p-2`), cadre `max-w-5xl h-[90vh]` (modale « en-tête en barre », [README](README.md#modales)).
-- En-tête : `h2` avec le pseudo de l'ami dans un `span` accent. Résumé « Moi : n cartes · m wb ⇄ … ».
+- En-tête : `h2` avec le pseudo de l'ami, lien du site vers son profil depuis le 12/10/2026 (`a` accent `hover:underline`, « Voir le profil de … » ; avec des modifications, le clic pose d'abord la question « Modifications non enregistrées ») ; un `span` accent avant. Résumé « Moi : n cartes · m wb ⇄ … ».
 - Onglets soulignés « Mes cartes » / « Cartes de … » (`py-2`) : seul le contenu de l'onglet choisi est rendu (clé React `tab-mine` / `tab-theirs`).
 - Zone qui défile : « Sélectionnées (n) » s'il y en a, les filtres, la zone des cartes. Puis Annuler · « Envoyer l'offre ».
 - Échap ou le fond : fermeture, confirmée (« Modifications non enregistrées », Rester / Quitter) s'il y a des changements.

@@ -7,7 +7,8 @@ import { findUnderlinedTabBars } from '@/site/tabs';
 
 /*
  * Fenêtre « Échanger avec … » / « Contre-offre avec … » (code du site, 30/09/2026) : portail dans `body`, fond
- * `fixed inset-0 z-50`, cadre `max-w-5xl h-[90vh]`. En-tête (`h2`, pseudo de l'ami dans un `span`), résumé, onglets
+ * `fixed inset-0 z-50`, cadre `max-w-5xl h-[90vh]`. En-tête (`h2`, pseudo de l'ami : lien du site vers son profil
+ * depuis le 12/10/2026, un `span` avant), résumé, onglets
  * « Mes cartes » / « Cartes de … » (seul le contenu de l'onglet choisi est rendu, clé React `tab-mine` / `tab-theirs`),
  * puis la zone qui défile : « Sélectionnées (n) » s'il y en a, les filtres (`div.mb-4.flex.flex-col.gap-3`), la zone
  * des cartes (`div.relative.min-h-[200px]` : roue en voile pendant un chargement, grille, pagination ← n / m →,
@@ -35,8 +36,6 @@ export interface TradeComposer {
   readonly frame: HTMLElement;
   /** Pseudo de l'ami. */
   readonly friend: string;
-  /** Son pseudo dans le titre (« Échanger avec <span> »). */
-  readonly friendName: HTMLElement;
   /** Résumé « Moi : n cartes · m wb ⇄ … », sous l'en-tête. */
   readonly summary: TradeSummary | undefined;
   /** Onglets « Mes cartes » / « Cartes de … » (rangée soulignée sous le résumé). */
@@ -160,12 +159,11 @@ export function findTradeComposer(doc: Document = document): TradeComposer | und
   for (const frame of doc.querySelectorAll<HTMLElement>(FRAME)) {
     const title = frame.querySelector('h2');
     if (!title || !TITLE.test(textOf(title))) continue;
-    const friendName = title.querySelector<HTMLElement>('span');
-    const friend = friendName?.textContent?.trim();
+    const friend = title.querySelector(':scope > a, :scope > span')?.textContent?.trim();
     const root = frame.parentElement;
-    if (!friendName || !friend || !root) continue;
+    if (!friend || !root) continue;
     const content = frame.querySelector<HTMLElement>('div.overflow-y-auto > div');
-    return { root, frame, friend, friendName, summary: readSummary(frame), tabs: readTabs(frame), tab: content ? readTab(content) : undefined };
+    return { root, frame, friend, summary: readSummary(frame), tabs: readTabs(frame), tab: content ? readTab(content) : undefined };
   }
   return undefined;
 }

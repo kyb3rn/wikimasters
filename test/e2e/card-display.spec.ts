@@ -10,10 +10,10 @@ const row = (classes: string, gap: number, items: string[], id = 'grid') =>
   `<div id="${id}" class="${classes}" style="display:flex;flex-wrap:wrap;justify-content:center;gap:${gap}px">${items.join('')}</div>`;
 const ids = ['a', 'b', 'c', 'd', 'e', 'f'];
 
-/** Fenêtre « Échanger avec » (code du site, 30/09/2026) : fond, cadre `max-w-5xl`, titre, zone qui défile. */
+/** Fenêtre « Échanger avec » (code du site, 12/10/2026) : fond, cadre `max-w-5xl`, titre, zone qui défile. */
 const tradeWindow = (content: string) =>
   '<div class="fixed inset-0 z-50 flex items-center justify-center p-2 bg-black/70"><div class="w-full max-w-5xl rounded-2xl border">' +
-  `<h2>Échanger avec <span>aelonka</span></h2><div class="overflow-y-auto"><div>${content}</div></div></div></div>`;
+  `<h2>Échanger avec <a href="/profile/aelonka">aelonka</a></h2><div class="overflow-y-auto"><div>${content}</div></div></div></div>`;
 /** Choix des cartes d'un échange : `button` > face, rangée en grille sous 500 px. */
 const tradeGrid = (faces: string[], id = 'grid') =>
   row(

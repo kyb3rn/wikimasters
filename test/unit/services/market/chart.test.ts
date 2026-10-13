@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chartModel, clampView, dateTicks, priceTicks } from '@/services/market/chart';
+import { carryView, chartModel, clampView, dateTicks, priceTicks } from '@/services/market/chart';
 import { DAY, sale, SALES_NOW } from '../../support';
 
 const WINDOWS = [{ n: 5, color: 'blue' }];
@@ -59,6 +59,38 @@ describe('modèle du graphique', () => {
     const far = clampView(model, { u0: SALES_NOW + 400 * DAY, u1: SALES_NOW + 410 * DAY, p0: 1000, p1: 1100 });
     expect(far.u0).toBe(model.world.u1);
     expect(far.p0).toBe(model.world.p1);
+  });
+
+  describe('vue gardée à l’actualisation', () => {
+    const before = [sale(100, 20), sale(200, 10), sale(150, 4)];
+    const model = (sales = before) => {
+      const built = chartModel(sales, WINDOWS, SALES_NOW);
+      if (!built) throw new Error('modèle attendu');
+      return built;
+    };
+    const zoomed = { u0: SALES_NOW - 12 * DAY, u1: SALES_NOW - 3 * DAY, p0: 90, p1: 210 };
+
+    it('aucune vente nouvelle, ou nouvelles dans la vue : même zoom, même position', () => {
+      expect(carryView(model(), zoomed, model())).toEqual(zoomed);
+      expect(carryView(model(), zoomed, model([...before, sale(180, 3.5)]))).toEqual(zoomed);
+    });
+
+    it('nouvelles ventes au-delà du bord droit : décalage à gauche jusqu’à la plus récente (marge de la vue de départ), même zoom', () => {
+      const view = carryView(model(), zoomed, model([...before, sale(180, 2), sale(170, 1)]));
+      expect(view.u1 - view.u0).toBeCloseTo(9 * DAY);
+      expect(view.u1).toBeCloseTo(SALES_NOW - DAY + (0.05 / 1.05) * 9 * DAY);
+      expect(view).toMatchObject({ p0: 90, p1: 210 });
+    });
+
+    it('vue sur le passé : rien ne bouge, même avec de nouvelles ventes', () => {
+      const past = { ...zoomed, u0: SALES_NOW - 25 * DAY, u1: SALES_NOW - 8 * DAY };
+      expect(carryView(model(), past, model([...before, sale(180, 1)]))).toEqual(past);
+    });
+
+    it('repère changé (ventes à la même date, puis datées) : vue de départ', () => {
+      const next = model([sale(100, 3), sale(120, 1)]);
+      expect(carryView(model([sale(100, 3), sale(100, 3)]), { u0: 0, u1: 1, p0: 90, p1: 110 }, next)).toEqual(next.initial);
+    });
   });
 
   it('graduations : prix « jolis » (sans −0), dates réparties bornes comprises', () => {

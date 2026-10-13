@@ -41,6 +41,19 @@ test('fenêtre agrandie, joueurs sur deux colonnes : dix joueurs sans défilemen
   expect(await results(page).evaluate((element) => element.scrollHeight - element.clientHeight)).toBeLessThanOrEqual(0);
 });
 
+test('pseudo trop long : coupé (…), « Demande envoyée » sur une seule ligne', async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await openFriendsPage(page);
+  await openSearch(page);
+  await siteField(page).fill('jaime');
+  const row = players(page).first();
+  await row.getByRole('button', { name: 'Ajouter' }).click();
+  const sent = row.getByRole('button', { name: 'Demande envoyée' });
+  await expect(sent).toBeDisabled();
+  expect((await rect(sent)).height).toBeLessThanOrEqual(30.5);
+  expect(await row.locator('span.flex-1').evaluate((name) => name.scrollWidth > name.clientWidth)).toBe(true);
+});
+
 test('mobile : une seule colonne', async ({ page }) => {
   await page.setViewportSize({ width: 420, height: 800 });
   await openFriendsPage(page);

@@ -26,7 +26,7 @@ const PAGE = 'wm-resale-page';
  */
 function pageCss(): string {
   const collection = sideNavLink(COLLECTION_ROUTE);
-  const { area, line, field, sort, prices, price, section, sale, order } = RESALE_CLASS;
+  const { area, line, field, sort, prices, price, section, head, sale, order } = RESALE_CLASS;
   // Page en colonne sur toute la hauteur de `<main>` : le rond du chargement tombe au milieu. Ligne des filtres comme
   // celles des listes (écart de 12 px du site), prix sous chaque carte comme dans la Collection.
   return `
@@ -40,6 +40,9 @@ ${filterLineCss({ area, line, field, sort }, { sortBasis: '10rem', sortMin: '8.5
 .${price} { flex: 1 1 0%; min-width: 0; }
 .wm-resale-wished { display: flex; }
 .${section} { display: flex; flex-direction: column; gap: 12px; }
+.${head} { display: flex; align-items: center; gap: 12px; }
+/* « Réessayer » à côté du titre sans agrandir sa ligne : rien ne bouge quand il paraît. */
+.${head} > button { margin-block: -5px; }
 .${sale} > a { display: block; position: relative; }
 .${sale} > .${prices} { margin-top: 6px; }
 .${sale} > a + div { margin-top: 8px; }

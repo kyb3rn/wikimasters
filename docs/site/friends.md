@@ -34,15 +34,16 @@ main › div.flex-1.p-4.md:p-6.space-y-6
 
 ## Fenêtre « Rechercher un joueur »
 
-_Relevé : code du site du 01/10 ; capture du 01/10 (fenêtre fermée)._
+_Relevé : code du site du 12/10 ; capture du 01/10 (fenêtre fermée)._
 
 ```
-div.fixed.inset-0.z-50.bg-black/70.backdrop-blur-sm (fond, ferme) › div.card-frame.w-full.max-w-md.p-6
+div.fixed.inset-0.z-50.bg-black/70.backdrop-blur-sm (fond, ferme) › div.card-frame.w-full.max-w-2xl.max-h-full.overflow-y-auto.p-6
   div.flex.items-center.justify-between.mb-5 › h2 « Rechercher un joueur », button[aria-label="Fermer"] (lucide x)
   input « Nom d'utilisateur... »
-  div.mt-4.h-[220px].overflow-y-auto.space-y-2 › [roue], [p message], lignes :
-    div.flex.items-center.gap-3.p-2.5.rounded-lg › photo (w-9 h-9), span pseudo,
-      [button « Signaler <pseudo> » (lucide flag)], button « Ajouter » / « ... » / « Demande envoyée » / « Déjà amis » / « Demande reçue »
+  div.mt-4.h-[min(60vh,560px)].overflow-y-auto.space-y-2 › [roue], [p message], lignes :
+    div.flex.items-center.gap-3.p-2.5.rounded-lg.bg-[surface-light] › photo (w-9 h-9), span.flex-1 pseudo (sans min-w-0 :
+      un long pseudo ne rétrécit pas, le bouton passe à la ligne), [button « Signaler <pseudo> » (lucide flag)],
+      button « Ajouter » / « ... » / « Demande envoyée » (lucide check devant) / « Déjà amis » / « Demande reçue »
   [fenêtre « Signaler »]
 ```
 

@@ -265,10 +265,12 @@ test('50 cartes par page, pagination en haut et en bas', async ({ page }) => {
   await expect.poll(() => titles(page)).toHaveLength(20);
 });
 
-test('rechargement : nouvelle lecture, roue et bouton désactivé pendant la requête ; échec en toast, liste gardée', async ({ page }) => {
+test('rechargement : les deux sections relues, roue et bouton désactivé ; échec en toast, liste gardée, « Réessayer » ne relit qu’elle', async ({ page }) => {
   const { server, supabase } = copiesServer(() => THREE);
-  await openResale(page, { supabase });
+  const market = salesServer();
+  await openResale(page, { supabase, handle: market.handle });
   await expect.poll(() => titles(page)).toHaveLength(3);
+  await expect(section(page, 'collection').getByRole('button', { name: 'Réessayer' })).toHaveCount(0);
 
   const release = hold(server);
   await submit(page).click();
@@ -276,19 +278,19 @@ test('rechargement : nouvelle lecture, roue et bouton désactivé pendant la req
   await expect(submit(page)).toHaveAttribute('aria-busy', 'true');
   server.fail = 1;
   release();
-  await expect(page.getByRole('alert').filter({ hasText: 'Revente' })).toBeVisible();
+  await expect(page.getByRole('alert').filter({ hasText: 'Revente · Collection' })).toBeVisible();
   expect(await titles(page)).toHaveLength(3);
   await expect(submit(page)).toBeEnabled();
   expect(server.reads).toHaveLength(2);
-});
+  expect(market.server.reads).toBe(2);
 
-test('première lecture en échec : message et « Réessayer »', async ({ page }) => {
-  const { server, supabase } = copiesServer(() => THREE);
-  server.fail = 1;
-  await openResale(page, { supabase });
-  await expect(page.locator('.wm-resale-page [role="alert"]')).toContainText('erreur 500');
-  await page.getByRole('button', { name: 'Réessayer' }).click();
-  await expect.poll(() => titles(page)).toHaveLength(3);
+  // La liste d'avant reste : « Réessayer » à côté du titre relit la collection seule.
+  const retry = section(page, 'collection').getByRole('button', { name: 'Réessayer' });
+  await retry.click();
+  await expect(retry).toHaveCount(0);
+  expect(server.reads).toHaveLength(3);
+  expect(market.server.reads).toBe(2);
+  await expectDomIdle(page);
 });
 
 test('filtres retenus d’une visite à l’autre (tri, raretés, recherche)', async ({ page }) => {
@@ -544,8 +546,26 @@ function sellingRow(id: string, title: string, rarity: string, amount: number, b
   };
 }
 
+/** « Mes ventes » imitées (`mine=1`) : lectures comptées, les `fail` suivantes en erreur 500. */
+function salesServer(selling: readonly object[] = []) {
+  const server = { reads: 0, fail: 0 };
+  const handle: ShellOptions['handle'] = async (route, url) => {
+    if (url.pathname !== '/api/marketplace') return false;
+    server.reads++;
+    if (server.fail > 0) {
+      server.fail--;
+      await route.fulfill({ status: 500, json: { error: 'Erreur serveur' } });
+    } else {
+      await route.fulfill({ json: { auctions: [], mine: true, selling } });
+    }
+    return true;
+  };
+  return { server, handle };
+}
+
 const saleCells = (page: Page) => page.locator('.wm-resale-page [data-sale]');
 const sectionTitles = (page: Page) => page.locator('.wm-resale-page h2').allTextContents();
+const section = (page: Page, name: 'market' | 'collection') => page.locator(`.wm-resale-page [data-section="${name}"]`);
 
 test('« Au marché » : mes ventes en cours entre les filtres et la collection, triées, avec leur mise et leur temps', async ({ page }) => {
   const { supabase } = copiesServer(() => THREE);
@@ -596,23 +616,73 @@ test('« Au marché » : mes ventes en cours entre les filtres et la collection,
   await expectDomIdle(page);
 });
 
-test('« Au marché » : aucune vente, ou ventes pas lues (la collection s’affiche quand même)', async ({ page }) => {
+test('« Au marché » : aucune vente', async ({ page }) => {
   const { supabase } = copiesServer(() => THREE);
   await openResale(page, { supabase });
   await expect.poll(() => sectionTitles(page)).toEqual(['Au marché (0)', 'Collection (3)']);
   await expect(page.locator('.wm-resale-page')).toContainText('Aucune carte en vente.');
+});
 
-  await page.unroute('https://www.wiki-masters.com/**');
-  await openResale(page, {
-    supabase,
-    handle: async (route, url) => {
-      if (url.pathname !== '/api/marketplace') return false;
-      await route.fulfill({ status: 500, json: { error: 'Erreur serveur' } });
-      return true;
-    },
-  });
-  await expect.poll(() => titles(page)).toHaveLength(3);
-  await expect(page.locator('.wm-resale-page [role="alert"]')).toContainText('Erreur serveur');
+// --- Sections lues à part ---
+
+test('ventes pas lues : leur erreur dans leur section, la collection affichée ; « Réessayer » ne relit qu’elles', async ({ page }) => {
+  const { server, supabase } = copiesServer(() => THREE);
+  const market = salesServer([sellingRow('v1', 'Arc de triomphe', 'R', 40, null, 30)]);
+  market.server.fail = 1;
+  await openResale(page, { supabase, handle: market.handle });
+  await expect(section(page, 'market').getByRole('alert')).toContainText('Erreur serveur');
+  await expect.poll(() => sectionTitles(page)).toEqual(['Au marché', 'Collection (3)']);
+  await expect(section(page, 'collection').locator('h3')).toHaveCount(3);
+
+  await section(page, 'market').getByRole('button', { name: 'Réessayer' }).click();
+  await expect.poll(() => sectionTitles(page)).toEqual(['Au marché (1)', 'Collection (3)']);
+  await expect(saleCells(page)).toHaveCount(1);
+  expect(market.server.reads).toBe(2);
+  expect(server.reads).toHaveLength(1);
+});
+
+test('collection pas lue : son erreur dans sa section, filtres et ventes affichés ; « Réessayer » ne relit qu’elle', async ({ page }) => {
+  const { server, supabase } = copiesServer(() => THREE);
+  const market = salesServer([sellingRow('v1', 'Arc de triomphe', 'R', 40, null, 30)]);
+  server.fail = 1;
+  await openResale(page, { supabase, handle: market.handle });
+  await expect(section(page, 'collection').getByRole('alert')).toContainText('erreur 500');
+  await expect.poll(() => sectionTitles(page)).toEqual(['Au marché (1)', 'Collection']);
+  await expect(saleCells(page)).toHaveCount(1);
+  await expect(page.getByRole('textbox', { name: 'Rechercher' })).toBeVisible();
+  // Le total compte ce qui est lu.
+  await expect(titleGroup(page)).toContainText('1 carte · 1 sans prix souhaité');
+
+  // Les filtres valent déjà pour les ventes.
+  await page.getByRole('textbox', { name: 'Rechercher' }).fill('zzz');
+  await submit(page).click();
+  await expect.poll(() => sectionTitles(page)).toEqual(['Au marché (0)', 'Collection']);
+  await page.getByRole('textbox', { name: 'Rechercher' }).fill('');
+  await submit(page).click();
+
+  await section(page, 'collection').getByRole('button', { name: 'Réessayer' }).click();
+  await expect.poll(() => sectionTitles(page)).toEqual(['Au marché (1)', 'Collection (3)']);
+  await expect(section(page, 'collection').locator('h3')).toHaveCount(3);
+  expect(server.reads).toHaveLength(2);
+  expect(market.server.reads).toBe(1);
+  await expectDomIdle(page);
+});
+
+test('les deux sections pas lues : chacune son erreur, le bouton de la recherche relit les deux', async ({ page }) => {
+  const { server, supabase } = copiesServer(() => THREE);
+  const market = salesServer();
+  server.fail = 1;
+  market.server.fail = 1;
+  await openResale(page, { supabase, handle: market.handle });
+  await expect(section(page, 'market').getByRole('alert')).toBeVisible();
+  await expect(section(page, 'collection').getByRole('alert')).toBeVisible();
+  await expect(titleGroup(page)).not.toContainText('carte');
+
+  await submit(page).click();
+  await expect.poll(() => sectionTitles(page)).toEqual(['Au marché (0)', 'Collection (3)']);
+  await expect(page.locator('.wm-resale-page [role="alert"]')).toHaveCount(0);
+  expect(server.reads).toHaveLength(2);
+  expect(market.server.reads).toBe(2);
 });
 
 // --- Sens du tri ---

@@ -94,6 +94,8 @@ export function Panel({ store, onOpen }: PanelProps) {
   const [error, setError] = useState<string>();
   const [duration, setDuration] = useState<number>();
   const run = useRef(0);
+  /** Filtres de la dernière recherche lancée, réussie ou non : ceux que « Réessayer » relance (demande de l'utilisateur, 12/10). */
+  const attempted = useRef<AuctionFilters>();
 
   const setFilters = (next: AuctionFilters) => {
     store.filters = next;
@@ -104,6 +106,7 @@ export function Panel({ store, onOpen }: PanelProps) {
 
   async function search(target: AuctionFilters, after: AuctionCursor | undefined): Promise<void> {
     const id = ++run.current;
+    if (!after) attempted.current = target;
     setStatus(after ? 'more' : 'loading');
     const started = performance.now();
     try {
@@ -221,7 +224,7 @@ export function Panel({ store, onOpen }: PanelProps) {
       </div>
 
       {error !== undefined ? (
-        <LoadError message={error} busy={status === 'loading'} onRetry={() => void search(applied ?? filters, undefined)} />
+        <LoadError message={error} busy={status === 'loading'} onRetry={() => void search(attempted.current ?? filters, undefined)} />
       ) : auctions === undefined ? null : auctions.length === 0 ? (
         <div class={siteClass.emptyFrame}>
           <Icon name="gavel" size={32} class={siteClass.emptyIcon} />

@@ -155,7 +155,7 @@ factories.set(273271, (e, m, exports) => {
     window.tradeProps = { friendUsername: props.friendUsername, friendProfileId: props.friendProfileId };
     const root = document.createElement('div');
     root.id = 'trade-window';
-    root.innerHTML = '<h2>Échanger avec <span>' + props.friendUsername + '</span></h2><button id="trade-cancel">Annuler</button>';
+    root.innerHTML = '<h2>Échanger avec <a href="/profile/' + props.friendUsername + '">' + props.friendUsername + '</a></h2><button id="trade-cancel">Annuler</button>';
     root.querySelector('#trade-cancel').addEventListener('click', () => props.onClose());
     return root;
   };

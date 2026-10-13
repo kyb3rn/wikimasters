@@ -114,6 +114,10 @@ export interface SalesChartProps {
   readonly modes: ChartModes;
   /** Maj et Ctrl maintenues, à chaque touche et mouvement de souris (souvent inchangées). Fonction stable : lue au montage. */
   readonly onKeys: (held: ChartModes) => void;
+  /** Vue au montage ; sans elle, celle de départ du modèle. */
+  readonly startView?: View;
+  /** Chaque nouvelle vue (déplacement, zoom, touche). Fonction stable : lue au montage. */
+  readonly onView?: (view: View) => void;
 }
 
 /**
@@ -122,11 +126,11 @@ export interface SalesChartProps {
  * Règle (Ctrl) : règle horizontale avec son prix. Glisser dans le tracé : déplacer ; sur l'axe des dates (droite = avant) ou
  * des prix (haut = avant) : zoom de cet axe ; molette : zoom autour du curseur (un seul axe sur sa graduation).
  * R : 30 derniers jours (vue de départ), A : toutes les ventes (chacune désactivable). À remonter (`key`)
- * pour d'autres ventes.
+ * pour d'autres ventes, avec `startView` pour garder la vue.
  */
-export function SalesChart({ model, showAverages, modes, onKeys }: SalesChartProps) {
+export function SalesChart({ model, showAverages, modes, onKeys, startView, onView }: SalesChartProps) {
   const [clip] = useState(() => `wm-market-clip-${++sequence}`);
-  const [view, setView] = useState(model.initial);
+  const [view, setView] = useState(() => startView ?? model.initial);
   const [hover, setHover] = useState<Hover>();
   const [tip, setTip] = useState<Tip>();
   const [dragging, setDragging] = useState(false);
@@ -237,6 +241,7 @@ export function SalesChart({ model, showAverages, modes, onKeys }: SalesChartPro
     const clamped = clampView(model, next);
     viewRef.current = clamped;
     setView(clamped);
+    onView?.(clamped);
     return clamped;
   }
 

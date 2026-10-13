@@ -252,11 +252,13 @@ test.describe("fenêtre d'échange : erreur de chargement", () => {
 });
 
 test.describe("fenêtre d'échange : présentation", () => {
-  test('le pseudo de l’ami dans le titre mène à son profil', async ({ page }) => {
+  test('le pseudo de l’ami dans le titre : lien du site vers son profil, laissé tel quel ; la fenêtre est reconnue', async ({ page }) => {
     await open(page);
     const link = composer(page).locator('h2').getByRole('link', { name: 'aelonka' });
-    await expect(link).toHaveAttribute('href', '/profile/aelonka');
-    await expect(composer(page).locator('h2 > span[data-wm-hidden]')).toHaveText('aelonka');
+    await expect(link).toHaveCount(1);
+    await expect(link).toHaveAttribute('title', 'Voir le profil de aelonka');
+    await expect(composer(page).locator('h2 .wm-profile-link, h2 [data-wm-hidden]')).toHaveCount(0);
+    await expect(line(page).getByRole('button', { name: 'UR', exact: true })).toBeVisible();
   });
 
   test('résumé : pseudo (le sien à la place de « Moi ») au-dessus des cartes et wikibidous, chaque côté centré dans sa moitié', async ({ page }) => {

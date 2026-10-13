@@ -7,6 +7,8 @@ import { movingAverage, niceStep, type AveragePoint } from './stats';
  */
 
 const DAY = 86_400_000;
+/** Marge à droite de la dernière date d'une vue cadrée, en part de ses dates. */
+const RIGHT_MARGIN = 0.05;
 
 export interface View {
   readonly u0: number;
@@ -107,7 +109,7 @@ export function chartModel(sales: readonly Sale[], windows: readonly AverageWind
 
   /** Dates de `from` à `to` (+5 % à droite), prix ajustés aux ventes qui s'y trouvent (−4 % en bas). */
   const frame = (from: number, to: number): View => {
-    const u1 = to + 0.05 * (to - from);
+    const u1 = to + RIGHT_MARGIN * (to - from);
     let { p0, p1 } = data;
     const visible = points.filter((point) => point.u >= from && point.u <= u1).map((point) => point.price);
     if (visible.length) {
@@ -163,6 +165,19 @@ export function clampView(model: ChartModel, view: View): View {
   if (p0 > world.p1) [p0, p1] = [world.p1, p1 - (p0 - world.p1)];
   if (p1 < world.p0) [p0, p1] = [p0 + (world.p0 - p1), world.p0];
   return { u0, u1, p0, p1 };
+}
+
+/**
+ * Vue gardée quand les ventes sont actualisées : même zoom, même position. Seule exception : la vue allait jusqu'à
+ * la dernière vente et de nouvelles tombent au-delà de son bord droit, décalage vers la gauche jusqu'à la plus
+ * récente (marge de la vue de départ). Vue sur le passé : rien ne bouge. Repère changé (dates ↔ rangs) : vue de départ.
+ */
+export function carryView(previous: ChartModel, view: View, next: ChartModel): View {
+  if (previous.byIndex !== next.byIndex) return next.initial;
+  const latest = next.data.u1;
+  if (view.u1 < previous.data.u1 || latest <= view.u1) return clampView(next, view);
+  const shift = latest + (RIGHT_MARGIN / (1 + RIGHT_MARGIN)) * (view.u1 - view.u0) - view.u1;
+  return clampView(next, { ...view, u0: view.u0 + shift, u1: view.u1 + shift });
 }
 
 /** Zoom de facteur `k` (< 1 : avant) autour de `anchor`, sur les dates ou sur les prix. */

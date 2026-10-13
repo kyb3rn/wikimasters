@@ -349,7 +349,11 @@ export interface FriendsServer {
 const player = (id: string, username: string) => ({ id, username, avatar_url: null, avatar_pos_x: 50, avatar_pos_y: 50 });
 
 /** Joueurs du serveur : la recherche (`GET /api/friends/search`) rend ceux dont le pseudo contient le texte. */
-const PLAYERS = [player('u20', 'Zorglub'), ...Array.from({ length: 10 }, (_, i) => player(`p${i}`, `Joueur${i}`))];
+const PLAYERS = [
+  player('u20', 'Zorglub'),
+  player('u21', 'Jaimebienlacartesettoibeaucoupbeaucoup'),
+  ...Array.from({ length: 10 }, (_, i) => player(`p${i}`, `Joueur${i}`)),
+];
 
 type Handler = (route: Route, id: string) => Promise<void>;
 

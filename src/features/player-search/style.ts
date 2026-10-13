@@ -8,11 +8,11 @@ export const BAR = 'wm-player-search-bar';
 export const BUTTON = 'wm-player-search-button';
 
 /*
- * Fenêtre de 896 px au lieu de 448 (56 rem : 420 px par ligne de joueur sur deux colonnes, le pseudo garde sa
- * place à côté de « Demande envoyée »). Résultats sur deux colonnes, assez hauts pour cinq rangées de lignes de
- * 56 px, soit dix joueurs sans défilement ; une seule colonne sous 640 px (le `sm` du site). La roue et les
- * messages (« Aucun joueur trouvé »…) n'ont pas de bouton : toute la largeur. L'écart vertical de `space-y-2`
- * (`:where`, sans poids) cède à celui de la grille ; `div.` passe devant `max-w-md` et `h-[220px]` du site.
+ * Fenêtre de 896 px (56 rem : 420 px par ligne de joueur sur deux colonnes). Résultats sur deux colonnes, assez
+ * hauts pour cinq rangées de lignes de 56 px, soit dix joueurs sans défilement ; une seule colonne sous 640 px (le
+ * `sm` du site). La roue et les messages (« Aucun joueur trouvé »…) n'ont pas de bouton : toute la largeur. L'écart
+ * vertical de `space-y-2` (`:where`, sans poids) cède à celui de la grille ; `div.` passe devant la largeur et la
+ * hauteur du site. Pseudo trop long : coupé (…), jamais les boutons (« Demande envoyée » sur une ligne).
  */
 export const CSS = `
 div.${FRAME} { max-width: 56rem; }
@@ -20,6 +20,8 @@ div.${RESULTS} { height: 19.5rem; display: grid; grid-template-columns: repeat(2
   align-content: start; }
 .${RESULTS} > * { margin-block: 0; }
 .${RESULTS} > :not(:has(> button)) { grid-column: 1 / -1; }
+.${RESULTS} > div > span.flex-1 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.${RESULTS} > div > button { flex-shrink: 0; white-space: nowrap; }
 @media (max-width: 639.98px) {
   div.${RESULTS} { grid-template-columns: minmax(0, 1fr); }
 }

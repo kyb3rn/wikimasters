@@ -309,16 +309,23 @@ test('pendant « Charger la suite », la recherche est désactivée', async ({ p
   await expect(submit(page)).toBeEnabled();
 });
 
-test('recherche en échec : message à la place de la liste ; « Réessayer » tourne pendant le nouvel essai', async ({ page }) => {
+test('recherche en échec : message à la place de la liste ; « Réessayer » relance la recherche tentée et tourne pendant le nouvel essai', async ({ page }) => {
   const server = await openMarket(page);
+  await openTab(page);
+  await expect(tiles(page)).toHaveCount(50);
+
   let failing = true;
   await page.route(`${SUPABASE}/rest/v1/auctions**`, (route) =>
     failing ? route.fulfill({ status: 500, json: { message: 'panne' } }) : route.fallback(),
   );
-  await openTab(page);
+  const price = page.getByRole('spinbutton', { name: 'Prix minimum' });
+  await price.fill('200');
+  await price.press('Enter');
   const alert = page.getByRole('alert');
   await expect(alert).toContainText('Supabase a refusé la recherche (panne).');
 
+  // Ni la dernière recherche réussie, ni les filtres changés depuis : celle qui a échoué.
+  await price.fill('300');
   failing = false;
   const held = await holdAuctions(page);
   const retry = alert.getByRole('button', { name: 'Réessayer' });
@@ -328,7 +335,8 @@ test('recherche en échec : message à la place de la liste ; « Réessayer » t
   held.release();
   await expect(tiles(page)).toHaveCount(50);
   await expect(alert).toHaveCount(0);
-  expect(server.auctions).toHaveLength(1);
+  expect(server.auctions).toHaveLength(2);
+  expect(server.auctions[1]?.searchParams.get('and')).toBe('(or(current_bid.gte.200,and(current_bid.is.null,base_amount.gte.200)))');
 });
 
 test('prix moyen aussi sous nos vignettes : chargé au clic, gain et cadre comme pour celles du site', async ({ page }) => {

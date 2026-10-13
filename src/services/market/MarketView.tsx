@@ -1,10 +1,10 @@
 import type { ComponentChildren } from 'preact';
-import { useCallback, useMemo, useState } from 'preact/hooks';
+import { useCallback, useMemo, useRef, useState } from 'preact/hooks';
 import { parseRarity, rarityColor } from '@/site/rarity';
 import { Switch } from '@/ui/controls';
 import type { MarketEntry } from './cache';
 import { Coin } from './Coin';
-import { chartModel } from './chart';
+import { carryView, chartModel, type ChartModel, type View } from './chart';
 import { formatDate, formatNumber, plural, round1 } from './format';
 import type { CardRef } from '@/site/cards';
 import { AVERAGE_WINDOWS, NO_MODES, SalesChart, type ChartModes } from './SalesChart';
@@ -101,6 +101,19 @@ export function MarketView({ card, entry, selection, onSelect, showAverages, onS
     };
   }, [entry, selection, card.rarity]);
   const { all, rarities, selected, everything, shown, mean7, model } = view;
+  const rarityKey = selected.join();
+  // Ventes actualisées, mêmes raretés : le nouveau graphique reprend la vue de l'ancien. Autres raretés : vue de départ.
+  const chartView = useRef<{ model: ChartModel; rarities: string; view: View }>();
+  const startView = useMemo(() => {
+    if (!model) return undefined;
+    const previous = chartView.current;
+    const start = previous?.rarities === rarityKey ? carryView(previous.model, previous.view, model) : model.initial;
+    chartView.current = { model, rarities: rarityKey, view: start };
+    return start;
+  }, [model, rarityKey]);
+  const onView = useCallback((next: View) => {
+    if (chartView.current) chartView.current = { ...chartView.current, view: next };
+  }, []);
   // Interrupteurs des modes, pour une capture d'écran sans touche maintenue : allumés aussi par leur touche.
   const [locked, setLocked] = useState(NO_MODES);
   const [held, setHeld] = useState(NO_MODES);
@@ -242,11 +255,13 @@ export function MarketView({ card, entry, selection, onSelect, showAverages, onS
           </div>
           <div class="wm-market-chart-box">
             <SalesChart
-              key={`${entry.fetchedAt} ${selected.join()}`}
+              key={`${entry.fetchedAt} ${rarityKey}`}
               model={model}
               showAverages={showAverages}
               modes={modes}
               onKeys={onKeys}
+              startView={startView}
+              onView={onView}
             />
           </div>
         </div>

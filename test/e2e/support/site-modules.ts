@@ -103,7 +103,7 @@ export const FRIENDS_CHUNKS: Readonly<Record<string, string>> = {
       window.tradeProps = { friendUsername: u, friendProfileId: i };
       const root = document.createElement('div');
       root.id = 'trade-window';
-      root.innerHTML = '<h2>Échanger avec <span>' + u + '</span></h2><button id="trade-cancel">Annuler</button><button id="trade-send">Envoyer</button>';
+      root.innerHTML = '<h2>Échanger avec <a href="/profile/' + u + '">' + u + '</a></h2><button id="trade-cancel">Annuler</button><button id="trade-send">Envoyer</button>';
       root.querySelector('#trade-cancel').addEventListener('click', () => c());
       root.querySelector('#trade-send').addEventListener('click', () => s());
       return root;

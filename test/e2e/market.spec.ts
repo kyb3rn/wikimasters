@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { CAROUSEL, openCard, packFaces } from './support/pulls';
-import { letTimePass, presetSettings, rect } from './support/site';
+import { letTimePass, nextFrame, presetSettings, rect } from './support/site';
 
 test.beforeEach(({ page }) => presetSettings(page, CAROUSEL));
 
@@ -299,6 +299,23 @@ test('R : les 30 derniers jours (vue de départ) ; A : toutes les ventes', async
   await expect.poll(() => dateLabels(page)).toBe(await dayLabel(page, 50));
   await page.keyboard.press('r');
   await expect.poll(() => dateLabels(page)).toBe(recent);
+});
+
+test('« Actualiser » garde la vue du graphique', async ({ page }) => {
+  const server = newServer();
+  const card = await openCardModal(page, server);
+  await card.getByRole('button', { name: 'Marché' }).click();
+  await history(page).getByRole('button', { name: 'Toutes' }).click();
+  const all = await dayLabel(page, 50);
+  await page.keyboard.press('a');
+  await expect.poll(() => dateLabels(page)).toBe(all);
+
+  const refresh = history(page).getByRole('button', { name: 'Actualiser' });
+  await refresh.click();
+  await expect.poll(() => server.count).toBe(2);
+  await expect(refresh).toBeEnabled();
+  await nextFrame(page);
+  expect(await dateLabels(page)).toBe(all);
 });
 
 test('touche A désactivée dans les réglages : sans effet, absente de l’aide', async ({ page }) => {
